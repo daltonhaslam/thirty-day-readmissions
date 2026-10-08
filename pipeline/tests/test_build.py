@@ -44,8 +44,9 @@ class GeoTest(unittest.TestCase):
 
     @unittest.skipUnless((RAW / "us_atlas_counties" / "counties-10m.json").exists(), "raw data not fetched")
     def test_county_centroid_salt_lake(self):
-        cents = geo.county_centroids(RAW / "us_atlas_counties" / "counties-10m.json")
-        lat, lon = cents["49035"]
+        by_fips, by_name = geo.county_centroids(RAW / "us_atlas_counties" / "counties-10m.json")
+        lat, lon = by_fips["49035"]
+        self.assertEqual(by_name[geo.county_key("UT", "SALT LAKE")], (lat, lon))
         self.assertAlmostEqual(lat, 40.67, delta=0.3)
         self.assertAlmostEqual(lon, -111.92, delta=0.3)
 
@@ -73,7 +74,8 @@ class ContractTest(unittest.TestCase):
 
     def test_replication_and_geocode_coverage(self):
         rep = self.d["meta"]["replication"]
-        self.assertGreaterEqual(rep["matched"] / rep["total"], 0.99)
+        self.assertEqual(rep["mismatches"], [])
+        self.assertGreaterEqual(rep["exact"] / rep["total"], 0.95)
         with_geo = sum(1 for x in self.h if x["lat"] is not None)
         self.assertGreaterEqual(with_geo / len(self.h), 0.97)
 
@@ -117,9 +119,6 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(len(self.d["meta"]["peerCutoffs"]), 5)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class HistorySummaryTest(unittest.TestCase):
     def test_summarize_fy_reproduces_historical_csv_definitions(self):
@@ -134,3 +133,54 @@ class HistorySummaryTest(unittest.TestCase):
             self.assertEqual(got[k], row[k], k)
         for k in ("meanRed", "meanRedPen", "medianRedPen"):
             self.assertAlmostEqual(got[k], row[k], places=3, msg=k)
+
+    def test_summarize_fy_handles_no_penalized_hospitals(self):
+        from hrrp import history
+        got = history.summarize_fy(2030, [1.0, 1.0], cap_pct=3)
+        self.assertEqual((got["nPen"], got["meanRedPen"], got["medianRedPen"]), (0, 0, 0))
+        self.assertEqual(history.summarize_fy(2030, [], cap_pct=3)["n"], 0)
+
+
+class NamesEdgeTest(unittest.TestCase):
+    def test_mount_abbreviation(self):
+        self.assertEqual(names.smart_title("MT SINAI HOSPITAL MEDICAL CENTER"), "Mt Sinai Hospital Medical Center")
+
+    def test_common_abbreviations_are_title_cased(self):
+        self.assertEqual(names.smart_title("BAPTIST HLTH MED CTR"), "Baptist Hlth Med Ctr")
+        self.assertEqual(names.smart_title("UOFL HEALTH - JEWISH HOSPITAL"), "UofL Health - Jewish Hospital")
+
+    def test_detached_mc_prefix_joins(self):
+        self.assertEqual(names.smart_title("MC DONOUGH DISTRICT HOSPITAL"), "McDonough District Hospital")
+        self.assertEqual(names.smart_title("MC KINNEY"), "McKinney")
+
+    def test_articles_after_separators_or_at_end_stay_capitalized(self):
+        self.assertEqual(names.smart_title("VILLAGES REGIONAL HOSPITAL, THE"), "Villages Regional Hospital, The")
+        self.assertEqual(names.smart_title("DELTA HEALTH SYSTEM - THE MEDICAL CENTER"), "Delta Health System - The Medical Center")
+        self.assertEqual(names.smart_title("CENTER OF THE ROCKIES"), "Center of the Rockies")
+
+
+@unittest.skipUnless((RAW / "hrrp_supplemental_fy2027").exists() and OUT.exists(), "raw data not fetched")
+class FreshBuildTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import build_data
+        cls.built = json.loads(json.dumps(build_data.build(), ensure_ascii=False))
+        cls.committed = json.loads(OUT.read_text(encoding="utf-8"))
+        cls.by_id = {x["id"]: x for x in cls.built["hospitals"]}
+
+    def test_committed_json_matches_a_fresh_build(self):
+        self.assertEqual(self.built, self.committed, "web/src/data/hrrp.json is stale: run pipeline/build_data.py")
+
+    def test_mdh_hospitals_are_tagged(self):
+        self.assertGreater(sum(1 for x in self.built["hospitals"] if "MDH" in x["types"]), 100)
+
+    def test_connecticut_po_box_hospitals_are_placed_in_their_care_compare_county(self):
+        x = self.by_id["070005"]  # Waterbury Hospital, New Haven County
+        self.assertEqual(x["geo"], "county")
+        self.assertAlmostEqual(x["lat"], 41.4, delta=0.3)
+        self.assertEqual(self.built["meta"]["geocode"]["none"], 0)
+
+    def test_replication_reports_exact_and_rounding_matches_separately(self):
+        rep = self.built["meta"]["replication"]
+        self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
+        self.assertGreater(rep["rounding"], 0)

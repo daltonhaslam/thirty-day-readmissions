@@ -74,10 +74,13 @@ def _is_ccn(s):
 
 
 def _index_by_ccn(path, records, build):
+    """{ccn: build(record)}. Footnote rows (no CCN) are skipped; a numeric cell that is not a 6-character CCN raises."""
     out = {}
     for r in records:
         ccn = r["ccn"]
         if not _is_ccn(ccn):
+            if ccn.isdigit():
+                raise SchemaError(f"{path}: malformed CCN {ccn!r} (expected 6 characters)")
             continue
         if ccn in out:
             raise SchemaError(f"{path}: duplicate CCN {ccn}")
@@ -119,7 +122,8 @@ def read_impact(path, fy, grouper):
                "fips": "FIPS County Code", "urgeo": "URGEO", "wi": f"FY {fy} Wage Index",
                "cola": "Cost of Living Adjustment", "irb": "Resident to Bed Ratio", "beds": "Beds",
                "cases": f"CASETA{grouper}", "cmi": f"TACMIV{grouper}", "qual_red": "Proxy Quality Reduction",
-               "ehr_red": "Proxy EHR Reduction", "own": "Ownership Control Type", "ptype": "Provider Type"}
+               "ehr_red": "Proxy EHR Reduction", "own": "Ownership Control Type", "ptype": "Provider Type",
+               "mdh": "MDH Flag"}
 
     def build(r):
         return {
@@ -127,7 +131,7 @@ def read_impact(path, fy, grouper):
             "urgeo": r["urgeo"], "wi": num(r["wi"]), "cola": num(r["cola"]) or 1.0, "irb": num(r["irb"]) or 0.0,
             "beds": _int(r["beds"]), "cases": num(r["cases"]), "cmi": num(r["cmi"]),
             "qual_red": num(r["qual_red"]) == 1, "ehr_red": num(r["ehr_red"]) == 1,
-            "own": r["own"] or None, "ptype": _int(r["ptype"]),
+            "own": r["own"] or None, "ptype": _int(r["ptype"]), "mdh": r["mdh"].upper() == "Y",
         }
     return _index_by_ccn(path, _read_table(path, "Provider Number", columns), build)
 

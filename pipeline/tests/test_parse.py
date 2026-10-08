@@ -62,6 +62,23 @@ class ImpactTest(unittest.TestCase):
         self.assertEqual((r["qual_red"], r["ehr_red"], r["own"], r["ptype"]), (False, False, "G", 7))
 
 
+class ImpactMdhTest(unittest.TestCase):
+    def test_mdh_flag_is_read(self):
+        rows = parse.read_impact(FIX / "impact.txt", fy=2027, grouper=44)
+        self.assertTrue(rows["010007"]["mdh"])
+        self.assertFalse(rows["010001"]["mdh"])
+
+
+class MalformedCcnTest(unittest.TestCase):
+    def test_numeric_row_that_is_not_a_ccn_raises(self):
+        text = (FIX / "supp.txt").read_text(encoding="latin1").replace("010021\t", "10021\t")
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d, "s.txt")
+            p.write_text(text, encoding="latin1")
+            with self.assertRaises(parse.SchemaError):
+                parse.read_supplemental(p)
+
+
 class HgiTest(unittest.TestCase):
     def test_fields(self):
         r = parse.read_hgi(FIX / "hgi.csv")["050454"]

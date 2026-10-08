@@ -75,14 +75,26 @@ def _centroid(ring):
     return abs(a) / 2, cx / (3 * a), cy / (3 * a)
 
 
+def county_key(st, name):
+    """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'ST. LOUIS COUNTY' == 'St. Louis'."""
+    n = (name or "").lower().replace("saint ", "st ")
+    for suffix in (" county", " parish", " city and borough", " borough", " census area", " municipality"):
+        n = n.removesuffix(suffix)
+    return st, "".join(ch for ch in n if ch.isalnum())
+
+
 def county_centroids(path):
-    """{county FIPS: (lat, lon)} using the largest polygon of each county."""
-    topo = json.loads(Path(path).read_text())
+    """({county FIPS: (lat, lon)}, {(state, normalized name): (lat, lon)}) from the largest polygon of each county."""
+    topo = json.loads(Path(path).read_text(encoding="utf-8"))
     arcs = _decode_arcs(topo)
-    out = {}
+    by_fips, by_name = {}, {}
     for g in topo["objects"]["counties"]["geometries"]:
         polys = [g["arcs"]] if g["type"] == "Polygon" else g.get("arcs", []) if g["type"] == "MultiPolygon" else []
         best = max((_centroid(_ring(arcs, poly[0])) for poly in polys), default=None)
         if best:
-            out[str(g["id"]).zfill(5)] = (best[2], best[1])
-    return out
+            fips = str(g["id"]).zfill(5)
+            by_fips[fips] = (best[2], best[1])
+            st = STATE_FIPS.get(fips[:2])
+            if st:
+                by_name.setdefault(county_key(st, g.get("properties", {}).get("name")), (best[2], best[1]))
+    return by_fips, by_name

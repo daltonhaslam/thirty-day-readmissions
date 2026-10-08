@@ -21,6 +21,11 @@ FY = 2027
 GROUPER = 44  # MS-DRG grouper version used in the FY2027 impact file
 FILE_DATE = "2026-10-07"
 PERF = ["2023-07-01", "2025-06-30"]
+# Per-hospital history covers FY2013 through the prior year. When FY advances, append the prior year's
+# PAFs (fy, ccn, paf, scope_flag) to HIST_FILE and its national row to HIST_SUMMARY before rebuilding.
+HIST_FIRST_FY, HIST_LAST_FY = 2013, FY - 1
+HIST_FILE = HIST / "hrrp_paf_history_fy2013_2026.csv"
+HIST_SUMMARY = HIST / "hrrp_history_summary.csv"
 FILES = {
     "supp": ("hrrp_supplemental_fy2027", "extracted/FY2027_HRRP_Supplemental_File - FR FY 2027 Tab.txt"),
     "t15": ("hrrp_table15_fy2027", "extracted/Section 508 version of FY2027_HRRP_Table_15.txt"),
@@ -82,18 +87,26 @@ def group_constant(rows, value, label):
 
 def load_content(name):
     p = CONTENT / name
-    return json.loads(p.read_text()) if p.exists() else []
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
 
 
-def hospital_record(ccn, s, imp, g, zcta, county_xy, cbsa_names, rates):
+def locate(g, imp, st, zcta, county_fips, county_name):
+    """(lat, lon, source): ZIP centroid, else Care Compare county, else impact-file county FIPS."""
+    if g.get("zip") in zcta:
+        return (*zcta[g["zip"]], "zip")
+    key = geo.county_key(st, g.get("county"))
+    if key in county_name:
+        return (*county_name[key], "county")
+    if imp.get("fips") in county_fips:
+        return (*county_fips[imp["fips"]], "county")
+    return None, None, None
+
+
+def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates):
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat = lon = gsrc = None
-    if g.get("zip") in zcta:
-        (lat, lon), gsrc = zcta[g["zip"]], "zip"
-    elif fips in county_xy:
-        (lat, lon), gsrc = county_xy[fips], "county"
+    lat, lon, gsrc = locate(g, imp, st, zcta, *counties)
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     base = model.est_base_payment(imp, rates)
     pen = model.est_penalty(base, s["paf"])
@@ -113,7 +126,7 @@ def hospital_record(ccn, s, imp, g, zcta, county_xy, cbsa_names, rates):
         "own": ownership(g.get("ownership"), imp.get("own")),
         "ownDetail": g.get("ownership"),
         "star": g.get("star"),
-        "types": PTYPES.get(imp.get("ptype"), []),
+        "types": sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set())),
         "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": s["dual"], "peer": s["peer"],
         "base": round(base) if base is not None else None,
         "pen": round(pen) if pen is not None else None,
@@ -130,11 +143,11 @@ def build():
     zcta = parse.read_zcta(path("zcta"))
     cbsa_names = parse.read_cbsa_names(path("cbsa"))
     rates = parse.read_rates(path("rates"))
-    county_xy = geo.county_centroids(path("counties"))
+    counties = geo.county_centroids(path("counties"))
 
-    t15_mismatch = [c for c in supp if t15.get(c) != supp[c]["paf"]]
+    t15_mismatch = sorted(set(t15) ^ set(supp)) + [c for c in supp if c in t15 and t15[c] != supp[c]["paf"]]
     if t15_mismatch:
-        raise SystemExit(f"Table 15 disagrees with supplemental PAF for {len(t15_mismatch)} hospitals: {t15_mismatch[:10]}")
+        raise SystemExit(f"Table 15 and the supplemental file disagree for {len(t15_mismatch)} hospitals: {t15_mismatch[:10]}")
     out_of_range = [c for c, s in supp.items() if not 1 - model.CAP <= s["paf"] <= 1.0]
     if out_of_range:
         raise SystemExit(f"PAF out of range for {out_of_range[:10]}")
@@ -147,13 +160,13 @@ def build():
         peer_med[str(p)] = {k: group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median")
                             for k in parse.CONDITIONS}
 
-    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, county_xy,
+    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, counties,
                                  cbsa_names, rates) for ccn in sorted(supp)]
-    mismatches = [c for c in sorted(supp) if not model.replicates(supp[c])]
+    status = {c: model.replication_status(supp[c]) for c in sorted(supp)}
     geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("zip", "county", "none")}
 
-    years, paf_hist = history.load_paf_history(HIST / "hrrp_paf_history_fy2013_2026.csv", set(supp))
-    national = history.load_national(HIST / "hrrp_history_summary.csv")
+    years, paf_hist = history.load_paf_history(HIST_FILE, set(supp), HIST_FIRST_FY, HIST_LAST_FY)
+    national = history.load_national(HIST_SUMMARY)
     national.append({**history.summarize_fy(FY, [s["paf"] for s in supp.values()], round(model.CAP * 100)),
                      "perf": PERF})
     totals = {t["fy"]: t for t in load_content("annual_totals.json")}
@@ -169,28 +182,31 @@ def build():
             "totals": {"modelBase": sum(x["base"] or 0 for x in hospitals),
                        "modelPen": sum(x["pen"] or 0 for x in hospitals),
                        "cmsEst": national[-1]["totalEst"], "cmsSrc": national[-1]["totalSrc"]},
-            "replication": {"matched": len(supp) - len(mismatches), "total": len(supp), "mismatches": mismatches},
+            "replication": {"exact": sum(1 for v in status.values() if v == "exact"),
+                            "rounding": sum(1 for v in status.values() if v == "rounding"), "total": len(supp),
+                            "mismatches": [c for c, v in status.items() if v == "mismatch"]},
             "geocode": geocode, "states": states,
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}
                           for d, (r, sts) in geo.DIVISIONS.items()],
-            "sources": [{"name": s["note"], "url": s["url"]} for s in json.loads(SOURCES.read_text())],
+            "sources": [{"name": s["note"], "url": s["url"]} for s in json.loads(SOURCES.read_text(encoding="utf-8"))],
         },
         "conditions": [{"key": k, "short": short, "label": label} for k, (short, label) in CONDITION_INFO.items()],
         "hospitals": hospitals,
         "history": {"years": years, "paf": paf_hist, "national": national},
         "timeline": load_content("timeline.json"),
         "research": load_content("research.json"),
-        "geo": {"states": json.loads(path("states").read_text())},
+        "geo": {"states": json.loads(path("states").read_text(encoding="utf-8"))},
     }
 
 
 def main():
     data = build()
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False))
+    OUT.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
     m, h = data["meta"], data["hospitals"]
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e6:.2f} MB)")
-    print(f"hospitals {len(h)} | penalized {sum(1 for x in h if x['paf'] < 1)} | replication {m['replication']['matched']}/{m['replication']['total']}")
+    rep = m["replication"]
+    print(f"hospitals {len(h)} | penalized {sum(1 for x in h if x['paf'] < 1)} | PAF replication: {rep['exact']} exact, {rep['rounding']} within rounding, {len(rep['mismatches'])} mismatched")
     print(f"geocode {m['geocode']} | no state {sum(1 for x in h if not x['st'])} | no impact match {sum(1 for x in h if x['base'] is None)}")
     print(f"history hospitals {len(data['history']['paf'])} | modeled penalty ${m['totals']['modelPen'] / 1e6:.1f}M on base ${m['totals']['modelBase'] / 1e9:.2f}B")
 

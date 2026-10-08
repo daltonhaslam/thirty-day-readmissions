@@ -8,16 +8,18 @@ ACRONYMS = {
     "RWJ", "RWJBH", "NYC", "NY", "BJC", "SUNY", "UMC", "CHS", "AMG", "ACMC", "SJMC", "UNMC", "PAM", "LTAC", "SBH",
     "NCH", "CMC", "TJUH", "HSC", "AHMC", "SRMC", "RMC", "LAC", "USC", "MLK", "UIHC", "AHS", "CHRISTUS", "INTEGRIS",
     # state abbreviations that are not also common English words
-    "TX", "NJ", "NC", "SC", "ND", "SD", "NM", "NH", "WV", "WI", "WA", "WY", "MN", "MS", "MT", "NV", "KY", "KS",
+    "TX", "NJ", "NC", "SC", "ND", "SD", "NM", "NH", "WV", "WI", "WA", "WY", "MN", "MS", "NV", "KY", "KS",
     "IA", "IL", "AZ", "AK", "CT", "FL", "GA", "RI", "VT", "TN",
 }
 # Brand camel-case that a capitalization rule cannot infer
 SPECIAL = {"UMASS": "UMass", "UCHEALTH": "UCHealth", "MEDSTAR": "MedStar", "PROMEDICA": "ProMedica",
            "WELLSPAN": "WellSpan", "OHIOHEALTH": "OhioHealth", "ADVENTHEALTH": "AdventHealth",
            "HONORHEALTH": "HonorHealth", "BAYCARE": "BayCare", "MERCYONE": "MercyOne", "UNITYPOINT": "UnityPoint",
-           "TRINITYHEALTH": "TrinityHealth"}
+           "TRINITYHEALTH": "TrinityHealth", "UOFL": "UofL"}
+# Vowel-less abbreviations that are words, not acronyms (title-cased, not upper-cased)
+TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "SYS", "CNTY", "RGNL", "REGL", "PKWY", "HWY", "BLVD",
+              "MGMT", "ST", "MT", "FT", "DR", "JR", "SR"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
-NO_VOWEL_WORDS = {"ST", "MT", "FT", "DR", "JR", "SR"}
 VOWELS = set("AEIOUY")
 
 
@@ -30,7 +32,9 @@ def _cap(word):
     if up in ACRONYMS:
         return up
     letters = re.sub(r"[^A-Z]", "", up)
-    if len(letters) >= 2 and not (set(letters) & VOWELS) and letters not in NO_VOWEL_WORDS:
+    if letters in TITLE_ABBR:
+        return up[:1] + up[1:].lower()
+    if len(letters) >= 2 and not (set(letters) & VOWELS):
         return up
     if "'" in word:
         head, _, tail = word.partition("'")
@@ -42,10 +46,13 @@ def _cap(word):
     return up[:1] + up[1:].lower()
 
 
-def _word(token, first):
+SEPARATORS = ("-", "\u2013", "/", ",", ":")
+
+
+def _word(token, lower_small):
     m = re.match(r"^([^A-Za-z0-9]*)(.*?)([^A-Za-z0-9']*)$", token)
     pre, core, post = m.groups()
-    if not first and core.lower() in SMALL:
+    if lower_small and core.lower() in SMALL:
         return pre + core.lower() + post
     parts = re.split(r"([-/])", core)
     return pre + "".join(p if p in "-/" else _cap(p) for p in parts) + post
@@ -54,8 +61,17 @@ def _word(token, first):
 def smart_title(name):
     if not name:
         return name
-    tokens = name.split()
-    return " ".join(_word(t, i == 0) for i, t in enumerate(tokens))
+    tokens = []
+    for t in name.split():  # join a detached prefix: 'MC DONOUGH' -> 'MCDONOUGH'
+        if tokens and tokens[-1].upper() == "MC" and t[:1].isalpha():
+            tokens[-1] += t
+        else:
+            tokens.append(t)
+    out = []
+    for i, t in enumerate(tokens):
+        after_sep = i > 0 and (tokens[i - 1] in SEPARATORS or tokens[i - 1].endswith(SEPARATORS))
+        out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep))
+    return " ".join(out)
 
 
 def display_name(hgi_name, impact_name):

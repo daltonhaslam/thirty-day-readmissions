@@ -2,21 +2,18 @@
 import csv
 import statistics
 
-FIRST_FY, LAST_HIST_FY = 2013, 2026
-
-
-def load_paf_history(path, keep_ids):
-    """{ccn: [paf or None for FY2013..FY2026]} for hospitals in keep_ids; out-of-scope rows (MD/PR/no data) → None."""
-    years = list(range(FIRST_FY, LAST_HIST_FY + 1))
+def load_paf_history(path, keep_ids, first_fy, last_fy):
+    """{ccn: [paf or None per FY first_fy..last_fy]} for hospitals in keep_ids; out-of-scope rows (MD/PR/no data) → None."""
+    years = list(range(first_fy, last_fy + 1))
     out = {}
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             ccn = r["ccn"]
             if ccn not in keep_ids or r["scope_flag"]:
                 continue
             fy = int(r["fy"])
-            if FIRST_FY <= fy <= LAST_HIST_FY:
-                out.setdefault(ccn, [None] * len(years))[fy - FIRST_FY] = round(float(r["paf"]), 4)
+            if first_fy <= fy <= last_fy:
+                out.setdefault(ccn, [None] * len(years))[fy - first_fy] = round(float(r["paf"]), 4)
     return years, out
 
 
@@ -26,10 +23,10 @@ def summarize_fy(fy, pafs, cap_pct):
     pen = [r for r in reds if r > 1e-9]
     return {
         "fy": fy, "n": len(reds), "nPen": len(pen),
-        "pctPen": round(100 * len(pen) / len(reds), 2),
-        "meanRed": round(sum(reds) / len(reds), 4),
-        "meanRedPen": round(sum(pen) / len(pen), 4),
-        "medianRedPen": round(statistics.median(pen), 4),
+        "pctPen": round(100 * len(pen) / len(reds), 2) if reds else 0,
+        "meanRed": round(sum(reds) / len(reds), 4) if reds else 0,
+        "meanRedPen": round(sum(pen) / len(pen), 4) if pen else 0,
+        "medianRedPen": round(statistics.median(pen), 4) if pen else 0,
         "nMax": sum(1 for r in reds if r >= cap_pct - 1e-6), "cap": cap_pct,
     }
 
@@ -37,7 +34,7 @@ def summarize_fy(fy, pafs, cap_pct):
 def load_national(summary_path):
     """Comparable-population national series FY2013-FY2026 from the historical summary CSV."""
     rows = []
-    with open(summary_path, newline="") as f:
+    with open(summary_path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             fy = int(r["fy"])
             rows.append({

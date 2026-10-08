@@ -26,9 +26,17 @@ def reduction(h):
     return min(sum(contributions(h).values()), CAP)
 
 
-def replicates(h, tol=0.0001):
-    """True when the recomputed PAF matches CMS's published PAF to 4 decimals (± tol)."""
-    return abs((1 - round(reduction(h), 4)) - h["paf"]) <= tol + 1e-12
+def replication_status(h):
+    """'exact' when the recomputed PAF equals CMS's 4-decimal PAF; 'rounding' when it is off by one unit in the
+    4th decimal (CMS computes from unrounded ERRs and ratios; the file publishes them rounded); else 'mismatch'."""
+    diff = abs((1 - round(reduction(h), 4)) - h["paf"])
+    if diff < 1e-9:
+        return "exact"
+    return "rounding" if diff <= 0.0001 + 1e-9 else "mismatch"
+
+
+def replicates(h):
+    return replication_status(h) != "mismatch"
 
 
 def est_base_payment(imp, rates):
