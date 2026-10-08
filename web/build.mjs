@@ -1,10 +1,14 @@
 // Bundle JS (d3 subset included), inline CSS + data, and write two outputs:
-//   ../docs/index.html   full document for GitHub Pages
+//   ../docs/index.html   full document served by Vercel
 //   dist/artifact.html   body-only fragment for a claude.ai artifact preview
+// Env: FEEDBACK_URL overrides the feedback endpoint (tests); BUILD_OUT_DIR writes index.html elsewhere.
 import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SITE_NAME } from './src/js/site.js';
+
+// Google Apps Script web app that receives reader feedback (see ../feedback/README.md). Empty hides the form.
+const FEEDBACK_URL = process.env.FEEDBACK_URL ?? '';
 
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
@@ -16,7 +20,7 @@ if (!darkDecls) throw new Error('tokens.css: dark media block not found');
 const css = (await transform([tokens, `:root[data-theme="dark"] {${darkDecls}}`, ...['base', 'components', 'charts'].map((n) => read(`src/styles/${n}.css`))].join('\n'),
   { loader: 'css', minify: true })).code;
 const js = (await build({ entryPoints: [fileURLToPath(here('src/js/main.js'))], bundle: true, format: 'iife', minify: true,
-  write: false, target: 'es2020', legalComments: 'none' })).outputFiles[0].text;
+  write: false, target: 'es2020', legalComments: 'none', define: { __FEEDBACK_URL__: JSON.stringify(FEEDBACK_URL) } })).outputFiles[0].text;
 const rawData = read('src/data/hrrp.json');
 const { fy } = JSON.parse(rawData).meta;
 // Escape every '<' so no data string can close the script element.
@@ -35,9 +39,12 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
   + `<meta property="og:title" content="${pagesTitle}"><meta property="og:description" content="${DESC}"><meta property="og:type" content="website">`
   + `${head(pagesTitle)}</head><body>${body}</body></html>`;
 
-mkdirSync(here('../docs/'), { recursive: true });
-mkdirSync(here('dist/'), { recursive: true });
-writeFileSync(here('../docs/index.html'), doc);
-writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${body}`);
+const outDir = process.env.BUILD_OUT_DIR ? new URL(`file://${process.env.BUILD_OUT_DIR.replace(/\/?$/, '/')}`) : here('../docs/');
+mkdirSync(outDir, { recursive: true });
+writeFileSync(new URL('index.html', outDir), doc);
+if (!process.env.BUILD_OUT_DIR) {
+  mkdirSync(here('dist/'), { recursive: true });
+  writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${body}`);
+}
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 console.log(`docs/index.html ${kb(doc)} (js ${kb(js)}, css ${kb(css)}, data ${kb(data)})`);

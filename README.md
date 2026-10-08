@@ -78,4 +78,4 @@ planning-docs/  design spec and implementation plan
 
 Code: MIT (see `LICENSE`). Federal source data are public domain. Map geometry: us-atlas (ISC).
 
-Built by Dalton Haslam, MD, MBA · [LinkedIn](https://www.linkedin.com/in/dalton-haslam)
+Built by Dalton Haslam, MD, MBA, using [Claude Code](https://claude.com/claude-code) · [LinkedIn](https://www.linkedin.com/in/dalton-haslam)

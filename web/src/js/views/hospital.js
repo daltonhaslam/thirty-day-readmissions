@@ -8,6 +8,7 @@ import { CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, co
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
+import { openFeedback } from '../ui/feedbackForm.js';
 
 let bandsCache = null;
 const TYPES = { SCH: 'Sole community hospital', MDH: 'Medicare-dependent hospital', RRC: 'Rural referral center', IHS: 'Indian Health Service', EACH: 'Essential access community hospital' };
@@ -124,7 +125,8 @@ export function renderHospital(D, id) {
         h('div', { class: 'form hosp__nums' },
           field('A', 'Payment adjustment factor', x.paf.toFixed(4), { note: 'CMS, final' }),
           field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
-        h('p', { class: 'small muted' }, rankLine(D, x)))),
+        h('p', { class: 'small muted' }, rankLine(D, x)),
+        h('button', { class: 'btn hosp__report', type: 'button', onclick: () => openFeedback({ kind: 'data' }) }, 'Report a problem with this hospital\'s data'))),
     figure({ title: 'Where the penalty came from', take: 'Each row is one condition. Dot: this hospital\'s ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals.',
       source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: condEl }),
     h('div', { class: 'grid-2 grid-2--wide-left' },

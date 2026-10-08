@@ -32,7 +32,7 @@ export function renderMethods(D) {
         h('h2', {}, 'About'),
         h('p', {}, `${SITE_NAME} explains Medicare's Hospital Readmissions Reduction Program and shows the ${E.label} penalty for every hospital in it.`
           + ' It is built entirely from public federal files and is meant for anyone: patients and families, reporters, and the hospital teams who work with these numbers every day.'),
-        h('p', {}, 'Built by Dalton Haslam, MD, MBA, a physician advisor. It is an independent project, not affiliated with or endorsed by the Centers for Medicare & Medicaid Services. Corrections are welcome through ',
+        h('p', {}, 'Built by Dalton Haslam, MD, MBA, a physician advisor, using Claude Code. It is an independent project, not affiliated with or endorsed by the Centers for Medicare & Medicaid Services. Corrections are welcome through ',
           h('a', { href: 'https://www.linkedin.com/in/dalton-haslam', target: '_blank', rel: 'noopener' }, 'LinkedIn'), '.'),
 
         h('h2', {}, 'The formula'),
@@ -63,6 +63,8 @@ export function renderMethods(D) {
         h('h2', {}, 'History'),
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
           + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals are CMS estimates from each year's payment rule, or KFF Health News reporting where CMS printed none. FY2025 uses CMS's simulation of that year under the pre-FY2027 method. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
+        h('h2', {}, 'Feedback and privacy'),
+        h('p', {}, 'The feedback form at the bottom of every page sends your note, the page you were on, and your email if you choose to give it. It goes to a private spreadsheet and an email inbox that only I read. Nothing else is collected, and the site sets no cookies. Please leave out any patient information.'),
         h('h2', {}, 'Accessibility'),
         h('p', {}, 'Every chart has a text label, and every chart\'s numbers are also available in a sortable table on the same page. Selecting individual dots or map areas requires a mouse or touch; the tables, search, and links offer the same destinations by keyboard.'),
       h('aside', {},

@@ -147,3 +147,21 @@
 @media (min-width: 800px) { .footer__grid { grid-template-columns: 2fr 1fr; } }
 .footer .byline { font: 400 var(--fs-base)/1.4 var(--font-type); color: var(--ink); }
 .loading { padding-block: 64px; font: 400 var(--fs-md)/1.4 var(--font-type); color: var(--ink-2); }
+
+/* ---------- feedback ---------- */
+.feedback { border: 2px solid var(--form); padding: 18px; margin-bottom: 28px; background: var(--paper); display: grid; gap: 12px; }
+.feedback__title { font: 400 var(--fs-xl)/1.1 var(--font-display); color: var(--ink); }
+.feedback__lede, .feedback__alt { color: var(--ink-2); }
+.feedback__form { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'kind' 'msg' 'email' 'send'; }
+@media (min-width: 720px) { .feedback__form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'kind email' 'msg msg' 'send send'; } }
+.feedback__form > :nth-child(1) { grid-area: kind; }
+.feedback__form > :nth-child(2) { grid-area: msg; }
+.feedback__form > :nth-child(3) { grid-area: email; }
+.feedback__form > .feedback__actions { grid-area: send; }
+.feedback__form .field { display: grid; gap: 6px; }
+.feedback__form textarea, .feedback__form input, .feedback__form select { width: 100%; font: 400 var(--fs-base)/1.4 var(--font-type); border: 1px solid var(--ink-3); background: var(--paper); color: var(--ink); padding: 8px; }
+.feedback__form textarea { resize: vertical; min-height: 6em; }
+.feedback__form .feedback__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.feedback__status { font: 400 var(--fs-sm)/1.4 var(--font-type); color: var(--ink); margin: 0; }
+.feedback__trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.hosp__report { justify-self: start; }
