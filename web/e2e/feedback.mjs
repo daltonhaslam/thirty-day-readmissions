@@ -1,26 +1,18 @@
 // Feedback form, end to end: builds a copy wired to a fake Apps Script URL, serves it with the
 // vercel.json headers (so CSP is enforced), intercepts the POST, and checks what was sent.
-// Usage: node e2e/feedback.mjs   (exit 1 on any failure)
-import { createServer } from 'node:http';
+// Usage: node e2e/feedback.mjs
 import { readFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { serveWithHeaders, makeCheck } from './_lib.mjs';
 
 const FAKE = 'https://script.google.com/macros/s/TEST-DEPLOYMENT/exec';
 const out = mkdtempSync(join(tmpdir(), 'tdr-feedback-'));
 execFileSync('node', ['build.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, FEEDBACK_URL: FAKE, BUILD_OUT_DIR: out }, stdio: 'ignore' });
-
-const root = new URL('../../', import.meta.url);
-const config = JSON.parse(readFileSync(new URL('vercel.json', root), 'utf8'));
-const headers = Object.fromEntries(config.headers.flatMap((r) => r.headers.map((x) => [x.key, x.value])));
-const html = readFileSync(join(out, 'index.html'));
-const server = createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...headers }); res.end(html); }).listen(0);
-const base = `http://localhost:${server.address().port}/`;
-
-const failures = [];
-const check = (ok, msg) => { if (!ok) failures.push(msg); };
+const { base, close } = serveWithHeaders(readFileSync(join(out, 'index.html')));
+const { check, report } = makeCheck('feedback e2e');
 const browser = await chromium.launch({ channel: 'chrome' });
 const page = await browser.newPage();
 const errors = [];
@@ -66,6 +58,5 @@ check(posts.length === 1, 'honeypot submission was sent');
 check(!errors.length, `console errors: ${errors.join(' | ')}`);
 
 await browser.close();
-server.close();
-if (failures.length) { console.log(`FAIL (${failures.length})\n- ${failures.join('\n- ')}`); process.exit(1); }
-console.log('feedback e2e: all checks passed');
+close();
+report();

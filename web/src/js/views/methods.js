@@ -3,7 +3,7 @@ import { part } from '../ui/figure.js';
 import { fmtInt, fmtMoney } from '../model.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
-import { SITE_NAME } from '../site.js';
+import { SITE_NAME, LINKEDIN_URL } from '../site.js';
 
 const GLOSSARY = [
   ['Readmission', 'An unplanned return to any acute-care hospital within 30 days of discharge, for any reason. Planned returns, such as a scheduled chemotherapy stay, do not count.'],
@@ -33,7 +33,7 @@ export function renderMethods(D) {
         h('p', {}, `${SITE_NAME} explains Medicare's Hospital Readmissions Reduction Program and shows the ${E.label} penalty for every hospital in it.`
           + ' It is built entirely from public federal files and is meant for anyone: patients and families, reporters, and the hospital teams who work with these numbers every day.'),
         h('p', {}, 'Built by Dalton Haslam, MD, MBA, a physician advisor, using Claude Code. It is an independent project, not affiliated with or endorsed by the Centers for Medicare & Medicaid Services. Corrections are welcome through ',
-          h('a', { href: 'https://www.linkedin.com/in/dalton-haslam', target: '_blank', rel: 'noopener' }, 'LinkedIn'), '.'),
+          h('a', { href: LINKEDIN_URL, target: '_blank', rel: 'noopener' }, 'LinkedIn'), '.'),
 
         h('h2', {}, 'The formula'),
         h('p', {}, 'For each of the six conditions with at least 25 cases, CMS compares the hospital\'s excess readmission ratio with its peer group\'s median. Each condition above the median contributes:'),

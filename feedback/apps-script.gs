@@ -8,6 +8,8 @@
  */
 var SITE_NAME = 'Thirty Day Readmissions';
 var SITE_URL = 'https://thirty-day-readmissions.vercel.app/';
+// MIN_MESSAGE, MAX_MESSAGE, KINDS, and EMAIL mirror web/src/js/feedback.js (a test keeps them equal).
+var MIN_MESSAGE = 5;
 var MAX_MESSAGE = 2000;
 var MAX_FIELD = 200;
 var BURST_LIMIT = 20;          // submissions per 10 minutes, all readers combined
@@ -28,25 +30,24 @@ function doPost(e) {
   return ContentService.createTextOutput(result).setMimeType(ContentService.MimeType.TEXT);
 }
 
-// Returns 'ok' | 'ignored' (spam trap) | 'rejected' (empty) | 'busy' (rate limited).
+// Returns 'ok' | 'rejected' (empty) | 'busy' (rate limited). The site filters obvious bots before posting.
 function handleFeedback(p, env) {
-  if (p.website) return 'ignored';
   var message = clean(p.message, MAX_MESSAGE);
-  if (message.length < 5) return 'rejected';
+  if (message.length < MIN_MESSAGE) return 'rejected';
   var recent = Number(env.cache.get('recent') || 0);
   if (recent >= BURST_LIMIT) return 'busy';
   env.cache.put('recent', String(recent + 1), BURST_WINDOW_SECONDS);
 
-  var kind = KINDS[p.kind] ? p.kind : 'other';
-  var emailRaw = oneLine(clean(p.email, MAX_FIELD));
+  var kindLabel = KINDS[p.kind] || KINDS.other;
+  var emailRaw = field(p.email);
   var email = EMAIL.test(emailRaw) ? emailRaw : '';
-  var page = oneLine(clean(p.page, MAX_FIELD));
-  var title = oneLine(clean(p.title, MAX_FIELD));
+  var page = field(p.page);
+  var title = field(p.title);
 
   env.lock.waitLock(5000);
   try {
     if (env.sheet.getLastRow() === 0) env.sheet.appendRow(HEADERS);
-    env.sheet.appendRow([env.now, KINDS[kind], message, email, page, title].map(safeCell));
+    env.sheet.appendRow([env.now, kindLabel, message, email, page, title].map(safeCell));
   } finally {
     env.lock.releaseLock();
   }
@@ -54,8 +55,8 @@ function handleFeedback(p, env) {
   if (env.mailer.getRemainingDailyQuota() > 0) {
     var mail = {
       to: env.owner,
-      subject: oneLine('[' + SITE_NAME + '] ' + KINDS[kind] + ': ' + (title || page || 'site')),
-      body: message + '\n\n---\nPage: ' + SITE_URL + page + '\nKind: ' + KINDS[kind]
+      subject: oneLine('[' + SITE_NAME + '] ' + kindLabel + ': ' + (title || page || 'site')),
+      body: message + '\n\n---\nPage: ' + SITE_URL + page + '\nKind: ' + kindLabel
         + '\nFrom: ' + (email || 'no email given') + '\nReceived: ' + env.now.toISOString(),
     };
     if (email) mail.replyTo = email;
@@ -67,6 +68,11 @@ function handleFeedback(p, env) {
 // Strip control characters (keeping tabs and line breaks), trim, and cap length.
 function clean(value, max) {
   return String(value == null ? '' : value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().slice(0, max);
+}
+
+// A short single-line field (email, page, title).
+function field(value) {
+  return oneLine(clean(value, MAX_FIELD));
 }
 
 function oneLine(value) {

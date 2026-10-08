@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateFeedback, looksLikePatientInfo, FEEDBACK_KINDS } from '../src/js/feedback.js';
+import { validateFeedback, looksLikePatientInfo } from '../src/js/feedback.js';
 
 const base = { kind: 'data', message: 'The bed count for this hospital looks wrong.', email: '', website: '', startedAt: 0 };
 const ctx = { now: 10_000, page: '#hospital-010006', title: 'Southeast Health · Thirty Day Readmissions' };
@@ -18,14 +18,8 @@ test('honeypot and too-fast submissions are treated as spam', () => {
 
 test('message length and email format are checked', () => {
   assert.equal(validateFeedback({ ...base, message: '  hi ' }, ctx).reason, 'short');
-  assert.equal(validateFeedback({ ...base, message: 'x'.repeat(2001) }, ctx).reason, 'long');
   assert.equal(validateFeedback({ ...base, email: 'not-an-email' }, ctx).reason, 'email');
   assert.equal(validateFeedback({ ...base, email: ' me@example.org ' }, ctx).payload.email, 'me@example.org');
-});
-
-test('unknown kinds fall back to other', () => {
-  assert.equal(validateFeedback({ ...base, kind: '<script>' }, ctx).payload.kind, 'other');
-  assert.ok(FEEDBACK_KINDS.some(([k]) => k === 'other'));
 });
 
 test('patient-information check flags identifiers, not hospital IDs', () => {

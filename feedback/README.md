@@ -18,7 +18,8 @@ owner, with Reply-To set to the reader's address when they leave one. Nothing el
    "Google hasn't verified this app" for any personal script: click **Advanced**, then
    **Go to … (unsafe)**, then **Allow**. The script can only add rows to this Sheet and send
    email to you.
-5. Copy the **Web app URL** (it ends in `/exec`). It goes into `FEEDBACK_URL` in `web/build.mjs`.
+5. Copy the **Web app URL** (it ends in `/exec`). It goes into `FEEDBACK_URL` in `web/src/js/site.js`;
+   rebuild (`cd web && npm run build`) and push.
 
 ## Changing the script later
 

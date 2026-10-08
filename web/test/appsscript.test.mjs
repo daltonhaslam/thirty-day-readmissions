@@ -38,12 +38,6 @@ test('a valid submission adds a header row, a data row, and an email with reply-
   assert.match(e.mail[0].body, /#hospital-010006/);
 });
 
-test('honeypot submissions are dropped silently', () => {
-  const e = env();
-  assert.equal(handleFeedback({ ...good, website: 'x' }, e), 'ignored');
-  assert.equal(e.rows.length + e.mail.length, 0);
-});
-
 test('too-short messages are rejected', () => {
   const e = env();
   assert.equal(handleFeedback({ ...good, message: 'hi' }, e), 'rejected');
@@ -73,4 +67,12 @@ test('a burst over the rate limit is refused; an exhausted mail quota still logs
   assert.equal(handleFeedback(good, noQuota), 'ok');
   assert.equal(noQuota.rows.length, 2);
   assert.equal(noQuota.mail.length, 0);
+});
+
+test('server rules match the browser rules (they cannot share code)', async () => {
+  const fb = await import('../src/js/feedback.js');
+  assert.deepEqual(Object.entries(sandbox.KINDS), fb.FEEDBACK_KINDS);
+  assert.equal(sandbox.MAX_MESSAGE, fb.MAX_MESSAGE);
+  assert.equal(sandbox.MIN_MESSAGE, fb.MIN_MESSAGE);
+  assert.equal(sandbox.EMAIL.source, fb.EMAIL.source);
 });

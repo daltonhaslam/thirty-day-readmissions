@@ -1,12 +1,20 @@
 import { h } from '../dom.js';
 import { FEEDBACK_KINDS, MAX_MESSAGE, validateFeedback, looksLikePatientInfo } from '../feedback.js';
-import { FEEDBACK_URL, LINKEDIN_URL } from '../site.js';
+import { LINKEDIN_URL } from '../site.js';
+
+// Injected by build.mjs from site.js (or the FEEDBACK_URL env var in tests). This file is only ever bundled.
+// eslint-disable-next-line no-undef
+const FEEDBACK_URL = __FEEDBACK_URL__;
 
 const ERRORS = {
   short: 'Please write a few words so I know what to look at.',
-  long: `Please keep it under ${MAX_MESSAGE.toLocaleString()} characters.`,
   email: 'That email address doesn\'t look right. Leave it blank if you don\'t need a reply.',
 };
+
+// One numbered form box (claim-form style) wrapping a control.
+const box = (no, label, control, { wide, note } = {}) => h('label', { class: `field${wide ? ' field--wide' : ''}`, for: control.id },
+  h('span', { class: 'field__label' }, h('span', { class: 'field__no' }, String(no)), label), control,
+  note ? h('span', { class: 'field__note' }, note) : null);
 
 // Footer block: a short feedback form (when an endpoint is configured) plus a LinkedIn contact line.
 export function feedbackSection() {
@@ -30,10 +38,9 @@ export function feedbackSection() {
   const say = (text) => { status.textContent = text; };
 
   const form = h('form', { class: 'form feedback__form', novalidate: true },
-    h('label', { class: 'field', for: 'fb-kind' }, h('span', { class: 'field__label' }, h('span', { class: 'field__no' }, '1'), 'What is it about?'), kind),
-    h('label', { class: 'field field--wide', for: 'fb-message' }, h('span', { class: 'field__label' }, h('span', { class: 'field__no' }, '2'), 'Your note'), message,
-      h('span', { class: 'field__note' }, 'Please don\'t include patient names, record numbers, birth dates, or other patient details.')),
-    h('label', { class: 'field', for: 'fb-email' }, h('span', { class: 'field__label' }, h('span', { class: 'field__no' }, '3'), 'Email, if you\'d like a reply'), email),
+    box(1, 'What is it about?', kind),
+    box(2, 'Email, if you\'d like a reply', email),
+    box(3, 'Your note', message, { wide: true, note: 'Please don\'t include patient names, record numbers, birth dates, or other patient details.' }),
     h('div', { class: 'feedback__trap', 'aria-hidden': 'true' }, h('label', { for: 'fb-website' }, 'Website'), website),
     h('div', { class: 'field field--wide feedback__actions' }, send, status));
 
@@ -70,9 +77,8 @@ export function feedbackSection() {
 
 // Scroll to the form, preselect a topic, and put the cursor in the message box.
 export function openFeedback({ kind } = {}) {
-  const box = document.getElementById('fb-message');
-  if (!box) { document.getElementById('feedback')?.scrollIntoView({ block: 'start' }); return; }
-  if (kind) document.getElementById('fb-kind').value = kind;
-  box.focus({ preventScroll: true });
-  document.getElementById('feedback').scrollIntoView({ block: 'start' });
+  const kindSelect = document.getElementById('fb-kind');
+  if (kind && kindSelect) kindSelect.value = kind;
+  document.getElementById('fb-message')?.focus({ preventScroll: true });
+  document.getElementById('feedback')?.scrollIntoView({ block: 'start' });
 }

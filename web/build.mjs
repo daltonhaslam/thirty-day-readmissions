@@ -5,10 +5,8 @@
 import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SITE_NAME } from './src/js/site.js';
-
-// Google Apps Script web app that receives reader feedback (see ../feedback/README.md). Empty hides the form.
-const FEEDBACK_URL = process.env.FEEDBACK_URL ?? '';
+import { join } from 'node:path';
+import { SITE_NAME, FEEDBACK_URL } from './src/js/site.js';
 
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
@@ -20,7 +18,7 @@ if (!darkDecls) throw new Error('tokens.css: dark media block not found');
 const css = (await transform([tokens, `:root[data-theme="dark"] {${darkDecls}}`, ...['base', 'components', 'charts'].map((n) => read(`src/styles/${n}.css`))].join('\n'),
   { loader: 'css', minify: true })).code;
 const js = (await build({ entryPoints: [fileURLToPath(here('src/js/main.js'))], bundle: true, format: 'iife', minify: true,
-  write: false, target: 'es2020', legalComments: 'none', define: { __FEEDBACK_URL__: JSON.stringify(FEEDBACK_URL) } })).outputFiles[0].text;
+  write: false, target: 'es2020', legalComments: 'none', define: { __FEEDBACK_URL__: JSON.stringify(process.env.FEEDBACK_URL ?? FEEDBACK_URL) } })).outputFiles[0].text;
 const rawData = read('src/data/hrrp.json');
 const { fy } = JSON.parse(rawData).meta;
 // Escape every '<' so no data string can close the script element.
@@ -39,9 +37,9 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
   + `<meta property="og:title" content="${pagesTitle}"><meta property="og:description" content="${DESC}"><meta property="og:type" content="website">`
   + `${head(pagesTitle)}</head><body>${body}</body></html>`;
 
-const outDir = process.env.BUILD_OUT_DIR ? new URL(`file://${process.env.BUILD_OUT_DIR.replace(/\/?$/, '/')}`) : here('../docs/');
+const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('../docs/'));
 mkdirSync(outDir, { recursive: true });
-writeFileSync(new URL('index.html', outDir), doc);
+writeFileSync(join(outDir, 'index.html'), doc);
 if (!process.env.BUILD_OUT_DIR) {
   mkdirSync(here('dist/'), { recursive: true });
   writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${body}`);

@@ -152,12 +152,8 @@
 .feedback { border: 2px solid var(--form); padding: 18px; margin-bottom: 28px; background: var(--paper); display: grid; gap: 12px; }
 .feedback__title { font: 400 var(--fs-xl)/1.1 var(--font-display); color: var(--ink); }
 .feedback__lede, .feedback__alt { color: var(--ink-2); }
-.feedback__form { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'kind' 'msg' 'email' 'send'; }
-@media (min-width: 720px) { .feedback__form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'kind email' 'msg msg' 'send send'; } }
-.feedback__form > :nth-child(1) { grid-area: kind; }
-.feedback__form > :nth-child(2) { grid-area: msg; }
-.feedback__form > :nth-child(3) { grid-area: email; }
-.feedback__form > .feedback__actions { grid-area: send; }
+.feedback__form { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) { .feedback__form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .feedback__form .field { display: grid; gap: 6px; }
 .feedback__form textarea, .feedback__form input, .feedback__form select { width: 100%; font: 400 var(--fs-base)/1.4 var(--font-type); border: 1px solid var(--ink-3); background: var(--paper); color: var(--ink); padding: 8px; }
 .feedback__form textarea { resize: vertical; min-height: 6em; }
