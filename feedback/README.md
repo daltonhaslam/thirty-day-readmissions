@@ -9,7 +9,8 @@ owner, with Reply-To set to the reader's address when they leave one. Nothing el
 1. Open **sheets.new** in your browser to create a blank Google Sheet. Name it
    "Thirty Day Readmissions feedback".
 2. In the Sheet, choose **Extensions → Apps Script**. Delete the sample code, paste all of
-   `apps-script.gs`, and click **Save**.
+   `apps-script.gs`, and click **Save**. If the site's address is not
+   `https://thirty-day-readmissions.vercel.app/`, change `SITE_URL` near the top first.
 3. Click **Deploy → New deployment**. Click the gear next to "Select type" and choose **Web app**.
    - Description: `feedback`
    - Execute as: **Me**
@@ -29,6 +30,7 @@ The URL stays the same.
 
 ## Limits
 
-- Bursts over 20 submissions in 10 minutes are refused (spam protection).
+- At most 20 submissions are saved per 10-minute window; posts that look automated (a hidden field
+  filled in, or sent faster than a person types) are ignored.
 - At most 30 notification emails a day (Gmail allows a personal account's scripts about 100 a day
   in total). Past that, submissions are still saved to the Sheet.

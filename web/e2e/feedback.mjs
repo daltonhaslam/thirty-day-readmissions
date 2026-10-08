@@ -18,7 +18,11 @@ const page = await browser.newPage();
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 const posts = [];
-await page.route(`${FAKE}*`, (route) => { posts.push(route.request().postData()); route.fulfill({ status: 200, body: 'ok' }); });
+let reply = 'ok'; // what the fake Apps Script answers, with the CORS header Google's script host sends
+await page.route(`${FAKE}*`, (route) => {
+  posts.push(route.request().postData());
+  route.fulfill({ status: 200, body: reply, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' } });
+});
 
 await page.goto(`${base}#hospital-010006`);
 await page.waitForFunction(() => document.querySelector('#main > div'));
@@ -31,8 +35,8 @@ check((await page.locator('#fb-kind').inputValue()) === 'data', 'report button d
 check(await page.evaluate(() => document.activeElement?.id === 'fb-message'), 'report button did not focus the message');
 
 // A message that looks like patient information gets a warning first, then sends on the second click.
-await page.waitForTimeout(3200);
 await page.fill('#fb-message', 'Patient MRN 4482913 was readmitted but not counted.');
+await page.waitForTimeout(1700);
 await page.click('#feedback button[type="submit"]');
 check(/patient/i.test(await page.textContent('#fb-status')), 'no patient-information warning');
 check(posts.length === 0, 'sent before the patient-information warning was acknowledged');
@@ -45,16 +49,27 @@ const sent = new URLSearchParams(posts[0] || '');
 check(sent.get('kind') === 'data' && sent.get('page') === '#hospital-010006' && sent.get('email') === 'reader@example.org', `payload: ${posts[0]}`);
 const heading = (await page.textContent('h1')).trim();
 check((sent.get('title') || '').startsWith(heading), `payload title "${sent.get('title')}" lacks the hospital name "${heading}"`);
-check(!sent.has('website'), 'honeypot field leaked into the payload');
+check(sent.get('trap') === '' && Number(sent.get('elapsed')) > 0, `spam signals missing from payload: ${posts[0]}`);
 check((await page.inputValue('#fb-message')) === '', 'form not cleared after sending');
 
-// A bot that fills the hidden field is told "thanks" but nothing is sent.
-await page.waitForTimeout(3200);
-await page.fill('#fb-message', 'Buy cheap things at my site today');
-await page.evaluate(() => { document.querySelector('#fb-website').value = 'http://spam.example'; });
+// A busy server is reported honestly and the note is kept.
+reply = 'busy';
+await page.fill('#fb-message', 'A second note while the server is busy.');
+await page.waitForTimeout(1700);
 await page.click('#feedback button[type="submit"]');
-await page.waitForTimeout(300);
-check(posts.length === 1, 'honeypot submission was sent');
+await page.waitForFunction(() => /try again/i.test(document.querySelector('#fb-status')?.textContent || ''));
+check((await page.inputValue('#fb-message')) !== '', 'note cleared even though the server was busy');
+
+// A bot that fills the hidden field: the server decides (it answers "ignored"), the reader sees "Sent".
+reply = 'ignored';
+await page.evaluate(() => { document.querySelector('#fb-trap').value = 'http://spam.example'; });
+await page.click('#feedback button[type="submit"]');
+await page.waitForFunction(() => /thank/i.test(document.querySelector('#fb-status')?.textContent || ''));
+check(new URLSearchParams(posts.at(-1)).get('trap') === 'http://spam.example', 'trap value not passed to the server');
+
+// The note text is the accessible name's content only through its description, not the label.
+const name = await page.evaluate(() => document.querySelector('#fb-message').labels[0].textContent);
+check(!/patient/i.test(name), `textarea label includes the note: "${name}"`);
 check(!errors.length, `console errors: ${errors.join(' | ')}`);
 
 await browser.close();

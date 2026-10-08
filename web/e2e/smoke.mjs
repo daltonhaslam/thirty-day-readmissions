@@ -63,6 +63,11 @@ for (const width of [1280, 360]) {
     check(t.includes('rounded to zero') && !t.includes('at or below'), `460001 (flag rounded to zero) summary: "${t}"`);
     await p.close();
   }
+  {
+    const { page: p } = await open('#hospital-010006');
+    check(await p.getByRole('button', { name: /report a problem/i }).count() === 0, 'report button shown although feedback is off');
+    await p.close();
+  }
   for (const id of ['010051', '010021']) {
     const { page: p } = await open(`#hospital-${id}`);
     const t = await p.textContent('main');

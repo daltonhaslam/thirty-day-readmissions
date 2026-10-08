@@ -3,6 +3,7 @@ import { part } from '../ui/figure.js';
 import { fmtInt, fmtMoney } from '../model.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
+import { FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 import { SITE_NAME, LINKEDIN_URL } from '../site.js';
 
 const GLOSSARY = [
@@ -64,7 +65,9 @@ export function renderMethods(D) {
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
           + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals are CMS estimates from each year's payment rule, or KFF Health News reporting where CMS printed none. FY2025 uses CMS's simulation of that year under the pre-FY2027 method. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
         h('h2', {}, 'Feedback and privacy'),
-        h('p', {}, 'The feedback form at the bottom of every page sends your note, the page you were on, and your email if you choose to give it. It goes to a private spreadsheet and an email inbox that only I read. Nothing else is collected, and the site sets no cookies. Please leave out any patient information.'),
+        h('p', {}, FEEDBACK_ENABLED
+          ? 'The feedback form at the bottom of every page sends your note, the page you were on, and your email if you choose to give it. It goes to a private spreadsheet and an email inbox that only I read. Nothing else is collected, and the site sets no cookies. Please leave out any patient information.'
+          : 'The site collects nothing about you and sets no cookies. To reach me, use the LinkedIn link at the bottom of any page.'),
         h('h2', {}, 'Accessibility'),
         h('p', {}, 'Every chart has a text label, and every chart\'s numbers are also available in a sortable table on the same page. Selecting individual dots or map areas requires a mouse or touch; the tables, search, and links offer the same destinations by keyboard.'),
       h('aside', {},
