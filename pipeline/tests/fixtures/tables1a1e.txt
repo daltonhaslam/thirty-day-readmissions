@@ -1,0 +1,29 @@
+FY 2027 CN Tables 1A-1E											
+TABLE 1A.  NATIONAL ADJUSTED OPERATING STANDARDIZED AMOUNTS; LABOR/NONLABOR (66.0 PERCENT LABOR SHARE/34.0 PERCENT NONLABOR SHARE IF WAGE INDEX GREATER THAN 1)											
+Hospital Submitted Quality Data and is a Meaningful EHR User (Update = 2.3 Percent)		Hospital Submitted Quality Data and is NOT a Meaningful EHR User (Update = -0.1 Percent)		Hospital Did NOT Submit Quality Data and is a Meaningful EHR User (Update = 1.5 Percent)		"Hospital Did NOT Submit Quality Data and is NOT a Meaningful EHR User
+ (Update = -0.9 Percent)"					z
+Labor-related	Nonlabor-related	Labor-related	Nonlabor-related	Labor-related	Nonlabor-related	Labor-related	Nonlabor-related				
+"$4,519.68 "	"$2,328.32 "	"$4,413.65 "	"$2,273.70 "	"$4,484.34 "	"$2,310.11 "	"$4,378.30 "	"$2,255.49 "				
+											
+"TABLE 1B.  NATIONAL ADJUSTED OPERATING STANDARDIZED AMOUNTS, LABOR/NONLABOR (62 PERCENT LABOR SHARE/38 PERCENT NONLABOR SHARE IF WAGE INDEX LESS THAN OR EQUAL TO 1)"											
+Hospital Submitted Quality Data and is a Meaningful EHR User (Update = 2.3 Percent)		Hospital Submitted Quality Data and is NOT a Meaningful EHR User (Update = -0.1 Percent)		Hospital Did NOT Submit Quality Data and is a Meaningful EHR User (Update = 1.5 Percent)		"Hospital Did NOT Submit Quality Data and is NOT a Meaningful EHR User
+ (Update = -0.9 Percent)"					
+Labor-related	Nonlabor-related	Labor-related	Nonlabor-related	Labor-related	Nonlabor-related	Labor-related	Nonlabor-related				
+"$4,245.76 "	"$2,602.24 "	"$4,146.16 "	"$2,541.19 "	"$4,212.56 "	"$2,581.89 "	"$4,112.95 "	"$2,520.84 "				
+											
+"TABLE 1C.  ADJUSTED OPERATING STANDARDIZED AMOUNTS FOR HOSPITALS IN PUERTO RICO, LABOR/NONLABOR (NATIONAL:  62 PERCENT LABOR SHARE/38 PERCENT NONLABOR SHARE BECAUSE WAGE INDEX IS LESS THAN OR EQUAL TO 1)"											
+	Rates if Wage Index Greater Than 1		Hospital is a Meaningful EHR User and Wage Index Less Than or Equal to 1 (Update = 2.3)		Hospital is NOT a Meaningful EHR User and Wage Index Less Than or Equal to 1 (Update = -0.1)						
+	Labor	Nonlabor	Labor	Nonlabor	Labor	Nonlabor					
+National1	Not Applicable	Not Applicable	"$4,245.76 "	"$2,602.24 "	"$4,146.16 "	"$2,541.19 "					
+"1For FY 2027, there are no CBSAs in Puerto Rico with a national wage index greater than 1."											
+											
+TABLE 1D. -  CAPITAL STANDARD FEDERAL PAYMENT RATE											
+	Rate										
+National	$539.95 										
+											
+"TABLE 1E-  LTCH PPS STANDARD FEDERAL PAYMENT RATE
+
+"											
+				Full Update (2.3 Percent)	Reduced Update* (0.3 Percent)						
+Standard Federal Rate*				"$52,126.94 "	"$51,107.84 "						
+"* For LTCHs that fail to submit quality reporting data for FY 2027 in accordance with the LTCH Quality Reporting Program (LTCH QRP), the annual update is reduced by 2.0 percentage points as required by section 1886(m)(5) of the Act."											
