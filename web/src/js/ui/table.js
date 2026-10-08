@@ -2,7 +2,7 @@ import { h, clear } from '../dom.js';
 import { toCSV } from '../model.js';
 
 // Green-bar printout table: sortable headers, pagination, CSV copy/download of all (filtered) rows.
-export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption, csvName = 'hospitals.csv', csvColumns, rowClass }) {
+export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption, csvName = 'hospitals.csv', csvColumns, rowClass, rowHref }) {
   let data = rows;
   let page = 0;
   let sortState = sort || null; // { key, dir: 'desc'|'asc' }
@@ -74,7 +74,7 @@ export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption
     page = Math.min(Math.max(0, page), pages - 1);
     clear(tbody);
     for (const r of all.slice(page * pageSize, (page + 1) * pageSize)) {
-      tbody.append(h('tr', { class: rowClass?.(r) || null, onclick: (e) => { if (!e.target.closest('a,button')) r.href && (window.location.hash = r.href); } },
+      tbody.append(h('tr', { class: rowClass?.(r) || null, onclick: (e) => { if (rowHref && !e.target.closest('a,button')) window.location.hash = rowHref(r); } },
         columns.map((c) => h('td', { class: [c.num ? 'num' : '', c.cls || ''].join(' ').trim() || null }, c.render ? c.render(r) : r[c.key] ?? '—'))));
     }
     if (!all.length) tbody.append(h('tr', {}, h('td', { colspan: columns.length }, 'No hospitals match these filters.')));

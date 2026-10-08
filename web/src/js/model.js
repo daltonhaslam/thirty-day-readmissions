@@ -95,6 +95,7 @@ export function applyFilters(list, f = {}) {
   const text = norm(f.text).trim();
   return list.filter((h) =>
     (!f.penalized || h.paf < 1)
+    && (f.st == null || h.st === f.st)
     && (f.peer == null || h.peer === f.peer)
     && (f.teach == null || h.teach === f.teach)
     && (f.beds == null || bedBand(h.beds) === f.beds)

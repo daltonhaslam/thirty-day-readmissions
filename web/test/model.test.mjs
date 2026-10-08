@@ -92,6 +92,7 @@ test('explorer filters combine', () => {
   assert.deepEqual(applyFilters(list, { cond: 'HF' }).map((h) => h.id), ['a']);
   assert.deepEqual(applyFilters(list, { beds: '500+', urban: true }).map((h) => h.id), ['b']);
   assert.deepEqual(applyFilters(list, { text: 'ogd' }).map((h) => h.id), ['b']);
+  assert.deepEqual(applyFilters([...list, { ...list[0], id: 'c', st: 'ID' }], { st: 'ID' }).map((h) => h.id), ['c']);
   assert.equal(bedBand(99), '<100');
   assert.equal(bedBand(null), null);
 });

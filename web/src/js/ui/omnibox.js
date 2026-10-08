@@ -6,7 +6,8 @@ let uid = 0;
 const TYPE_LABEL = { hospital: 'Hospital', state: 'State', metro: 'Metro' };
 
 // Accessible combobox over the search index. Enter or click navigates.
-export function omnibox(index, { big = false, placeholder = 'Hospital, city, state, metro, or CCN' } = {}) {
+// onPick(result) replaces navigation (e.g., the worksheet picker); types limits result kinds.
+export function omnibox(index, { big = false, placeholder = 'Hospital, city, state, metro, or CCN', onPick, types } = {}) {
   uid += 1;
   const listId = `omni-list-${uid}`;
   const input = h('input', {
@@ -22,7 +23,14 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
   let active = -1;
 
   const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; };
-  const go = (r) => { if (!r) return; close(); input.value = ''; input.blur(); window.location.hash = link(r.type, r.key); };
+  const go = (r) => {
+    if (!r) return;
+    close();
+    input.value = '';
+    input.blur();
+    if (onPick) onPick(r);
+    else window.location.hash = link(r.type, r.key);
+  };
   const paint = () => {
     clear(list);
     if (!results.length) {
@@ -40,7 +48,7 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
   };
 
   input.addEventListener('input', () => {
-    results = search(input.value, index, 10);
+    results = search(input.value, index, types ? 30 : 10).filter((r) => !types || types.includes(r.type)).slice(0, 10);
     active = results.length ? 0 : -1;
     if (input.value.trim()) paint(); else close();
   });
