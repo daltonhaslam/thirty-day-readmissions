@@ -111,6 +111,12 @@ test('server rules match the browser rules (they cannot share code)', async () =
   assert.equal(sandbox.EMAIL.source, fb.EMAIL.source);
 });
 
+test('the script names the same site and address as the web app', async () => {
+  const site = await import('../src/js/site.js');
+  assert.equal(sandbox.SITE_URL, site.SITE_URL);
+  assert.equal(sandbox.SITE_NAME, site.SITE_NAME);
+});
+
 test('the script asks only for access to its own spreadsheet', () => {
   assert.match(src, /@OnlyCurrentDoc/);
 });

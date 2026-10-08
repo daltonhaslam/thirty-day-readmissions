@@ -6,7 +6,7 @@ import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { SITE_NAME, SITE_URL, FEEDBACK_URL } from './src/js/site.js';
+import { SITE_NAME, SITE_URL, FEEDBACK_URL, FONTS_HREF } from './src/js/site.js';
 
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
@@ -27,7 +27,7 @@ const shell = read('src/shell.html');
 
 const DESC = `How Medicare's Hospital Readmissions Reduction Program works, and the FY${fy} penalty for every hospital, state, and metro area.`;
 const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-  + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:ital,wght@0,400;0,600;0,700;1,400&display=swap">';
+  + `<link rel="stylesheet" href="${FONTS_HREF}">`;
 const ICON = `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="3" fill="#c4303a"/><text x="16" y="23" font-family="Georgia,serif" font-weight="700" font-size="18" text-anchor="middle" fill="#fbfbf8">30</text></svg>')}">`;
 const head = (title) => `<title>${title}</title><meta name="description" content="${DESC}">${ICON}${FONTS}<style>${css}</style>`;
 const body = `${shell}<script id="hrrp-data" type="application/json">${data}</script><script>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
@@ -38,7 +38,7 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
   + `<meta property="og:url" content="${SITE_URL}"><meta property="og:image" content="${SITE_URL}og.png">`
   + '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
   + `<meta property="og:image:alt" content="${SITE_NAME}: FY${fy} Medicare readmission penalties for every hospital">`
-  + `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${SITE_URL}og.png">`
+  + '<meta name="twitter:card" content="summary_large_image">'
   + `${head(pagesTitle)}</head><body>${body}</body></html>`;
 
 const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('../docs/'));

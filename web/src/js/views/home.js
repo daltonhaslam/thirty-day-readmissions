@@ -12,13 +12,14 @@ import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './natio
 import { explorer } from './explorer.js';
 import { link, go, partNo } from '../router.js';
 import { safeHref } from './util.js';
+import { SITE_NAME_LINES } from '../site.js';
 
 function hero(D, index, S) {
   const bigMetro = [...D.byCbsa.entries()].reduce((a, b) => (b[1].length > a[1].length ? b : a));
   return h('section', { class: 'hero wrap', 'aria-labelledby': 'hero-title' },
     h('div', {},
       h('div', { class: 'hero__kicker cap' }, `${D.edition.label} edition · Year ${D.edition.nYears} of Medicare readmission penalties`),
-      h('h1', { class: 'hero__title', id: 'hero-title' }, h('span', {}, 'Thirty Day'), ' ', h('span', { class: 'hero__title-red' }, 'Readmissions')),
+      h('h1', { class: 'hero__title', id: 'hero-title' }, h('span', {}, SITE_NAME_LINES[0]), ' ', h('span', { class: 'hero__title-red' }, SITE_NAME_LINES[1])),
       h('p', { class: 'hero__deck' },
         `When too many patients land back in the hospital within 30 days of going home, Medicare pays that hospital less for a full year. Starting ${D.edition.payStart}, `,
         h('strong', {}, `${fmtInt(S.nPen)} of the ${fmtInt(S.n)} hospitals`), ' CMS evaluated take a cut.'),
