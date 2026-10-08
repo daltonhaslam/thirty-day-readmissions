@@ -65,7 +65,7 @@ for (const width of [1280, 360]) {
   }
   {
     const { page: p } = await open('#hospital-010006');
-    check(await p.getByRole('button', { name: /report a problem/i }).count() === 0, 'report button shown although feedback is off');
+    check(await p.getByRole('button', { name: /report a problem/i }).count() === 1, 'report button missing on a hospital page');
     await p.close();
   }
   for (const id of ['010051', '010021']) {
