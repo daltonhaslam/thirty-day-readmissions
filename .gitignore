@@ -1,0 +1,8 @@
+.superpowers/
+data/raw/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
+.project-status
+web/e2e/screenshots/

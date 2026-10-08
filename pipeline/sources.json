@@ -1,0 +1,74 @@
+[
+  {
+    "name": "hrrp_supplemental_fy2027",
+    "file": "fy-2027-hospital-readmissions-reduction-program-supplemental-data-file.zip",
+    "unzip": true,
+    "sha256": "63b7b7b0827f6ceef6f0d50bfa93ddff07de4887137450a02135e86b0b02767f",
+    "url": "https://www.cms.gov/files/zip/fy-2027-hospital-readmissions-reduction-program-supplemental-data-file.zip",
+    "note": "CMS FY2027 HRRP Supplemental Data File (final, post review-and-correction; files dated 2026-10-07)"
+  },
+  {
+    "name": "hrrp_table15_fy2027",
+    "file": "fy-2027-hospital-readmissions-reduction-program-payment-adjustment-factors.zip",
+    "unzip": true,
+    "sha256": "8c1b2a254c768d6eda6287aff9a5748b55e3bf9570cc5119a61b422ca17e6ba8",
+    "url": "https://www.cms.gov/files/zip/fy-2027-hospital-readmissions-reduction-program-payment-adjustment-factors.zip",
+    "note": "Table 15: FY2027 HRRP payment adjustment factors (cross-check)"
+  },
+  {
+    "name": "ipps_impact_fy2027",
+    "file": "fy2027-ipps-fr-impact-file.zip",
+    "unzip": true,
+    "sha256": "6e51b1015b6c5c9320a3cb3a086450787f8fef3723d5cc382f6aa64b2c716f17",
+    "url": "https://www.cms.gov/files/zip/fy2027-ipps-fr-impact-file.zip",
+    "note": "FY2027 IPPS Final Rule and Correction Notice Impact File"
+  },
+  {
+    "name": "ipps_tables_1a_1e_fy2027",
+    "file": "fy2027-ipps-fr-table-1a-1e.zip",
+    "unzip": true,
+    "sha256": "70a89efeeea4f8430ed8e8a1c50d40c4fab3a839e6a2358763835688c448d12c",
+    "url": "https://www.cms.gov/files/zip/fy2027-ipps-fr-table-1a-1e.zip",
+    "note": "FY2027 IPPS Tables 1A-1E (final rule + correction notice standardized amounts)"
+  },
+  {
+    "name": "county_cbsa_fy2027",
+    "file": "fy2027-ipps-fr-county-cbsa-crosswalk-file.zip",
+    "unzip": true,
+    "sha256": "5ad838ae4be012d26b28d07a82bebb162640217e6336d4d31eec7e85d2fe5d12",
+    "url": "https://www.cms.gov/files/zip/fy2027-ipps-fr-county-cbsa-crosswalk-file.zip",
+    "note": "FY2027 county to CBSA crosswalk (metro names)"
+  },
+  {
+    "name": "hospital_general_info",
+    "file": "Hospital_General_Information.csv",
+    "unzip": false,
+    "sha256": "f874f09fef895a1ccf5bb7392dcbb2be05c9860339261b093fe00f0c1b013480",
+    "url": "https://data.cms.gov/provider-data/sites/default/files/resources/893c372430d9d71a1c52737d01239d47_1785189955/Hospital_General_Information.csv",
+    "note": "CMS Provider Data Catalog: Hospital General Information (dataset xubh-q36u, modified 2026-07-22)"
+  },
+  {
+    "name": "zcta_gazetteer_2024",
+    "file": "2024_Gaz_zcta_national.zip",
+    "unzip": true,
+    "sha256": "7b85c04a131672f58b38a950eb82855d5fd4054f0bd9bc3f69aa28897a714e3d",
+    "url": "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_Gaz_zcta_national.zip",
+    "note": "US Census 2024 ZCTA Gazetteer (ZIP centroids)"
+  },
+  {
+    "name": "us_atlas_states",
+    "file": "states-10m.json",
+    "unzip": false,
+    "sha256": "d76b391ccfa8bff601d51e3e3da5d43a89fa46cd5caca72ce731b383be5596d0",
+    "url": "https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/states-10m.json",
+    "note": "us-atlas 3.0.1 state boundaries (Census cartographic boundary, 1:10m)"
+  },
+  {
+    "name": "us_atlas_counties",
+    "file": "counties-10m.json",
+    "unzip": false,
+    "sha256": "145aaf5d1433352a6a1d8e86b5f149c7c653f9171baf14aaf75ee66575def1b0",
+    "url": "https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/counties-10m.json",
+    "note": "us-atlas 3.0.1 county boundaries (county centroid fallback for geocoding)"
+  }
+]
