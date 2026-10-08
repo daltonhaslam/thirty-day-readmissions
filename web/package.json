@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test test/*.test.mjs",
-    "e2e": "node e2e/smoke.mjs"
+    "e2e": "node e2e/smoke.mjs",
+    "e2e:headers": "node e2e/headers.mjs"
   },
   "dependencies": {
     "d3-array": "3.2.4",

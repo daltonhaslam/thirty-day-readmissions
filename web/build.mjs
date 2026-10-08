@@ -26,7 +26,8 @@ const shell = read('src/shell.html');
 const DESC = `How Medicare's Hospital Readmissions Reduction Program works, and the FY${fy} penalty for every hospital, state, and metro area.`;
 const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
   + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:ital,wght@0,400;0,600;0,700;1,400&display=swap">';
-const head = (title) => `<title>${title}</title><meta name="description" content="${DESC}">${FONTS}<style>${css}</style>`;
+const ICON = `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="3" fill="#c4303a"/><text x="16" y="23" font-family="Georgia,serif" font-weight="700" font-size="18" text-anchor="middle" fill="#fbfbf8">30</text></svg>')}">`;
+const head = (title) => `<title>${title}</title><meta name="description" content="${DESC}">${ICON}${FONTS}<style>${css}</style>`;
 const body = `${shell}<script id="hrrp-data" type="application/json">${data}</script><script>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
 
 const pagesTitle = `${SITE_NAME} · Medicare readmission penalties, FY${fy}`;

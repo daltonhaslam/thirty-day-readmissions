@@ -54,7 +54,13 @@ npm install
 npm test                              # unit tests (penalty math, search, router, CSV)
 npm run build                         # → ../docs/index.html (and dist/artifact.html)
 npm run e2e                           # end-to-end checks in installed Google Chrome
+npm run e2e:headers                   # the page still works under vercel.json's security headers
 ```
+
+## Hosting
+
+The site deploys on Vercel from this repository. `vercel.json` serves `docs/` as-is (there is no build
+step on Vercel) and sets security headers. Every push to `main` redeploys; other branches get preview URLs.
 
 When CMS posts the next fiscal year: add the new files to `pipeline/sources.json`, update the constants
 block at the top of `pipeline/build_data.py`, and append the prior year's factors to the history CSV.
@@ -64,7 +70,7 @@ block at the top of `pipeline/build_data.py`, and append the prior year's factor
 ```
 pipeline/   fetch.py, build_data.py, hrrp/ (parsers, formula, geography, names), history/, content/, tests/
 web/        build.mjs, src/ (index shell, styles, js: model, router, charts, views), test/, e2e/
-docs/       index.html, the built site (GitHub Pages)
+docs/       index.html, the built site (served by Vercel; see vercel.json)
 planning-docs/  design spec and implementation plan
 ```
 
