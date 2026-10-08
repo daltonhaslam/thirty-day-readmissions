@@ -14,6 +14,8 @@
 .nav a .num { font-family: var(--font-type); color: var(--form-ink); margin-right: 6px; font-weight: 400; }
 .nav a:hover, .nav a[aria-current="true"] { color: var(--ink); border-bottom-color: var(--form); }
 @media (max-width: 640px) {
+  .wordmark__name { font-size: 1.05rem; }
+  .wordmark__tag { display: none; }
   .topbar { position: static; }
   .topbar__row { flex-wrap: wrap; gap: 10px; }
   .topbar__search { order: 3; flex: 1 1 100%; }
@@ -53,8 +55,11 @@
 .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; padding-block: 36px 28px; }
 @media (min-width: 960px) { .hero { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 48px; padding-block: 56px 40px; } }
 .hero__kicker { color: var(--form-ink); }
-.hero__title { font: 400 clamp(3.5rem, 11vw, 7.6rem)/0.88 var(--font-display); letter-spacing: -0.01em; margin: 14px 0 22px; }
-.hero__title span { color: var(--form); }
+/* Sized to the column (container units) so 'Readmissions' always fits on one line. */
+.hero > div:first-child { container-type: inline-size; }
+.hero__title { font: 400 clamp(2.2rem, 12.4cqi, 7rem)/0.9 var(--font-display); letter-spacing: -0.01em; margin: 14px 0 22px; }
+.hero__title span { display: block; }
+.hero__title .hero__title-red { color: var(--form); }
 .hero__deck { font-size: clamp(1.125rem, 2.2vw, 1.375rem); line-height: 1.45; max-width: 34ch; }
 .hero__deck strong { font-weight: 700; background: linear-gradient(transparent 62%, var(--form-tint) 62%); }
 .hero__search { margin-top: 26px; max-width: 560px; }

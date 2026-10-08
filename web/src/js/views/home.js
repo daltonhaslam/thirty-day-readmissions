@@ -18,7 +18,7 @@ function hero(D, index, S) {
   return h('section', { class: 'hero wrap', 'aria-labelledby': 'hero-title' },
     h('div', {},
       h('div', { class: 'hero__kicker cap' }, `${D.edition.label} edition · Year ${D.edition.nYears} of Medicare readmission penalties`),
-      h('h1', { class: 'hero__title', id: 'hero-title' }, 'Thirty ', h('span', {}, 'Days')),
+      h('h1', { class: 'hero__title', id: 'hero-title' }, h('span', {}, 'Thirty Day'), ' ', h('span', { class: 'hero__title-red' }, 'Readmissions')),
       h('p', { class: 'hero__deck' },
         `When too many patients land back in the hospital within 30 days of going home, Medicare pays that hospital less for a full year. Starting ${D.edition.payStart}, `,
         h('strong', {}, `${fmtInt(S.nPen)} of the ${fmtInt(S.n)} hospitals`), ' CMS evaluated take a cut.'),

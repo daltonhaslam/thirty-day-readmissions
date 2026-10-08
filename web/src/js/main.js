@@ -1,4 +1,5 @@
 import { loadData } from './data.js';
+import { SITE_NAME } from './site.js';
 import { buildIndex } from './ui/search.js';
 import { renderShell, markNav } from './views/shell.js';
 import { onRoute } from './router.js';
@@ -15,7 +16,7 @@ const index = buildIndex({ hospitals: D.hospitals, states: D.meta.states, metros
 renderShell(D, index);
 
 const main = document.getElementById('main');
-const SITE = 'Thirty Days';
+const SITE = SITE_NAME;
 let current = null;
 let fromHistory = false;
 // Per-route memory used only on Back/Forward: scroll position and view state (explorer filters, sort, page).

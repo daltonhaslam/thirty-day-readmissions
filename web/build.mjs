@@ -4,6 +4,7 @@
 import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { SITE_NAME } from './src/js/site.js';
 
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
@@ -28,7 +29,7 @@ const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link 
 const head = (title) => `<title>${title}</title><meta name="description" content="${DESC}">${FONTS}<style>${css}</style>`;
 const body = `${shell}<script id="hrrp-data" type="application/json">${data}</script><script>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
 
-const pagesTitle = `Thirty Days · Medicare readmission penalties, FY${fy}`;
+const pagesTitle = `${SITE_NAME} · Medicare readmission penalties, FY${fy}`;
 const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`
   + `<meta property="og:title" content="${pagesTitle}"><meta property="og:description" content="${DESC}"><meta property="og:type" content="website">`
   + `${head(pagesTitle)}</head><body>${body}</body></html>`;
@@ -36,6 +37,6 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
 mkdirSync(here('../docs/'), { recursive: true });
 mkdirSync(here('dist/'), { recursive: true });
 writeFileSync(here('../docs/index.html'), doc);
-writeFileSync(here('dist/artifact.html'), `${head('Thirty Days')}${body}`);
+writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${body}`);
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 console.log(`docs/index.html ${kb(doc)} (js ${kb(js)}, css ${kb(css)}, data ${kb(data)})`);

@@ -3,6 +3,7 @@ import { part } from '../ui/figure.js';
 import { fmtInt, fmtMoney } from '../model.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
+import { SITE_NAME } from '../site.js';
 
 const GLOSSARY = [
   ['Readmission', 'An unplanned return to any acute-care hospital within 30 days of discharge, for any reason. Planned returns, such as a scheduled chemotherapy stay, do not count.'],
@@ -29,7 +30,7 @@ export function renderMethods(D) {
     h('div', { class: 'methods__grid' },
       h('div', { class: 'prose' },
         h('h2', {}, 'About'),
-        h('p', {}, `Thirty Days explains Medicare's Hospital Readmissions Reduction Program and shows the ${E.label} penalty for every hospital in it.`
+        h('p', {}, `${SITE_NAME} explains Medicare's Hospital Readmissions Reduction Program and shows the ${E.label} penalty for every hospital in it.`
           + ' It is built entirely from public federal files and is meant for anyone: patients and families, reporters, and the hospital teams who work with these numbers every day.'),
         h('p', {}, 'Built by Dalton Haslam, MD, MBA, a physician advisor. It is an independent project, not affiliated with or endorsed by the Centers for Medicare & Medicaid Services. Corrections are welcome through ',
           h('a', { href: 'https://www.linkedin.com/in/dalton-haslam', target: '_blank', rel: 'noopener' }, 'LinkedIn'), '.'),

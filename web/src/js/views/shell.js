@@ -2,6 +2,7 @@ import { h } from '../dom.js';
 import { omnibox } from '../ui/omnibox.js';
 import { themeButton } from '../ui/theme.js';
 import { link, SECTION_LIST } from '../router.js';
+import { SITE_NAME } from '../site.js';
 
 const LINKEDIN = 'https://www.linkedin.com/in/dalton-haslam';
 
@@ -9,8 +10,8 @@ export function renderShell(D, index) {
   const nav = [...SECTION_LIST.map(([id, label]) => [id, id === 'picture' ? D.edition.label : label]), ['methods', 'Methods']];
   document.getElementById('topbar').append(
     h('div', { class: 'wrap topbar__row' },
-      h('a', { class: 'wordmark', href: '#', 'aria-label': 'Thirty Days, home' },
-        h('span', { class: 'wordmark__name' }, 'Thirty Days'),
+      h('a', { class: 'wordmark', href: '#', 'aria-label': `${SITE_NAME}, home` },
+        h('span', { class: 'wordmark__name' }, SITE_NAME),
         h('span', { class: 'wordmark__tag' }, `HRRP · ${D.edition.label}`)),
       h('div', { class: 'topbar__search' }, omnibox(index)),
       themeButton()),

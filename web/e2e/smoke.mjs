@@ -33,11 +33,22 @@ for (const width of [1280, 360]) {
     check(sw <= width, `${label}: horizontal overflow (scrollWidth ${sw})`);
     const text = await page.evaluate(() => document.getElementById('main').innerText);
     check(!/\bNaN\b|\bundefined\b|\[object Object\]/.test(text), `${label}: NaN/undefined/[object] in text`);
+    const heroClipped = await page.evaluate(() => { const t = document.querySelector('.hero__title'); return t ? [...t.children].some((c) => c.scrollWidth > t.clientWidth + 1) : false; });
+    check(!heroClipped, `${label}: hero title wider than its column`);
     const unlabeled = await page.evaluate(() => [...document.querySelectorAll('#main svg')].filter((s) => !s.closest('.legend') && !s.getAttribute('aria-label')).length);
     check(unlabeled === 0, `${label}: ${unlabeled} charts without aria-label`);
     if (width === 1280 && hash === '') check(ms < 2500, `home render took ${ms}ms`);
     await page.close();
   }
+}
+
+// 1b. Site name.
+{
+  const { page } = await open('');
+  check((await page.title()).startsWith('Thirty Day Readmissions'), `page title is "${await page.title()}"`);
+  check((await page.textContent('h1')).replace(/\s+/g, ' ').trim() === 'Thirty Day Readmissions', 'hero title is not "Thirty Day Readmissions"');
+  check((await page.textContent('.wordmark__name')).trim() === 'Thirty Day Readmissions', 'wordmark not renamed');
+  await page.close();
 }
 
 // 2. Not-found and no-penalty pages read correctly.
