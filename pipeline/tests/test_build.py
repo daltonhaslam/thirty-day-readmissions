@@ -1,0 +1,121 @@
+import json
+import unittest
+from pathlib import Path
+
+from hrrp import geo, names
+
+ROOT = Path(__file__).resolve().parents[2]
+RAW = ROOT / "data" / "raw"
+OUT = ROOT / "web" / "src" / "data" / "hrrp.json"
+
+
+class NamesTest(unittest.TestCase):
+    def test_title_cases_care_compare_name_even_when_impact_name_matches(self):
+        self.assertEqual(names.display_name("DELL SETON  MED CENTER AT THE UNIVERSITY OF TX", "Dell Seton  Med Center At The University Of Tx"),
+                         "Dell Seton Med Center at the University of TX")
+
+    def test_keeps_names_that_are_already_mixed_case(self):
+        self.assertEqual(names.display_name("McLaren Bay Region", None), "McLaren Bay Region")
+
+    def test_splits_on_slashes(self):
+        self.assertEqual(names.smart_title("SUNY/STONY BROOK UNIVERSITY HOSPITAL"), "SUNY/Stony Brook University Hospital")
+
+    def test_smart_title_when_names_differ(self):
+        self.assertEqual(names.display_name("ST. MARY'S MEDICAL CENTER OF EVANSVILLE", "Old Name"),
+                         "St. Mary's Medical Center of Evansville")
+
+    def test_keeps_acronyms_and_hyphens(self):
+        self.assertEqual(names.smart_title("UCSF MEDICAL CENTER"), "UCSF Medical Center")
+        self.assertEqual(names.smart_title("WAKE FOREST BAPTIST - WINSTON-SALEM"), "Wake Forest Baptist - Winston-Salem")
+        self.assertEqual(names.smart_title("HCA FLORIDA JFK HOSPITAL"), "HCA Florida JFK Hospital")
+
+    def test_mc_prefix(self):
+        self.assertEqual(names.smart_title("MCALLEN MEDICAL CENTER"), "McAllen Medical Center")
+
+    def test_falls_back_to_impact_name_when_hgi_missing(self):
+        self.assertEqual(names.display_name(None, "Some Hospital"), "Some Hospital")
+
+
+class GeoTest(unittest.TestCase):
+    def test_region_and_division(self):
+        self.assertEqual(geo.region_of("UT"), ("West", "Mountain"))
+        self.assertEqual(geo.region_of("DC"), ("South", "South Atlantic"))
+        self.assertEqual(geo.region_of("ZZ"), (None, None))
+
+    @unittest.skipUnless((RAW / "us_atlas_counties" / "counties-10m.json").exists(), "raw data not fetched")
+    def test_county_centroid_salt_lake(self):
+        cents = geo.county_centroids(RAW / "us_atlas_counties" / "counties-10m.json")
+        lat, lon = cents["49035"]
+        self.assertAlmostEqual(lat, 40.67, delta=0.3)
+        self.assertAlmostEqual(lon, -111.92, delta=0.3)
+
+
+@unittest.skipUnless(OUT.exists(), "run pipeline/build_data.py first")
+class ContractTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.size = OUT.stat().st_size
+        cls.d = json.loads(OUT.read_text())
+        cls.h = cls.d["hospitals"]
+
+    def test_size_budget(self):
+        self.assertLess(self.size, 3_000_000)
+
+    def test_ids_unique_and_well_formed(self):
+        ids = [x["id"] for x in self.h]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(len(i) == 6 for i in ids))
+
+    def test_paf_range_and_reduction_consistency(self):
+        for x in self.h:
+            self.assertTrue(0.97 <= x["paf"] <= 1.0, x["id"])
+            self.assertAlmostEqual(x["red"], round((1 - x["paf"]) * 100, 2), places=6, msg=x["id"])
+
+    def test_replication_and_geocode_coverage(self):
+        rep = self.d["meta"]["replication"]
+        self.assertGreaterEqual(rep["matched"] / rep["total"], 0.99)
+        with_geo = sum(1 for x in self.h if x["lat"] is not None)
+        self.assertGreaterEqual(with_geo / len(self.h), 0.97)
+
+    def test_hospital_with_no_flags_has_no_penalty(self):
+        zero = [x for x in self.h if all(c["flag"] == 0 for c in x["c"].values())]
+        self.assertTrue(zero)
+        for x in zero:
+            self.assertEqual(x["paf"], 1.0, x["id"])
+
+    def test_conditions_without_discharges_are_omitted(self):
+        for x in self.h:
+            for k, c in x["c"].items():
+                self.assertFalse(c["n"] is None and c["err"] is None, (x["id"], k))
+
+    def test_peer_medians_cover_every_group_and_condition(self):
+        pm = self.d["meta"]["peerMedians"]
+        self.assertEqual(sorted(pm), ["1", "2", "3", "4", "5"])
+        for g in pm.values():
+            self.assertEqual(sorted(g), sorted(["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"]))
+
+    def test_ownership_prefers_care_compare(self):
+        x = next(x for x in self.h if x["id"] == "010012")
+        self.assertEqual((x["own"], x["ownDetail"]), ("For-profit", "Proprietary"))
+
+    def test_missing_geo_is_null_not_zero(self):
+        for x in self.h:
+            if x["geo"] is None:
+                self.assertIsNone(x["lat"])
+                self.assertIsNone(x["lon"])
+            else:
+                self.assertIn(x["geo"], ("zip", "county"))
+
+    def test_contract_keys(self):
+        self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
+        self.assertEqual([c["key"] for c in self.d["conditions"]], ["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"])
+        keys = {"id", "name", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
+                "division", "beds", "teach", "own", "ownDetail", "star", "types", "paf", "red", "dual", "peer", "base",
+                "pen", "c"}
+        self.assertEqual(set(self.h[0]), keys)
+        self.assertEqual(set(self.h[0]["c"]["HF"]), {"n", "err", "flag", "ratio"})
+        self.assertEqual(len(self.d["meta"]["peerCutoffs"]), 5)
+
+
+if __name__ == "__main__":
+    unittest.main()
