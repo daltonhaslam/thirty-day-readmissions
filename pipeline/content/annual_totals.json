@@ -1,0 +1,15 @@
+[
+  {"fy": 2013, "totalEst": 280000000, "src": {"kind": "CMS", "label": "FY2013 IPPS final rule, 77 FR 53268", "url": "https://www.federalregister.gov/documents/2012/08/31/2012-19079"}},
+  {"fy": 2014, "totalEst": 227000000, "src": {"kind": "CMS", "label": "FY2014 IPPS final rule, 78 FR 50507", "url": "https://www.federalregister.gov/documents/2013/08/19/2013-18956"}},
+  {"fy": 2015, "totalEst": 424000000, "src": {"kind": "CMS", "label": "FY2015 IPPS final rule, 79 FR 50424", "url": "https://www.federalregister.gov/documents/2014/08/22/2014-18545"}},
+  {"fy": 2016, "totalEst": 420000000, "src": {"kind": "CMS", "label": "FY2016 IPPS final rule, 80 FR 49337", "url": "https://www.federalregister.gov/documents/2015/08/17/2015-19049"}},
+  {"fy": 2017, "totalEst": 528000000, "src": {"kind": "CMS", "label": "FY2017 IPPS final rule, 81 FR 56775", "url": "https://www.federalregister.gov/documents/2016/08/22/2016-18476"}},
+  {"fy": 2018, "totalEst": 564000000, "src": {"kind": "CMS", "label": "FY2018 IPPS final rule, 82 FR 38002", "url": "https://www.federalregister.gov/documents/2017/08/14/2017-16434"}},
+  {"fy": 2019, "totalEst": 566000000, "src": {"kind": "CMS", "label": "FY2019 IPPS final rule, 83 FR 41151", "url": "https://www.federalregister.gov/documents/2018/08/17/2018-16766"}},
+  {"fy": 2020, "totalEst": 563000000, "src": {"kind": "CMS", "label": "FY2020 IPPS final rule, 84 FR 42051", "url": "https://www.federalregister.gov/documents/2019/08/16/2019-16762"}},
+  {"fy": 2021, "totalEst": 553000000, "src": {"kind": "CMS", "label": "FY2021 IPPS final rule, 85 FR 58438", "url": "https://www.federalregister.gov/documents/2020/09/18/2020-19637"}},
+  {"fy": 2022, "totalEst": 521000000, "src": {"kind": "KFF", "label": "KFF Health News, Oct 28, 2021", "url": "https://kffhealthnews.org/aging/hospital-readmission-rates-medicare-penalties/"}},
+  {"fy": 2023, "totalEst": 320000000, "src": {"kind": "KFF", "label": "KFF Health News, Nov 1, 2022", "url": "https://kffhealthnews.org/aging/medicare-fines-hospital-readmissions-drop-covid/"}},
+  {"fy": 2025, "totalEst": 316131336, "src": {"kind": "CMS", "label": "FY2026 IPPS final rule, Table VI.K-03 (90 FR 36938)", "url": "https://www.federalregister.gov/documents/2025/08/04/2025-14681"}},
+  {"fy": 2027, "totalEst": 361347626, "src": {"kind": "CMS", "label": "FY2027 IPPS final rule, Table V.I.-05 (91 FR 49892); made with preliminary data", "url": "https://www.federalregister.gov/documents/2026/08/04/2026-15833"}}
+]
