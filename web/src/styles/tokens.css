@@ -1,0 +1,53 @@
+/* Layout concept: a federal claim form / handbook printed in two inks (black + form red) on white stock.
+   Data is "typed" into boxed fields; tables are green-bar computer printout; charts use screens of the red ink. */
+:root {
+  --paper: #fbfbf8;        /* white stock */
+  --paper-2: #f0f1ec;      /* field fill, panels */
+  --ink: #1c1b1d;          /* black ink */
+  --ink-2: #49484d;        /* secondary text */
+  --ink-3: #75747a;        /* axis labels, captions */
+  --form: #c4303a;         /* form red (drop-out ink) */
+  --form-ink: #a5222c;     /* red text on paper (AA contrast) */
+  --form-tint: #f7e1e2;    /* 12% screen of red */
+  --bar: #e5eee3;          /* green-bar printout band */
+  --bar-line: #c9d8c6;
+  --hatch: rgba(28, 27, 29, 0.28);
+  /* Penalty ramp: screens of the red ink, deepening to overprint */
+  --p0: #e4e4df; --p1: #f3cfd1; --p2: #e79a9f; --p3: #d65f67; --p4: #c4303a; --p5: #7a1820;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  --font-display: 'Alfa Slab One', Rockwell, 'Roboto Slab', Georgia, serif;
+  --font-body: 'Libre Franklin', 'Franklin Gothic Book', 'Helvetica Neue', Arial, sans-serif;
+  --font-type: 'Courier Prime', 'Courier New', Courier, monospace;
+
+  --fs-cap: 0.6875rem;   /* 11px labels */
+  --fs-sm: 0.8125rem;    /* 13 */
+  --fs-base: 1rem;       /* 16 */
+  --fs-md: 1.125rem;     /* 18 */
+  --fs-lg: 1.375rem;     /* 22 */
+  --fs-xl: 1.875rem;     /* 30 */
+  --fs-2xl: 2.75rem;     /* 44 */
+  --rule: 1.5px;
+  --gutter: 16px;
+  --measure: 66ch;
+  --page: 1180px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #15161a; --paper-2: #1f2126; --ink: #ecebe5; --ink-2: #bdbcb5; --ink-3: #8d8c87;
+    --form: #ef5b55; --form-ink: #ff7d74; --form-tint: #3a1d21; --bar: #1a221e; --bar-line: #2b3a30;
+    --hatch: rgba(236, 235, 229, 0.3);
+    --p0: #2b2d33; --p1: #4b2a2f; --p2: #7a3239; --p3: #b0424a; --p4: #e8574f; --p5: #ff9a86;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #15161a; --paper-2: #1f2126; --ink: #ecebe5; --ink-2: #bdbcb5; --ink-3: #8d8c87;
+  --form: #ef5b55; --form-ink: #ff7d74; --form-tint: #3a1d21; --bar: #1a221e; --bar-line: #2b3a30;
+  --hatch: rgba(236, 235, 229, 0.3);
+  --p0: #2b2d33; --p1: #4b2a2f; --p2: #7a3239; --p3: #b0424a; --p4: #e8574f; --p5: #ff9a86;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}

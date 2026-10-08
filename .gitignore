@@ -6,3 +6,4 @@ __pycache__/
 node_modules/
 .project-status
 web/e2e/screenshots/
+dist/

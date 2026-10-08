@@ -29,7 +29,7 @@ export function contrib(h, meta, errOverride = {}) {
   return { byCond, sum, reduction, paf: round4(1 - round4(reduction)) };
 }
 
-const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
+export const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 export function median(a) {
   if (!a.length) return 0;
   const s = [...a].sort((x, y) => x - y);

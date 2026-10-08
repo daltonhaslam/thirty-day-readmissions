@@ -1,0 +1,3 @@
+.fig__body svg { display: block; overflow: visible; }
+.hero__card { position: relative; align-self: start; }
+.hero__stamp { display: flex; justify-content: flex-end; margin-top: 16px; padding-right: 6px; }
