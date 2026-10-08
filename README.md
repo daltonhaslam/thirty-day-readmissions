@@ -59,6 +59,7 @@ npm test                              # unit tests (penalty math, search, router
 npm run build                         # → ../docs/index.html (and dist/artifact.html)
 npm run e2e                           # end-to-end checks in installed Google Chrome
 npm run e2e:headers                   # the page still works under vercel.json's security headers
+npm run og                            # re-render the 1200x630 link-preview card (docs/og.png)
 ```
 
 ## Hosting

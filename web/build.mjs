@@ -6,7 +6,7 @@ import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { SITE_NAME, FEEDBACK_URL } from './src/js/site.js';
+import { SITE_NAME, SITE_URL, FEEDBACK_URL } from './src/js/site.js';
 
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
@@ -35,6 +35,10 @@ const body = `${shell}<script id="hrrp-data" type="application/json">${data}</sc
 const pagesTitle = `${SITE_NAME} · Medicare readmission penalties, FY${fy}`;
 const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`
   + `<meta property="og:title" content="${pagesTitle}"><meta property="og:description" content="${DESC}"><meta property="og:type" content="website">`
+  + `<meta property="og:url" content="${SITE_URL}"><meta property="og:image" content="${SITE_URL}og.png">`
+  + '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+  + `<meta property="og:image:alt" content="${SITE_NAME}: FY${fy} Medicare readmission penalties for every hospital">`
+  + `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${SITE_URL}og.png">`
   + `${head(pagesTitle)}</head><body>${body}</body></html>`;
 
 const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('../docs/'));

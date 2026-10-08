@@ -7,7 +7,8 @@
     "test": "node --test test/*.test.mjs",
     "e2e": "node e2e/smoke.mjs",
     "e2e:headers": "node e2e/headers.mjs",
-    "e2e:feedback": "node e2e/feedback.mjs"
+    "e2e:feedback": "node e2e/feedback.mjs",
+    "og": "node og.mjs"
   },
   "dependencies": {
     "d3-array": "3.2.4",
