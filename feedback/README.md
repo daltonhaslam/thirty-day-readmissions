@@ -16,8 +16,9 @@ owner, with Reply-To set to the reader's address when they leave one. Nothing el
    - Who has access: **Anyone**
 4. Click **Deploy**, then **Authorize access** and pick your Google account. Google shows
    "Google hasn't verified this app" for any personal script: click **Advanced**, then
-   **Go to … (unsafe)**, then **Allow**. The script can only add rows to this Sheet and send
-   email to you.
+   **Go to … (unsafe)**, then **Allow**. Google lists two permissions: edit this one spreadsheet,
+   and send email as you. The code only ever sends to your own address, and only you can edit it
+   as long as you don't share the Sheet.
 5. Copy the **Web app URL** (it ends in `/exec`). It goes into `FEEDBACK_URL` in `web/src/js/site.js`;
    rebuild (`cd web && npm run build`) and push.
 
@@ -29,5 +30,5 @@ The URL stays the same.
 ## Limits
 
 - Bursts over 20 submissions in 10 minutes are refused (spam protection).
-- Gmail lets a personal account's scripts send about 100 emails a day; past that, rows are still
-  saved to the Sheet.
+- At most 30 notification emails a day (Gmail allows a personal account's scripts about 100 a day
+  in total). Past that, submissions are still saved to the Sheet.

@@ -10,12 +10,14 @@ vm.createContext(sandbox);
 vm.runInContext(src, sandbox);
 const { handleFeedback } = sandbox;
 
-function env({ quota = 100, recent = 0 } = {}) {
+function env({ quota = 100, recent = 0, sentToday = 0 } = {}) {
   const rows = [];
   const mail = [];
   const cache = new Map(recent ? [['recent', String(recent)]] : []);
+  const props = new Map(sentToday ? [['mail-2026-10-09', String(sentToday)]] : []);
   return {
-    rows, mail,
+    rows, mail, props,
+    store: { getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v) },
     now: new Date('2026-10-09T12:00:00Z'),
     owner: 'owner@example.org',
     sheet: { getLastRow: () => rows.length, appendRow: (r) => rows.push(r) },
@@ -75,4 +77,39 @@ test('server rules match the browser rules (they cannot share code)', async () =
   assert.equal(sandbox.MAX_MESSAGE, fb.MAX_MESSAGE);
   assert.equal(sandbox.MIN_MESSAGE, fb.MIN_MESSAGE);
   assert.equal(sandbox.EMAIL.source, fb.EMAIL.source);
+});
+
+test('the script asks only for access to its own spreadsheet', () => {
+  assert.match(src, /@OnlyCurrentDoc/);
+});
+
+test('emails stop at the daily cap but rows are still saved', () => {
+  const e = env({ sentToday: sandbox.MAX_EMAILS_PER_DAY });
+  assert.equal(handleFeedback(good, e), 'ok');
+  assert.equal(e.rows.length, 2);
+  assert.equal(e.mail.length, 0);
+  const fresh = env();
+  handleFeedback(good, fresh);
+  assert.equal(fresh.props.get('mail-2026-10-09'), '1');
+});
+
+test('the email leads with details; the subject carries only the route, never reader text', () => {
+  const e = env();
+  handleFeedback({ ...good, title: 'URGENT: verify your account', page: '#hospital-010006' }, e);
+  assert.doesNotMatch(e.mail[0].subject, /URGENT/);
+  assert.match(e.mail[0].subject, /#hospital-010006/);
+  assert.ok(e.mail[0].body.indexOf('Kind:') < e.mail[0].body.indexOf(good.message));
+});
+
+test('pages that are not site routes are dropped', () => {
+  const e = env();
+  handleFeedback({ ...good, page: 'https://evil.example/login' }, e);
+  assert.equal(e.rows[1][4], '');
+});
+
+test('full-width formula characters are neutralized and odd kinds fall back to Other', () => {
+  const e = env();
+  handleFeedback({ ...good, kind: 'constructor', message: '\uFF1DHYPERLINK("x") please check' }, e);
+  assert.ok(e.rows[1][2].startsWith("'"));
+  assert.equal(e.rows[1][1], 'Other');
 });

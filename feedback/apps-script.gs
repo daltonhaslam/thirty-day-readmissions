@@ -1,5 +1,7 @@
 /**
- * Thirty Day Readmissions — reader feedback receiver (Google Apps Script web app).
+ * @OnlyCurrentDoc
+ *
+ * Thirty Day Readmissions: reader feedback receiver (Google Apps Script web app).
  *
  * Paste this into the Apps Script editor of a blank Google Sheet (Extensions > Apps Script),
  * then Deploy > New deployment > Web app, Execute as: Me, Who has access: Anyone.
@@ -14,6 +16,8 @@ var MAX_MESSAGE = 2000;
 var MAX_FIELD = 200;
 var BURST_LIMIT = 20;          // submissions per 10 minutes, all readers combined
 var BURST_WINDOW_SECONDS = 600;
+var MAX_EMAILS_PER_DAY = 30;   // keeps a flood from using up the account's shared daily mail quota
+var ROUTE = /^#[a-z0-9-]{0,60}$/i;  // the site's own page anchors, e.g. #hospital-010006
 var KINDS = { data: 'Data looks wrong', confusing: 'Something is confusing', idea: 'Idea for the site', other: 'Other' };
 var HEADERS = ['Received', 'Kind', 'Message', 'Email', 'Page', 'Page title'];
 var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,6 +28,7 @@ function doPost(e) {
     owner: Session.getEffectiveUser().getEmail(),
     sheet: SpreadsheetApp.getActiveSpreadsheet().getSheets()[0],
     mailer: MailApp,
+    store: PropertiesService.getScriptProperties(),
     cache: CacheService.getScriptCache(),
     lock: LockService.getScriptLock(),
   });
@@ -38,10 +43,10 @@ function handleFeedback(p, env) {
   if (recent >= BURST_LIMIT) return 'busy';
   env.cache.put('recent', String(recent + 1), BURST_WINDOW_SECONDS);
 
-  var kindLabel = KINDS[p.kind] || KINDS.other;
+  var kindLabel = Object.prototype.hasOwnProperty.call(KINDS, p.kind) ? KINDS[p.kind] : KINDS.other;
   var emailRaw = field(p.email);
   var email = EMAIL.test(emailRaw) ? emailRaw : '';
-  var page = field(p.page);
+  var page = ROUTE.test(field(p.page)) ? field(p.page) : '';
   var title = field(p.title);
 
   env.lock.waitLock(5000);
@@ -52,15 +57,21 @@ function handleFeedback(p, env) {
     env.lock.releaseLock();
   }
 
-  if (env.mailer.getRemainingDailyQuota() > 0) {
+  var dayKey = 'mail-' + env.now.toISOString().slice(0, 10);
+  var sentToday = Number(env.store.getProperty(dayKey) || 0);
+  if (sentToday < MAX_EMAILS_PER_DAY && env.mailer.getRemainingDailyQuota() > 0) {
+    // Details first and a subject built only from fixed text and the route, so reader text
+    // can't pass itself off as the header of the email.
     var mail = {
       to: env.owner,
-      subject: oneLine('[' + SITE_NAME + '] ' + kindLabel + ': ' + (title || page || 'site')),
-      body: message + '\n\n---\nPage: ' + SITE_URL + page + '\nKind: ' + kindLabel
-        + '\nFrom: ' + (email || 'no email given') + '\nReceived: ' + env.now.toISOString(),
+      subject: '[' + SITE_NAME + '] ' + kindLabel + (page ? ' ' + page : ''),
+      body: 'Kind: ' + kindLabel + '\nPage: ' + SITE_URL + page + '\nPage title: ' + (title || 'not given')
+        + '\nFrom: ' + (email || 'no email given') + '\nReceived: ' + env.now.toISOString()
+        + '\n\nMessage from the reader:\n' + message,
     };
     if (email) mail.replyTo = email;
     env.mailer.sendEmail(mail);
+    env.store.setProperty(dayKey, String(sentToday + 1));
   }
   return 'ok';
 }
@@ -79,7 +90,7 @@ function oneLine(value) {
   return value.replace(/[\r\n\t]+/g, ' ').trim();
 }
 
-// A cell starting with = + - @ would run as a spreadsheet formula; prefix an apostrophe.
+// A cell starting with = + - @ (or a full-width look-alike) would run as a formula; prefix an apostrophe.
 function safeCell(value) {
-  return typeof value === 'string' && /^[=+\-@]/.test(value) ? "'" + value : value;
+  return typeof value === 'string' && /^[=+\-@]/.test(value.normalize('NFKC')) ? "'" + value : value;
 }
