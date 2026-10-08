@@ -8,14 +8,16 @@ Usage:  python3 -I pipeline/fetch.py [--only NAME] [--refresh-hashes]
 import argparse
 import hashlib
 import json
+import shutil
 import sys
 import urllib.request
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+PIPELINE = Path(__file__).resolve().parent
+ROOT = PIPELINE.parent
 RAW_DIR = ROOT / "data" / "raw"
-SOURCES = Path(__file__).resolve().parent / "sources.json"
+SOURCES = PIPELINE / "sources.json"
 USER_AGENT = "Mozilla/5.0 (hrrp-explorer data fetch)"
 
 
@@ -48,7 +50,7 @@ def safe_unzip(zip_path, target):
     with zipfile.ZipFile(zip_path) as zf:
         for member in zf.infolist():
             dest = (target / member.filename).resolve()
-            if target != dest and target not in dest.parents:
+            if not dest.is_relative_to(target):
                 raise UnsafeArchiveError(f"{zip_path}: member {member.filename!r} escapes {target}")
         zf.extractall(target)
 
@@ -58,11 +60,7 @@ def download(url, dest):
     part = dest.with_suffix(dest.suffix + ".part")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=120) as resp, open(part, "wb") as out:
-        while True:
-            chunk = resp.read(1 << 20)
-            if not chunk:
-                break
-            out.write(chunk)
+        shutil.copyfileobj(resp, out)
     part.replace(dest)
 
 
@@ -78,7 +76,6 @@ def fetch_source(src, refresh_hashes=False):
         verify_sha256(dest, src["sha256"])
     if src.get("unzip"):
         safe_unzip(dest, folder / "extracted")
-    return dest
 
 
 def main(argv=None):

@@ -31,7 +31,7 @@ class SupplementalTest(unittest.TestCase):
 
     def test_hospital_level_fields(self):
         r = self.rows["010006"]
-        self.assertEqual((r["paf"], r["red"], r["dual"], r["peer"], r["nm"]), (0.9863, 1.37, 0.1258, 1, 0.9628))
+        self.assertEqual((r["paf"], r["dual"], r["peer"], r["nm"]), (0.9863, 0.1258, 1, 0.9628))
 
     def test_condition_fields(self):
         self.assertEqual(self.rows["010006"]["c"]["HF"], {"n": 601, "err": 1.0899, "med": 0.9928, "flag": 1, "ratio": 0.0325})
@@ -52,7 +52,7 @@ class SupplementalTest(unittest.TestCase):
 
 class ImpactTest(unittest.TestCase):
     def test_fields(self):
-        r = parse.read_impact(FIX / "impact.txt")["010001"]
+        r = parse.read_impact(FIX / "impact.txt", fy=2027, grouper=44)["010001"]
         self.assertEqual(r["name"], "Southeast Health Medical Center")
         self.assertEqual(r["cbsa_geo"], "20020")
         self.assertEqual(r["fips"], "01069")
@@ -74,11 +74,19 @@ class GeoFilesTest(unittest.TestCase):
     def test_zcta_centroid(self):
         self.assertEqual(parse.read_zcta(FIX / "zcta.txt")["36301"], (31.140459, -85.409097))
 
-    def test_cbsa_names_and_county_map(self):
-        names, county_to_cbsa = parse.read_cbsa_names(FIX / "xwalk.txt")
+    def test_cbsa_names(self):
+        names = parse.read_cbsa_names(FIX / "xwalk.txt")
         self.assertEqual(names["41620"], "Salt Lake City-Murray, UT")
-        self.assertEqual(county_to_cbsa["01001"], "33860")
-        self.assertNotIn("01005", county_to_cbsa)
+        self.assertEqual(names["33860"], "Montgomery, AL")
+        self.assertEqual(len(names), 2)
+
+    def test_missing_hgi_column_raises_schema_error(self):
+        text = (FIX / "hgi.csv").read_text(encoding="utf-8-sig").replace('"ZIP Code"', '"Zip"')
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d, "h.csv")
+            p.write_text(text, encoding="utf-8")
+            with self.assertRaises(parse.SchemaError):
+                parse.read_hgi(p)
 
 
 class RatesTest(unittest.TestCase):

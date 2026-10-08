@@ -5,16 +5,17 @@ ACRONYMS = {
     "UC", "UCSF", "UCLA", "UCSD", "UCI", "UNC", "UPMC", "HCA", "LLC", "MUSC", "OSF", "SSM", "CHI", "UAB", "UT",
     "UW", "VA", "NYU", "AMC", "II", "III", "IV", "JFK", "LDS", "MD", "DC", "ECU", "OU", "OHSU", "UNM", "UVA", "VCU",
     "WVU", "LSU", "USA", "US", "ICU", "TMC", "HSHS", "AHN", "SCL", "UI", "KU", "UK", "UTMB", "OSU", "IU", "HMH",
-    "RWJ", "RWJBH", "NYC", "NY", "BJC", "SUNY", "MUSC", "UMC", "CHS", "AMG", "ACMC", "SJMC", "UNMC", "UCHEALTH",
-    "PAM", "LTAC", "SBH", "NCH", "CMC", "TJUH", "HSC", "AHMC", "SRMC", "RMC", "LAC", "USC", "MLK", "UIHC",
+    "RWJ", "RWJBH", "NYC", "NY", "BJC", "SUNY", "UMC", "CHS", "AMG", "ACMC", "SJMC", "UNMC", "PAM", "LTAC", "SBH",
+    "NCH", "CMC", "TJUH", "HSC", "AHMC", "SRMC", "RMC", "LAC", "USC", "MLK", "UIHC", "AHS", "CHRISTUS", "INTEGRIS",
+    # state abbreviations that are not also common English words
+    "TX", "NJ", "NC", "SC", "ND", "SD", "NM", "NH", "WV", "WI", "WA", "WY", "MN", "MS", "MT", "NV", "KY", "KS",
+    "IA", "IL", "AZ", "AK", "CT", "FL", "GA", "RI", "VT", "TN",
 }
-# State abbreviations that are not also common English words
-ACRONYMS |= {"TX", "NJ", "NC", "SC", "ND", "SD", "NM", "NH", "WV", "WI", "WA", "WY", "MN", "MS", "MT", "NV",
-             "KY", "KS", "IA", "IL", "AZ", "AK", "CT", "FL", "GA", "RI", "VT", "TN", "AHS", "SUNY"}
+# Brand camel-case that a capitalization rule cannot infer
 SPECIAL = {"UMASS": "UMass", "UCHEALTH": "UCHealth", "MEDSTAR": "MedStar", "PROMEDICA": "ProMedica",
-           "WELLSPAN": "WellSpan", "CHRISTUS": "CHRISTUS", "OHIOHEALTH": "OhioHealth", "INTEGRIS": "INTEGRIS",
-           "ADVENTHEALTH": "AdventHealth", "HONORHEALTH": "HonorHealth", "BAYCARE": "BayCare",
-           "MERCYONE": "MercyOne", "UNITYPOINT": "UnityPoint", "TRINITYHEALTH": "TrinityHealth"}
+           "WELLSPAN": "WellSpan", "OHIOHEALTH": "OhioHealth", "ADVENTHEALTH": "AdventHealth",
+           "HONORHEALTH": "HonorHealth", "BAYCARE": "BayCare", "MERCYONE": "MercyOne", "UNITYPOINT": "UnityPoint",
+           "TRINITYHEALTH": "TrinityHealth"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
 NO_VOWEL_WORDS = {"ST", "MT", "FT", "DR", "JR", "SR"}
 VOWELS = set("AEIOUY")
@@ -29,7 +30,7 @@ def _cap(word):
     if up in ACRONYMS:
         return up
     letters = re.sub(r"[^A-Z]", "", up)
-    if letters and len(letters) >= 2 and not (set(letters) & VOWELS) and letters not in NO_VOWEL_WORDS:
+    if len(letters) >= 2 and not (set(letters) & VOWELS) and letters not in NO_VOWEL_WORDS:
         return up
     if "'" in word:
         head, _, tail = word.partition("'")

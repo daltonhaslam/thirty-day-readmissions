@@ -1,5 +1,6 @@
 """State → census region/division, and county centroids decoded from us-atlas TopoJSON."""
 import json
+from pathlib import Path
 
 DIVISIONS = {
     "New England": ("Northeast", ["CT", "ME", "MA", "NH", "RI", "VT"]),
@@ -13,26 +14,24 @@ DIVISIONS = {
     "Pacific": ("West", ["AK", "CA", "HI", "OR", "WA"]),
 }
 STATE_REGION = {st: (region, div) for div, (region, sts) in DIVISIONS.items() for st in sts}
-STATE_NAMES = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado",
-    "CT": "Connecticut", "DE": "Delaware", "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia",
-    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
-    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
-    "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-    "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
-    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
-    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
-    "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
-    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "PR": "Puerto Rico",
-}
-STATE_FIPS = {
-    "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA", "08": "CO", "09": "CT", "10": "DE", "11": "DC",
-    "12": "FL", "13": "GA", "15": "HI", "16": "ID", "17": "IL", "18": "IN", "19": "IA", "20": "KS", "21": "KY",
-    "22": "LA", "23": "ME", "24": "MD", "25": "MA", "26": "MI", "27": "MN", "28": "MS", "29": "MO", "30": "MT",
-    "31": "NE", "32": "NV", "33": "NH", "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND", "39": "OH",
-    "40": "OK", "41": "OR", "42": "PA", "44": "RI", "45": "SC", "46": "SD", "47": "TN", "48": "TX", "49": "UT",
-    "50": "VT", "51": "VA", "53": "WA", "54": "WV", "55": "WI", "56": "WY", "72": "PR",
-}
+# (abbreviation, FIPS, name)
+STATES = [
+    ("AL", "01", "Alabama"), ("AK", "02", "Alaska"), ("AZ", "04", "Arizona"), ("AR", "05", "Arkansas"),
+    ("CA", "06", "California"), ("CO", "08", "Colorado"), ("CT", "09", "Connecticut"), ("DE", "10", "Delaware"),
+    ("DC", "11", "District of Columbia"), ("FL", "12", "Florida"), ("GA", "13", "Georgia"), ("HI", "15", "Hawaii"),
+    ("ID", "16", "Idaho"), ("IL", "17", "Illinois"), ("IN", "18", "Indiana"), ("IA", "19", "Iowa"),
+    ("KS", "20", "Kansas"), ("KY", "21", "Kentucky"), ("LA", "22", "Louisiana"), ("ME", "23", "Maine"),
+    ("MD", "24", "Maryland"), ("MA", "25", "Massachusetts"), ("MI", "26", "Michigan"), ("MN", "27", "Minnesota"),
+    ("MS", "28", "Mississippi"), ("MO", "29", "Missouri"), ("MT", "30", "Montana"), ("NE", "31", "Nebraska"),
+    ("NV", "32", "Nevada"), ("NH", "33", "New Hampshire"), ("NJ", "34", "New Jersey"), ("NM", "35", "New Mexico"),
+    ("NY", "36", "New York"), ("NC", "37", "North Carolina"), ("ND", "38", "North Dakota"), ("OH", "39", "Ohio"),
+    ("OK", "40", "Oklahoma"), ("OR", "41", "Oregon"), ("PA", "42", "Pennsylvania"), ("RI", "44", "Rhode Island"),
+    ("SC", "45", "South Carolina"), ("SD", "46", "South Dakota"), ("TN", "47", "Tennessee"), ("TX", "48", "Texas"),
+    ("UT", "49", "Utah"), ("VT", "50", "Vermont"), ("VA", "51", "Virginia"), ("WA", "53", "Washington"),
+    ("WV", "54", "West Virginia"), ("WI", "55", "Wisconsin"), ("WY", "56", "Wyoming"), ("PR", "72", "Puerto Rico"),
+]
+STATE_NAMES = {a: n for a, _, n in STATES}
+STATE_FIPS = {f: a for a, f, _ in STATES}
 
 
 def region_of(st):
@@ -40,19 +39,15 @@ def region_of(st):
 
 
 def _decode_arcs(topo):
-    t = topo.get("transform")
-    sx, sy = t["scale"] if t else (1, 1)
-    tx, ty = t["translate"] if t else (0, 0)
+    """Absolute lon/lat arcs from a quantized, delta-encoded TopoJSON topology."""
+    (sx, sy), (tx, ty) = topo["transform"]["scale"], topo["transform"]["translate"]
     arcs = []
     for arc in topo["arcs"]:
         x = y = 0
         pts = []
-        for p in arc:
-            if t:
-                x += p[0]
-                y += p[1]
-            else:
-                x, y = p[0], p[1]
+        for dx, dy in arc:
+            x += dx
+            y += dy
             pts.append((x * sx + tx, y * sy + ty))
         arcs.append(pts)
     return arcs
@@ -82,16 +77,12 @@ def _centroid(ring):
 
 def county_centroids(path):
     """{county FIPS: (lat, lon)} using the largest polygon of each county."""
-    topo = json.loads(open(path).read())
+    topo = json.loads(Path(path).read_text())
     arcs = _decode_arcs(topo)
     out = {}
     for g in topo["objects"]["counties"]["geometries"]:
-        polys = [g["arcs"]] if g["type"] == "Polygon" else g["arcs"] if g["type"] == "MultiPolygon" else []
-        best = None
-        for poly in polys:
-            area, lon, lat = _centroid(_ring(arcs, poly[0]))
-            if best is None or area > best[0]:
-                best = (area, lon, lat)
+        polys = [g["arcs"]] if g["type"] == "Polygon" else g.get("arcs", []) if g["type"] == "MultiPolygon" else []
+        best = max((_centroid(_ring(arcs, poly[0])) for poly in polys), default=None)
         if best:
             out[str(g["id"]).zfill(5)] = (best[2], best[1])
     return out

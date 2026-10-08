@@ -119,3 +119,18 @@ class ContractTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HistorySummaryTest(unittest.TestCase):
+    def test_summarize_fy_reproduces_historical_csv_definitions(self):
+        import csv
+        from hrrp import history
+        hist = ROOT / "pipeline" / "history"
+        with open(hist / "hrrp_paf_history_fy2013_2026.csv", newline="") as f:
+            pafs = [float(r["paf"]) for r in csv.DictReader(f) if r["fy"] == "2026" and not r["scope_flag"]]
+        row = next(r for r in history.load_national(hist / "hrrp_history_summary.csv") if r["fy"] == 2026)
+        got = history.summarize_fy(2026, pafs, cap_pct=3)
+        for k in ("n", "nPen", "pctPen", "nMax", "cap"):
+            self.assertEqual(got[k], row[k], k)
+        for k in ("meanRed", "meanRedPen", "medianRedPen"):
+            self.assertAlmostEqual(got[k], row[k], places=3, msg=k)

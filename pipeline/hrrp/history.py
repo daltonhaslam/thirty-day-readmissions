@@ -3,11 +3,6 @@ import csv
 import statistics
 
 FIRST_FY, LAST_HIST_FY = 2013, 2026
-CAP_BY_FY = {2013: 1, 2014: 2}  # percent; 3% from FY2015 on
-
-
-def cap_pct(fy):
-    return CAP_BY_FY.get(fy, 3)
 
 
 def load_paf_history(path, keep_ids):
@@ -25,18 +20,17 @@ def load_paf_history(path, keep_ids):
     return years, out
 
 
-def summarize_fy(fy, pafs):
-    """National summary for one FY from a list of PAFs (same definitions as the historical summary)."""
+def summarize_fy(fy, pafs, cap_pct):
+    """National summary for one FY from its PAFs (same definitions as the historical summary CSV)."""
     reds = [(1 - p) * 100 for p in pafs]
     pen = [r for r in reds if r > 1e-9]
-    cap = cap_pct(fy)
     return {
         "fy": fy, "n": len(reds), "nPen": len(pen),
-        "pctPen": round(100 * len(pen) / len(reds), 2) if reds else 0,
-        "meanRed": round(sum(reds) / len(reds), 4) if reds else 0,
-        "meanRedPen": round(sum(pen) / len(pen), 4) if pen else 0,
-        "medianRedPen": round(statistics.median(pen), 4) if pen else 0,
-        "nMax": sum(1 for r in reds if r >= cap - 1e-6), "cap": cap,
+        "pctPen": round(100 * len(pen) / len(reds), 2),
+        "meanRed": round(sum(reds) / len(reds), 4),
+        "meanRedPen": round(sum(pen) / len(pen), 4),
+        "medianRedPen": round(statistics.median(pen), 4),
+        "nMax": sum(1 for r in reds if r >= cap_pct - 1e-6), "cap": cap_pct,
     }
 
 
