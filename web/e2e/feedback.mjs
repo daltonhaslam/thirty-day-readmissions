@@ -19,9 +19,12 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 const posts = [];
 let reply = 'ok'; // what the fake Apps Script answers, with the CORS header Google's script host sends
-await page.route(`${FAKE}*`, (route) => {
+const strays = [];
+// Never let a test reach the real script: anything on Google's script hosts that isn't FAKE is blocked and fails the run.
+await page.route(/https:\/\/script\.(google|googleusercontent)\.com\//, (route) => {
+  if (!route.request().url().startsWith(FAKE)) { strays.push(route.request().url()); return route.abort(); }
   posts.push(route.request().postData());
-  route.fulfill({ status: 200, body: reply, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' } });
+  return route.fulfill({ status: 200, body: reply, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' } });
 });
 
 await page.goto(`${base}#hospital-010006`);
@@ -71,6 +74,23 @@ check(new URLSearchParams(posts.at(-1)).get('trap') === 'http://spam.example', '
 const name = await page.evaluate(() => document.querySelector('#fb-message').labels[0].textContent);
 check(!/patient/i.test(name), `textarea label includes the note: "${name}"`);
 check(!errors.length, `console errors: ${errors.join(' | ')}`);
+
+check(!strays.length, `requests escaped to a real script URL: ${strays.join(', ')}`);
+
+// Kill switch: an empty endpoint hides the form and the report button and changes the Methods text.
+const offDir = mkdtempSync(join(tmpdir(), 'tdr-feedback-off-'));
+execFileSync('node', ['build.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, FEEDBACK_URL: '', BUILD_OUT_DIR: offDir }, stdio: 'ignore' });
+const off = serveWithHeaders(readFileSync(join(offDir, 'index.html')));
+const offPage = await browser.newPage();
+await offPage.goto(`${off.base}#hospital-010006`);
+await offPage.waitForFunction(() => document.querySelector('#main > div'));
+check(await offPage.locator('#feedback form').count() === 0, 'form shown although feedback is off');
+check(await offPage.getByRole('button', { name: /report a problem/i }).count() === 0, 'report button shown although feedback is off');
+check(await offPage.locator('#feedback a[href*="linkedin.com"]').count() > 0, 'LinkedIn link missing when feedback is off');
+await offPage.goto(`${off.base}#methods`);
+await offPage.waitForFunction(() => document.querySelector('#main > div'));
+check(/collects nothing about you/.test(await offPage.textContent('main')), 'Methods text still describes a live form');
+off.close();
 
 await browser.close();
 close();

@@ -24,7 +24,8 @@ Readers can send corrections and ideas through a short form on every page; see `
 Every chart has a text label and a sortable table alternative; selecting individual chart marks needs a mouse or touch.
 
 The site is one self-contained HTML file (`docs/index.html`): data, code, and map geometry are inlined.
-The only network request is Google Fonts, with system-font fallbacks.
+Its only network requests are Google Fonts, with system-font fallbacks, and the feedback form's post to
+Google Apps Script when a reader sends a note.
 
 Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.
 
@@ -59,7 +60,7 @@ npm test                              # unit tests (penalty math, search, router
 npm run build                         # → ../docs/index.html (and dist/artifact.html)
 npm run e2e                           # end-to-end checks in installed Google Chrome
 npm run e2e:headers                   # the page still works under vercel.json's security headers
-npm run og                            # re-render the 1200x630 link-preview card (docs/og.png)
+npm run og                            # re-render the 1200x630 link-preview card (docs/og.png), then rebuild
 ```
 
 ## Hosting

@@ -15,7 +15,12 @@ for (const hash of ['', '#hospital-010006', '#state-ut']) {
   await page.waitForFunction(() => document.querySelector('#main > div'));
   await page.waitForTimeout(600);
   check(!errors.length, `${hash || '#'}: ${errors.join(' | ')}`);
-  check(await page.evaluate(() => document.fonts.check('16px "Alfa Slab One"')), `${hash || '#'}: display font blocked`);
+  // fonts.check() is true even for faces that never loaded; require an actually loaded face.
+  const fontLoaded = await page.evaluate(async () => {
+    await document.fonts.load('16px "Alfa Slab One"').catch(() => []);
+    return [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Alfa Slab One' && f.status === 'loaded');
+  });
+  check(fontLoaded, `${hash || '#'}: display font blocked`);
   await page.close();
 }
 await browser.close();

@@ -28,6 +28,12 @@ owner, with Reply-To set to the reader's address when they leave one. Nothing el
 Edit and save, then **Deploy → Manage deployments → ✎ (edit) → Version: New version → Deploy**.
 The URL stays the same.
 
+## Turning the form off
+
+Set `FEEDBACK_URL = ''` in `web/src/js/site.js`, rebuild, and push. The form and the hospital-page report
+button disappear and the LinkedIn link remains. To shut out a flood immediately, you can also open the
+script's **Deploy → Manage deployments** and archive the deployment.
+
 ## Limits
 
 - At most 20 submissions are saved per 10-minute window; posts that look automated (a hidden field
