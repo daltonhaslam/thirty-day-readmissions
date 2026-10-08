@@ -35,9 +35,13 @@ export function clear(el) {
   return el;
 }
 
-// Re-draw `draw(width)` whenever the element's width changes meaningfully.
+// Re-draw `draw(width)` now and whenever the element's width changes meaningfully (debounced).
+// One observer per element: calling again replaces the previous drawing function.
+const observers = new WeakMap();
 export function responsive(el, draw) {
+  observers.get(el)?.disconnect();
   let last = -1;
+  let timer = null;
   const run = () => {
     const w = Math.floor(el.clientWidth);
     if (w > 0 && Math.abs(w - last) >= 8) {
@@ -45,8 +49,13 @@ export function responsive(el, draw) {
       draw(w);
     }
   };
-  const ro = new ResizeObserver(() => run());
+  const ro = new ResizeObserver(() => {
+    if (last < 0) return run();
+    clearTimeout(timer);
+    timer = setTimeout(run, 120);
+    return undefined;
+  });
   ro.observe(el);
+  observers.set(el, ro);
   requestAnimationFrame(run);
-  return ro;
 }

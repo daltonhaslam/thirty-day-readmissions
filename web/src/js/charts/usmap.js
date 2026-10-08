@@ -5,7 +5,7 @@ import { feature, mesh } from 'topojson-client';
 import { s, h, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
 import { rampVar, BINS } from './scale.js';
-import { summarize, fmtPct, fmtInt, fmtMoney } from '../model.js';
+import { fmtPct, fmtInt, fmtMoney } from '../model.js';
 
 const step = (cuts, labels) => ({ cls: (v) => `p${1 + cuts.filter((c) => v >= c).length}`, labels });
 export const METRICS = {
@@ -46,7 +46,14 @@ export function dotLegend() {
 export function usMap(el, D, opts) {
   const { states, borders } = geometry(D);
   let o = { ...opts };
-  const stateSummary = new Map([...D.byState.entries()].map(([st, list]) => [st, summarize(list)]));
+  const stateSummary = D.stateSummary;
+  let statePaths = null;
+  const fillOf = (f) => {
+    const sm = f.abbr && stateSummary.get(f.abbr);
+    if (!sm) return 'url(#hatch)';
+    const metric = METRICS[o.metric || 'avg'];
+    return o.plain ? 'var(--paper-2)' : `var(--${metric.cls(metric.value(sm))})`;
+  };
   const draw = (W) => {
     el.replaceChildren();
     const H = Math.round(Math.min(W * 0.62, 640));
@@ -75,13 +82,10 @@ export function usMap(el, D, opts) {
     el.append(svg);
     const g = select(svg);
     const inFocus = (f) => !o.focusStates || o.focusStates.includes(f.abbr);
-    g.append('g').selectAll('path').data(states.filter((f) => path(f))).join('path')
-      .attr('d', path)
-      .attr('fill', (f) => {
-        const sm = f.abbr && stateSummary.get(f.abbr);
-        if (!sm) return 'url(#hatch)';
-        return o.plain ? 'var(--paper-2)' : `var(--${metric.cls(metric.value(sm))})`;
-      })
+    const drawn = states.map((f) => ({ f, d: path(f) })).filter((x) => x.d);
+    statePaths = g.append('g').selectAll('path').data(drawn.map((x) => x.f)).join('path')
+      .attr('d', (_, i) => drawn[i].d)
+      .attr('fill', fillOf)
       .attr('fill-opacity', (f) => (inFocus(f) ? 1 : 0.28))
       .attr('stroke', 'var(--ink)').attr('stroke-width', (f) => (o.focusStates && inFocus(f) ? 1.6 : 0.6))
       .style('cursor', (f) => (f.abbr && o.onState ? 'pointer' : null))
@@ -112,5 +116,12 @@ export function usMap(el, D, opts) {
   };
   let lastW = 0;
   responsive(el, (W) => { lastW = W; draw(W); });
-  return { update(next) { o = { ...o, ...next }; if (lastW) draw(lastW); } };
+  return {
+    update(next) {
+      const onlyMetric = Object.keys(next).every((k) => k === 'metric');
+      o = { ...o, ...next };
+      if (onlyMetric && statePaths) statePaths.attr('fill', fillOf);
+      else if (lastW) draw(lastW);
+    },
+  };
 }

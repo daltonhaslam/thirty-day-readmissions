@@ -3,8 +3,8 @@ import { figure, part, field } from '../ui/figure.js';
 import { barRows } from '../charts/bars.js';
 import { stripPlot } from '../charts/strip.js';
 import { dualBands } from '../charts/dualBands.js';
-import { CONDS, contrib, peerMedian, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
-import { link } from '../router.js';
+import { CONDS, PEERS, contrib, peerMedian, condState, isMeasured, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { link, partNo } from '../router.js';
 import { omnibox } from '../ui/omnibox.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
@@ -25,8 +25,9 @@ export function worksheet(D, hosp, { compact = false } = {}) {
     const c = hosp.c[k];
     const med = peerMedian(D.meta, hosp.peer, k);
     const n = c?.n ?? 0;
-    const counted = n >= MIN_DISCHARGES && c?.err != null && c?.ratio != null && c.err > med;
-    const why = !c || n === 0 ? 'no cases' : n < MIN_DISCHARGES ? 'under 25 cases' : c.err <= med ? 'at or below median' : null;
+    const state = condState(hosp, k, D.meta, r.byCond);
+    const counted = state === 'counted' && r.byCond[k] > 0;
+    const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median', counted: 'rounds to 0' }[state];
     return h('tr', { class: counted ? 'is-on' : 'is-off' },
       h('th', { scope: 'row' }, D.condByKey[k].short),
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
@@ -41,7 +42,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
   return h('div', { class: 'worksheet' },
     h('div', { class: 'worksheet__title' },
       h('span', {}, 'Worksheet R · Readmissions payment adjustment'),
-      h('span', {}, `FY${D.meta.fy}`)),
+      h('span', {}, D.edition.label)),
     h('div', { class: 'form worksheet__id' },
       field('A', 'Hospital', h('a', { href: link('hospital', hosp.id) }, hosp.name), { note: `${hosp.place} · CCN ${hosp.id}` }),
       field('B', 'Peer group', `${hosp.peer} of 5`, { note: `${fmtPct(hosp.dual * 100, 1)} dual-eligible stays` }),
@@ -58,7 +59,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('li', {}, h('span', {}, 'Line 8 · Line 7, capped at 3%, rounded'), h('b', {}, fmtPct(Math.round(r.reduction * 1e4) / 100))),
       h('li', {}, h('span', {}, 'Line 9 · Payment adjustment factor (1 − line 8)'), h('b', {}, recomputed.toFixed(4))),
       h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${match ? '· matches' : '· differs by 0.0001 (CMS rounds after computing with unrounded inputs)'}`)),
-      compact ? null : h('li', {}, h('span', {}, 'Applied to every traditional Medicare base payment, Oct 2026 – Sep 2027'), h('b', {}, `≈ ${fmtMoney(hosp.pen)} estimated`))));
+      compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, `≈ ${fmtMoney(hosp.pen)} estimated`))));
 }
 
 export function explainerPart(D, index) {
@@ -66,23 +67,23 @@ export function explainerPart(D, index) {
   const ex = exampleHospital(D);
 
   // Step 1: eligibility per condition
-  const elig = CONDS.map((k) => ({ k, n: all.filter((x) => (x.c[k]?.n ?? 0) >= MIN_DISCHARGES).length,
+  const elig = CONDS.map((k) => ({ k, n: all.filter((x) => isMeasured(x.c[k])).length,
     cases: all.reduce((s, x) => s + (x.c[k]?.n ?? 0), 0) }));
   const step1 = barRows(elig.map((e) => ({ label: D.condByKey[e.k].short, note: D.condByKey[e.k].label.replace(/\s*\(.*\)$/, ''),
-    value: e.n, display: `${fmtInt(e.n)} hospitals` })), { max: all.length, tone: 'ink' });
+    value: e.n, display: `${fmtInt(e.n)} hospitals` })), { max: all.length, ink: true });
 
   // Step 2: ERR strip with condition toggle
   const stripEl = h('div');
   const condBtns = h('div', { class: 'seg', role: 'group', 'aria-label': 'Condition' });
   const drawStrip = (k) => {
     for (const b of condBtns.children) b.setAttribute('aria-pressed', String(b.dataset.k === k));
-    const pts = all.filter((x) => (x.c[k]?.n ?? 0) >= MIN_DISCHARGES && x.c[k].err != null).map((x) => ({
+    const pts = all.filter((x) => isMeasured(x.c[k])).map((x) => ({
       id: x.id, row: 'r', x: x.c[k].err, fill: x.c[k].err > 1 ? 'var(--form)' : 'var(--ink-3)',
-      tip: [x.name, [['Ratio', x.c[k].err.toFixed(4)], ['Cases', fmtInt(x.c[k].n)], x.place]], href: link('hospital', x.id),
+      tip: () => [x.name, [['Ratio', x.c[k].err.toFixed(4)], ['Cases', fmtInt(x.c[k].n)], x.place]], href: link('hospital', x.id),
     }));
     stripPlot(stripEl, { rows: [{ key: 'r', label: '' }], points: pts, domain: [0.7, 1.3], ticks: [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3],
       tickFormat: (d) => d.toFixed(1), refs: [{ value: 1, label: '1.0 = as expected' }], highlight: ex.id, rowH: 150,
-      label: `Excess readmission ratios for ${D.condByKey[k].short}`, onPoint: (p) => { window.location.hash = p.href; } });
+      label: `Excess readmission ratios for ${D.condByKey[k].short}` });
   };
   for (const k of CONDS) condBtns.append(h('button', { class: 'btn', type: 'button', 'data-k': k, onclick: () => drawStrip(k) }, D.condByKey[k].short));
   drawStrip('HF');
@@ -94,7 +95,7 @@ export function explainerPart(D, index) {
   // Step 4: peer medians grid
   const grid = h('div', { class: 'printout__scroll' }, h('table', { class: 'ws ws--grid' },
     h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Peer group'), CONDS.map((k) => h('th', { scope: 'col', class: 'num' }, D.condByKey[k].short)))),
-    h('tbody', {}, [1, 2, 3, 4, 5].map((p) => h('tr', {},
+    h('tbody', {}, PEERS.map((p) => h('tr', {},
       h('th', { scope: 'row' }, `${p} · ${fmtPct(D.meta.peerCutoffs[p - 1][0] * 100, 0)}–${fmtPct(D.meta.peerCutoffs[p - 1][1] * 100, 0)} dual`),
       CONDS.map((k) => { const v = peerMedian(D.meta, p, k); return h('td', { class: `num ${v > 1 ? 'hi' : ''}` }, v.toFixed(4)); }))))));
 
@@ -106,10 +107,10 @@ export function explainerPart(D, index) {
     onPick: (r) => showWs(D.byId.get(r.key)) });
 
   const newBox = h('aside', { class: 'callout' },
-    h('div', { class: 'callout__title cap' }, `New for FY${D.meta.fy}`),
+    h('div', { class: 'callout__title cap' }, `New for ${D.edition.label}`),
     h('ul', {},
       h('li', {}, h('b', {}, 'Medicare Advantage patients now count. '), 'The ratios include patients in private Medicare Advantage plans for the first time. The cut still applies only to traditional Medicare payments.'),
-      h('li', {}, h('b', {}, 'Two years of data instead of three. '), `Discharges from ${'July 1, 2023'} through ${'June 30, 2025'}.`),
+      h('li', {}, h('b', {}, 'Two years of data instead of three. '), `Discharges from ${D.edition.perfLong}.`),
       h('li', {}, h('b', {}, 'COVID-19 patients are back in. '), 'The pandemic-era exclusion ended.'),
       h('li', {}, h('b', {}, 'Coming in FY2030: '), 'readmissions after sepsis become a seventh measure.')));
 
@@ -117,7 +118,7 @@ export function explainerPart(D, index) {
     h('div', { class: 'callout__title cap' }, 'Who is in the program'),
     h('p', {}, `About ${fmtInt(Math.round(all.length / 100) * 100)} general acute-care hospitals paid under Medicare's inpatient prospective payment system. Not included: critical access hospitals, children's, cancer, psychiatric, rehabilitation, and long-term care hospitals. Maryland hospitals run under their own payment model and are exempt; Puerto Rico hospitals are not subject to the cut.`));
 
-  return part({ no: 1, id: 'how', title: 'How the penalty works', lede: 'CMS runs the same arithmetic for every hospital. Here it is in five steps, using the real FY2027 numbers.' },
+  return part({ no: partNo('how'), id: 'how', title: 'How the penalty works', lede: `CMS runs the same arithmetic for every hospital. Here it is in five steps, using the real ${D.edition.label} numbers.` },
     h('div', { class: 'grid-2' }, newBox, whoBox),
     h('ol', { class: 'steps' },
       h('li', { class: 'step' }, stepHead(1, 'Six kinds of stays are tracked',
@@ -134,7 +135,7 @@ export function explainerPart(D, index) {
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File (dual proportion, peer group).`, body: bandEl })),
       h('li', { class: 'step' }, stepHead(4, 'The bar to clear is the group median',
         'A condition adds to the penalty only if the hospital\'s ratio is above its peer group\'s median for that condition. Half of each group is above the median by definition, which is why most hospitals end up with some penalty.'),
-        figure({ title: 'Peer-group medians for FY2027', take: 'The medians differ slightly by group. Shaded cells are above 1.0.',
+        figure({ title: `Peer-group medians for ${D.edition.label}`, take: 'The medians differ slightly by group. Shaded cells are above 1.0.',
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: grid })),
       h('li', { class: 'step' }, stepHead(5, 'The worksheet',
         'Each condition above its median adds its excess, weighted by how much of the hospital\'s Medicare payments that condition represents. The total is capped at 3% and applied to every traditional Medicare inpatient base payment for the year, not just the readmissions.'),

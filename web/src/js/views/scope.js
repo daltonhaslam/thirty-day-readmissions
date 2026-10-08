@@ -6,10 +6,11 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, PEERS } from '../model.js';
+import { summaryColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
-import { link, slugify } from '../router.js';
+import { link, slugify, go } from '../router.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
 export function resolveScope(D, route) {
@@ -42,10 +43,10 @@ export function resolveScope(D, route) {
     multiState: st.length > 1, states: st, children: null };
 }
 
-const rankOf = (D, kind, value, list) => {
+const rankOf = (D, kind, value) => {
   if (kind !== 'State') return null;
-  const avgs = [...D.byState.values()].map((l) => summarize(l).meanRed).sort((a, b) => b - a);
-  return { rank: avgs.findIndex((v) => v <= value + 1e-12) + 1, of: avgs.length, list };
+  const avgs = [...D.stateSummary.values()].map((sm) => sm.meanRed).sort((a, b) => b - a);
+  return { rank: avgs.findIndex((v) => v <= value + 1e-12) + 1, of: avgs.length };
 };
 
 const vs = (a, b, fmt, word = 'nation') => {
@@ -58,7 +59,7 @@ function scopeTrend(D, list) {
   const years = [...D.history.years, D.meta.fy];
   const per = years.map((fy, i) => {
     const vals = list.map((x) => (fy === D.meta.fy ? x.paf : D.history.paf[x.id]?.[i])).filter((v) => v != null);
-    return vals.length ? mean(vals.map((p) => (1 - p) * 100)) : null;
+    return vals.length ? mean(vals.map(cutPct)) : null;
   });
   const el = h('div');
   trendChart(el, { years, label: 'Average cut by year, this area vs the nation', yFormat: (d) => `${d}%`,
@@ -68,18 +69,19 @@ function scopeTrend(D, list) {
   return el;
 }
 
+// Returns [element, title] or null when the route matches nothing.
 export function renderScope(D, route) {
   const sc = resolveScope(D, route);
   if (!sc) return null;
   const { list } = sc;
   const S = summarize(list);
-  const N = summarize(D.hospitals);
+  const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
-  const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in FY${D.meta.fy}, averaging ${fmtPct(S.meanRed)} across all of them`
+  const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in ${D.edition.label}, averaging ${fmtPct(S.meanRed)} across all of them`
     + `${rank ? `, the ${ordinal(rank.rank)}-largest average of ${rank.of} states` : ''}. Estimated total: ${fmtMoney(S.penTotal)}.`;
 
   const kpis = h('div', { class: 'form kpis' },
-    h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · FY${D.meta.fy}`), h('span', {}, 'Compared with all hospitals nationally')),
+    h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
     field(1, 'Hospitals', fmtInt(S.n)),
     field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: vs(S.pctPen, N.pctPen, (v) => `${v.toFixed(0)} pts`) }),
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vs(S.meanRed, N.meanRed, (v) => `${v.toFixed(2)} pts`) }),
@@ -91,12 +93,12 @@ export function renderScope(D, route) {
   const scopeStates = [...new Set(list.map((x) => x.st))];
   usMap(mapEl, D, { metric: 'avg', plain: true, dots: true, hospitals: list, focusStates: scopeStates, focusPoints: route.view === 'metro',
     context: route.view === 'metro' ? scopeStates.flatMap((st) => D.byState.get(st)).filter((x) => x.cbsa !== route.key) : null,
-    onState: (st) => { window.location.hash = link('state', st); }, onHospital: (id) => { window.location.hash = link('hospital', id); } });
+    onState: (st) => go('state', st), onHospital: (id) => go('hospital', id) });
 
   const histEl = h('div');
   penaltyHistogram(histEl, { reds: list.map((x) => x.red), compare: D.hospitals.map((x) => x.red), label: sc.name });
 
-  const peerRows = [1, 2, 3, 4, 5].map((p) => {
+  const peerRows = PEERS.map((p) => {
     const g = list.filter((x) => x.peer === p);
     return { label: `Group ${p}`, value: g.length, display: fmtInt(g.length), note: g.length ? `avg cut ${fmtPct(mean(g.map((x) => x.red)))}` : 'none' };
   });
@@ -106,15 +108,10 @@ export function renderScope(D, route) {
     const rows = sc.children.rows.map((c) => ({ ...c, ...summarize(c.list) })).filter((r) => r.n);
     childTable = figure({ title: sc.children.title, take: 'Select a row to drill down.', source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`,
       body: greenbarTable({ rows, pageSize: 25, sort: { key: 'n', dir: 'desc' }, csvName: `${slugify(sc.name)}-${slugify(sc.children.title)}.csv`,
-        rowHref: (r) => r.href || '#', columns: [
-          { key: 'label', label: sc.children.title.replace(/s$/, ''), cls: 'name', firstDir: 'asc', render: (r) => (r.href ? h('a', { href: r.href }, r.label) : r.label) },
-          { key: 'n', label: 'Hospitals', num: true, render: (r) => fmtInt(r.n) },
-          { key: 'pctPen', label: 'Penalized', num: true, render: (r) => fmtPct(r.pctPen, 0) },
-          { key: 'meanRed', label: 'Avg cut', num: true, render: (r) => fmtPct(r.meanRed) },
-          { key: 'penTotal', label: 'Est. $', num: true, render: (r) => fmtMoney(r.penTotal) }] }).el });
+        rowHref: (r) => r.href, columns: summaryColumns(sc.children.title.replace(/s$/, '')) }).el });
   }
 
-  return h('div', { class: 'wrap scope' },
+  const el = h('div', { class: 'wrap scope' },
     h('header', { class: 'scope__head' },
       breadcrumb(sc.crumbs, sc.name),
       h('div', { class: 'cap hero__kicker' }, sc.kind + (sc.multiState ? ` · spans ${sc.states.join(', ')}` : '')),
@@ -129,10 +126,11 @@ export function renderScope(D, route) {
     conditionFigure(D, list, { compare: D.hospitals }),
     h('div', { class: 'grid-2' },
       figure({ title: 'Peer groups', take: 'How many hospitals here fall in each dual-eligible peer group. Group 5 serves the most low-income patients.',
-        source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: barRows(peerRows, { tone: 'ink' }) }),
+        source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: barRows(peerRows, { ink: true }) }),
       figure({ title: 'Average cut over time', take: `Red: hospitals in ${sc.name} that are in this year's program. Dashed: all hospitals nationally.`,
-        source: 'CMS HRRP Supplemental Data Files, FY2013–FY2027.', body: scopeTrend(D, list) })),
+        source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: scopeTrend(D, list) })),
     childTable,
     part({ no: null, id: 'scope-hospitals', title: `Hospitals in ${sc.name}` },
       explorer(D, list, { showState: route.view !== 'state', csvName: `${slugify(sc.name)}-hospitals.csv` })));
+  return [el, sc.name];
 }

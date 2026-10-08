@@ -31,12 +31,13 @@ export function buildIndex({ hospitals, states, metros }) {
 
 const matchesWord = (alts, words) => words.some((w) => alts.some((a) => w.startsWith(a)));
 
-export function search(query, index, limit = 10) {
+export function search(query, index, { limit = 10, types } = {}) {
   const q = normalize(query);
   if (!q) return [];
   const tokens = q.split(' ').map((t) => [t, ...(SYNONYMS[t] || [])]);
   const scored = [];
   for (const e of index) {
+    if (types && !types.includes(e.type)) continue;
     if (!tokens.every((alts) => matchesWord(alts, e.words))) continue;
     let score = TYPE_WEIGHT[e.type];
     if (e.key.toLowerCase() === q) score += 1000;

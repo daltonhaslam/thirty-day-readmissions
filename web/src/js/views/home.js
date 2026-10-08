@@ -5,22 +5,22 @@ import { penaltyHistogram } from '../charts/histogram.js';
 import { greenbarTable } from '../ui/table.js';
 import { usMap, mapLegend, dotLegend, METRICS } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
-import { summarize, fmtInt, fmtPct, fmtMoney } from '../model.js';
-import { hospitalColumns } from './columns.js';
+import { fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { hospitalColumns, summaryColumns } from './columns.js';
 import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
 import { explorer } from './explorer.js';
-import { link } from '../router.js';
+import { link, go, partNo } from '../router.js';
 import { safeHref, fmtDate } from './util.js';
 
 function hero(D, index, S) {
-  const bigMetro = [...D.byCbsa.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+  const bigMetro = [...D.byCbsa.entries()].reduce((a, b) => (b[1].length > a[1].length ? b : a));
   return h('section', { class: 'hero wrap', 'aria-labelledby': 'hero-title' },
     h('div', {},
-      h('div', { class: 'hero__kicker cap' }, `FY${D.meta.fy} edition · Year 15 of Medicare readmission penalties`),
+      h('div', { class: 'hero__kicker cap' }, `${D.edition.label} edition · Year ${D.edition.nYears} of Medicare readmission penalties`),
       h('h1', { class: 'hero__title', id: 'hero-title' }, 'Thirty ', h('span', {}, 'Days')),
       h('p', { class: 'hero__deck' },
-        'When too many patients land back in the hospital within 30 days of going home, Medicare pays that hospital less for a full year. Starting October 1, 2026, ',
+        `When too many patients land back in the hospital within 30 days of going home, Medicare pays that hospital less for a full year. Starting ${D.edition.payStart}, `,
         h('strong', {}, `${fmtInt(S.nPen)} of the ${fmtInt(S.n)} hospitals`), ' CMS evaluated take a cut.'),
       h('div', { class: 'hero__search' }, omnibox(index, { big: true, placeholder: 'Look up a hospital, city, state, or metro area' })),
       h('p', { class: 'hero__hint' }, 'Try ',
@@ -29,7 +29,7 @@ function hero(D, index, S) {
         h('a', { href: '#explore' }, 'browse every hospital'), '. New to this? Start with ', h('a', { href: '#how' }, 'how the penalty works'), '.')),
     h('div', { class: 'hero__card' },
       h('div', { class: 'form summary' },
-        h('div', { class: 'form__title' }, h('span', {}, `FY${D.meta.fy} at a glance`), h('span', {}, 'All figures from CMS unless marked')),
+        h('div', { class: 'form__title' }, h('span', {}, `${D.edition.label} at a glance`), h('span', {}, 'All figures from CMS unless marked')),
         field(1, 'Hospitals evaluated', fmtInt(S.n)),
         field(2, 'Hospitals penalized', fmtInt(S.nPen), { note: `${fmtPct(S.pctPen, 1)} of hospitals` }),
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
@@ -37,7 +37,7 @@ function hero(D, index, S) {
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
         field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: `Modeled here. CMS's rule-time estimate: ${fmtMoney(D.meta.totals.cmsEst)}` }),
         field(7, 'Data window', `${fmtDate(D.meta.perf[0])} – ${fmtDate(D.meta.perf[1])}`),
-        field(8, 'Payment year', 'Oct 1, 2026 – Sep 30, 2027')),
+        field(8, 'Payment year', D.edition.payShort)),
       h('div', { class: 'hero__stamp' }, h('span', { class: 'stamp' }, `Final · posted ${fmtDate(D.meta.fileDate)}`))));
 }
 
@@ -48,7 +48,7 @@ function picturePart(D, S) {
   const top = [...all].sort((a, b) => b.red - a.red || (b.pen ?? 0) - (a.pen ?? 0)).slice(0, 10);
   const topTable = greenbarTable({ columns: hospitalColumns(D), rows: top, pageSize: 10, sort: { key: 'red', dir: 'desc' },
     csvName: 'largest-penalties.csv', rowHref: (x) => link('hospital', x.id) });
-  return part({ no: 2, id: 'picture', title: `The FY${D.meta.fy} picture`,
+  return part({ no: partNo('picture'), id: 'picture', title: `The ${D.edition.label} picture`,
     lede: `Most cuts are small. The typical penalized hospital loses ${fmtPct(S.medianRedPen)} of its base Medicare inpatient payments; ${fmtInt(S.nGe1)} lose 1% or more, and ${fmtInt(S.nMax)} hit the 3% cap.` },
     figure({ title: 'How big are the cuts?', take: `Each bar counts hospitals by the size of their payment reduction. ${fmtInt(S.n - S.nPen)} hospitals have no reduction.`,
       source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: histEl }),
@@ -64,7 +64,7 @@ function mapPart(D) {
   const mapEl = h('div', { class: 'map' });
   const legendHolder = h('div');
   const map = usMap(mapEl, D, { metric, dots: false, hospitals: D.hospitals,
-    onState: (st) => { window.location.hash = link('state', st); }, onHospital: (id) => { window.location.hash = link('hospital', id); } });
+    onState: (st) => go('state', st), onHospital: (id) => go('hospital', id) });
   let showDots = false;
   const setLegend = () => legendHolder.replaceChildren(mapLegend(metric), showDots ? dotLegend() : '');
   setLegend();
@@ -72,25 +72,18 @@ function mapPart(D) {
     onclick: (e) => { metric = k; for (const b of btns) b.setAttribute('aria-pressed', String(b === e.currentTarget)); map.update({ metric }); setLegend(); } }, m.label));
   const dots = h('input', { type: 'checkbox', id: 'map-dots', onchange: (e) => { showDots = e.target.checked; map.update({ dots: showDots }); setLegend(); } });
 
-  const rows = [...D.byState.entries()].map(([st, list]) => ({ st, name: D.meta.states[st], ...summarize(list) }));
-  const stTable = greenbarTable({ rows, pageSize: 15, sort: { key: 'meanRed', dir: 'desc' }, csvName: 'states.csv', rowHref: (r) => link('state', r.st),
-    columns: [
-      { key: 'name', label: 'State', cls: 'name', firstDir: 'asc', render: (r) => h('a', { href: link('state', r.st) }, r.name) },
-      { key: 'n', label: 'Hospitals', num: true, render: (r) => fmtInt(r.n) },
-      { key: 'pctPen', label: 'Penalized', num: true, render: (r) => fmtPct(r.pctPen, 0) },
-      { key: 'meanRed', label: 'Avg cut', num: true, render: (r) => fmtPct(r.meanRed) },
-      { key: 'nGe1', label: 'Cut 1%+', num: true, render: (r) => fmtInt(r.nGe1) },
-      { key: 'penTotal', label: 'Est. $', num: true, render: (r) => fmtMoney(r.penTotal) },
-    ] });
+  const rows = [...D.stateSummary.entries()].map(([st, sm]) => ({ ...sm, label: D.meta.states[st], href: link('state', st) }));
+  const stTable = greenbarTable({ rows, pageSize: 15, sort: { key: 'meanRed', dir: 'desc' }, csvName: 'states.csv', rowHref: (r) => r.href,
+    columns: summaryColumns('State') });
 
   const regions = h('div', { class: 'regions' }, D.regions.map((r) => h('div', { class: 'region' },
     h('a', { class: 'region__name', href: link('region', r.slug) }, r.name),
     h('ul', {}, r.divisions.map((d) => h('li', {}, h('a', { href: link('division', d.slug) }, d.name),
       h('span', { class: 'region__states' }, d.states.map((st, i) => [i ? ' ' : '', h('a', { href: link('state', st) }, st)]))))))));
 
-  return part({ no: 3, id: 'map', title: 'Where the penalties land', lede: 'Select a state to drill down to its regions, metro areas, and hospitals. Maryland is hatched: it runs its own all-payer model and is exempt.' },
+  return part({ no: partNo('map'), id: 'map', title: 'Where the penalties land', lede: 'Select a state to drill down to its regions, metro areas, and hospitals. Maryland is hatched: it runs its own all-payer model and is exempt.' },
     figure({ title: 'Penalties by state', take: 'Switch the measure, or turn on hospital dots (sized by Medicare volume, shaded by cut).',
-      source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; locations from Care Compare addresses and Census ZIP centroids.`,
+      source: `CMS ${D.edition.label} HRRP Supplemental Data File; locations from Care Compare addresses and Census ZIP centroids.`,
       body: h('div', {}, h('div', { class: 'controls' }, h('div', { class: 'seg', role: 'group', 'aria-label': 'Map measure' }, btns),
         h('label', { class: 'check', for: 'map-dots' }, dots, 'Show hospitals')), mapEl, legendHolder) }),
     h('div', { class: 'grid-2 grid-2--wide-left' },
@@ -122,19 +115,19 @@ function historyPart(D) {
     h('span', { class: 'ledger__body' }, h('b', {}, t.title), ' ', t.body, ' ',
       safeHref(t.src?.url) ? h('a', { href: safeHref(t.src.url), target: '_blank', rel: 'noopener' }, t.src.label) : null))));
 
-  return part({ no: 4, id: 'history', title: 'Fifteen years of penalties', lede: 'The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much.' },
+  return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: 'The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much.' },
     h('div', { class: 'grid-2' },
-      figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: 'CMS HRRP Supplemental Data Files, FY2013–FY2027.', body: pctEl }),
-      figure({ title: 'Average cut', take: 'Red: among penalized hospitals. Black: across all hospitals, counting zeros.', source: 'CMS HRRP Supplemental Data Files, FY2013–FY2027.', body: avgEl })),
+      figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
+      figure({ title: 'Average cut', take: 'Red: among penalized hospitals. Black: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
       figure({ title: 'Estimated total penalties', take: `Dark bars: CMS estimates from each year's payment rule. Light bars: totals reported by KFF Health News. CMS did not publish a total for ${missing}.`,
-        source: 'Federal Register IPPS final rules; KFF Health News. FY2027 is CMS\'s rule-time estimate made with preliminary data.', body: dolEl }),
+        source: `Federal Register IPPS final rules; KFF Health News. ${D.edition.label} is CMS's rule-time estimate made with preliminary data.`, body: dolEl }),
       figure({ title: 'Timeline', body: timeline })));
 }
 
 function researchPart(D) {
   const themes = [...new Set(D.research.map((r) => r.theme))];
-  return part({ no: 6, id: 'research', title: 'What the research says', lede: 'Readmissions fell after the program began. Researchers still disagree about how much of that was better care, and whether there were side effects.' },
+  return part({ no: partNo('research'), id: 'research', title: 'What the research says', lede: 'Readmissions fell after the program began. Researchers still disagree about how much of that was better care, and whether there were side effects.' },
     h('div', { class: 'research' }, themes.map((t) => h('section', { class: 'research__theme' },
       h('h3', {}, t),
       h('ul', {}, D.research.filter((r) => r.theme === t).map((r) => h('li', { class: 'cite' },
@@ -143,7 +136,7 @@ function researchPart(D) {
 }
 
 export function renderHome(D, index) {
-  const S = summarize(D.hospitals);
+  const S = D.nation;
   return h('div', {},
     hero(D, index, S),
     h('div', { class: 'wrap' },
@@ -151,7 +144,7 @@ export function renderHome(D, index) {
       picturePart(D, S),
       mapPart(D),
       historyPart(D),
-      part({ no: 5, id: 'explore', title: 'Every hospital', lede: `All ${fmtInt(D.hospitals.length)} hospitals in the FY${D.meta.fy} program. Filter, sort, and download.` },
-        explorer(D, D.hospitals, { csvName: `hrrp-fy${D.meta.fy}-hospitals.csv` })),
+      part({ no: partNo('explore'), id: 'explore', title: 'Every hospital', lede: `All ${fmtInt(D.hospitals.length)} hospitals in the ${D.edition.label} program. Filter, sort, and download.` },
+        explorer(D, D.hospitals, { csvName: `hrrp-${D.edition.label.toLowerCase()}-hospitals.csv` })),
       researchPart(D)));
 }

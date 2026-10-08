@@ -74,7 +74,9 @@ export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption
     page = Math.min(Math.max(0, page), pages - 1);
     clear(tbody);
     for (const r of all.slice(page * pageSize, (page + 1) * pageSize)) {
-      tbody.append(h('tr', { class: rowClass?.(r) || null, onclick: (e) => { if (rowHref && !e.target.closest('a,button')) window.location.hash = rowHref(r); } },
+      const href = rowHref?.(r);
+      tbody.append(h('tr', { class: [rowClass?.(r), href ? 'is-link' : null].filter(Boolean).join(' ') || null,
+        onclick: (e) => { if (href && !e.target.closest('a,button')) window.location.hash = href; } },
         columns.map((c) => h('td', { class: [c.num ? 'num' : '', c.cls || ''].join(' ').trim() || null }, c.render ? c.render(r) : r[c.key] ?? '—'))));
     }
     if (!all.length) tbody.append(h('tr', {}, h('td', { colspan: columns.length }, 'No hospitals match these filters.')));

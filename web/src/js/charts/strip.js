@@ -12,7 +12,8 @@ export function jitter(id) {
   return ((x >>> 0) % 10007) / 10007;
 }
 
-// Jittered strip plot. rows: [{key, label}] (one band each); points: [{id, row, x, fill, tip:[title, rows]}]
+// Jittered strip plot. rows: [{key, label}] (one band each); points: [{id, row, x, fill, tip: () => [title, rows], href}]
+// Selecting a point opens p.href unless onPoint is given.
 export function stripPlot(el, { rows, points, domain, ticks, tickFormat, refs = [], medians = {}, highlight, onPoint, rowH = 46, label }) {
   responsive(el, (W) => {
     el.replaceChildren();
@@ -49,9 +50,9 @@ export function stripPlot(el, { rows, points, domain, ticks, tickFormat, refs = 
       .attr('r', (p) => (p.id === highlight ? 6 : 2.3))
       .attr('fill', (p) => p.fill).attr('fill-opacity', (p) => (p.id === highlight ? 1 : 0.75))
       .attr('stroke', (p) => (p.id === highlight ? 'var(--ink)' : 'none')).attr('stroke-width', 2)
-      .style('cursor', onPoint ? 'pointer' : null)
-      .on('mousemove', (e, p) => p.tip && showTip(e, p.tip[0], p.tip[1]))
+      .style('cursor', 'pointer')
+      .on('mousemove', (e, p) => { if (p.tip) { const [t, r] = p.tip(); showTip(e, t, r); } })
       .on('mouseleave', hideTip)
-      .on('click', (e, p) => onPoint?.(p));
+      .on('click', (e, p) => (onPoint ? onPoint(p) : p.href && (window.location.hash = p.href)));
   });
 }

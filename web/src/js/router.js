@@ -4,7 +4,13 @@
 //   #hospital-010001       hospital       #state-ut  #metro-41620  #division-south-atlantic  #region-west
 //   #methods               methods
 
-export const SECTIONS = ['how', 'picture', 'map', 'history', 'explore', 'research'];
+import { slug } from './model.js';
+
+// Home sections in page order: [id, nav label]. Part numbers follow this order.
+export const SECTION_LIST = [['how', 'How it works'], ['picture', 'The year'], ['map', 'Map'], ['history', 'History'],
+  ['explore', 'Every hospital'], ['research', 'Research']];
+export const SECTIONS = SECTION_LIST.map(([id]) => id);
+export const partNo = (id) => SECTIONS.indexOf(id) + 1;
 const KEYS = {
   hospital: (k) => (/^[0-9]{6}$/.test(k) ? k : null),
   state: (k) => (/^[a-z]{2}$/i.test(k) ? k.toUpperCase() : null),
@@ -37,8 +43,10 @@ export function link(view, key) {
   return `#${view}-${String(key).toLowerCase()}`;
 }
 
-export function slugify(name) {
-  return String(name).toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+export const slugify = slug;
+
+export function go(view, key) {
+  window.location.hash = link(view, key);
 }
 
 export function onRoute(cb) {

@@ -1,10 +1,19 @@
 // Pure functions: the HRRP formula, summaries, filters, and formatting. No DOM.
+import { quantileSorted } from 'd3-array';
 
 export const CONDS = ['AMI', 'COPD', 'HF', 'PN', 'CABG', 'THA_TKA'];
+export const PEERS = [1, 2, 3, 4, 5];
 export const MIN_DISCHARGES = 25;
 export const CAP = 0.03;
+export const CAP_PCT = CAP * 100;
+export const TEACH_LABEL = { none: 'Non-teaching', minor: 'Minor teaching', major: 'Major teaching' };
 
 const round4 = (v) => Math.round(v * 1e4) / 1e4;
+// Payment reduction in percent (2 dp) from a payment adjustment factor.
+export const cutPct = (paf) => Math.round((1 - paf) * 1e4) / 100;
+// A condition counts only with at least 25 eligible cases and a published ratio.
+export const isMeasured = (c) => (c?.n ?? 0) >= MIN_DISCHARGES && c.err != null;
+export const slug = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
 
 export function peerMedian(meta, peer, cond) {
   return meta.peerMedians[peer]?.[cond] ?? null;
@@ -12,9 +21,9 @@ export function peerMedian(meta, peer, cond) {
 
 // One condition's contribution: NM x DRG ratio x max(ERR - peer median, 0), when discharges >= 25.
 export function conditionContribution(c, med, nm, errOverride) {
-  if (!c) return 0;
+  if (!isMeasured(c)) return 0;
   const err = errOverride ?? c.err;
-  if ((c.n ?? 0) < MIN_DISCHARGES || err == null || med == null || c.ratio == null) return 0;
+  if (med == null || c.ratio == null) return 0;
   return nm * c.ratio * Math.max(err - med, 0);
 }
 
@@ -45,9 +54,9 @@ export function summarize(list) {
     nPen: pen.length,
     pctPen: list.length ? (100 * pen.length) / list.length : 0,
     meanRed: mean(reds),
-    medianRed: median(reds),
+    get medianRed() { return median(reds); },
     meanRedPen: mean(pen),
-    medianRedPen: median(pen),
+    get medianRedPen() { return median(pen); },
     nMax: list.filter((h) => h.paf <= 1 - CAP + 1e-9).length,
     nGe1: reds.filter((r) => r >= 1).length,
     penTotal: list.reduce((s, h) => s + (h.pen ?? 0), 0),
@@ -67,8 +76,6 @@ export function percentileRank(sorted, v) {
   }
   return (100 * lo) / sorted.length;
 }
-
-const slug = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
 
 export function scopeFilter({ view, key }) {
   switch (view) {
@@ -141,19 +148,12 @@ export function ordinal(n) {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
-function pct(sorted, q) {
-  if (!sorted.length) return null;
-  const i = (sorted.length - 1) * q;
-  const lo = Math.floor(i);
-  return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (i - lo);
-}
-
 // {peer: {cond: [p10, p90]}} of ERRs among hospitals with >= 25 cases.
 export function peerBands(list) {
   const acc = {};
   for (const x of list) {
     for (const [k, c] of Object.entries(x.c)) {
-      if ((c.n ?? 0) < MIN_DISCHARGES || c.err == null) continue;
+      if (!isMeasured(c)) continue;
       ((acc[x.peer] ??= {})[k] ??= []).push(c.err);
     }
   }
@@ -162,17 +162,25 @@ export function peerBands(list) {
     out[p] = {};
     for (const [k, v] of Object.entries(conds)) {
       v.sort((a, b) => a - b);
-      out[p][k] = [pct(v, 0.1), pct(v, 0.9)];
+      out[p][k] = [quantileSorted(v, 0.1), quantileSorted(v, 0.9)];
     }
   }
   return out;
 }
 
+// 'counted' (adds to the penalty) | 'below' (measured, at or below median) | 'few' (under 25 cases) | 'none'
+export function condState(h, k, meta, byCond = contrib(h, meta).byCond) {
+  const c = h.c[k];
+  if (!c) return 'none';
+  if (!isMeasured(c)) return 'few';
+  return byCond[k] > 0 || c.flag === 1 ? 'counted' : 'below';
+}
+
 // Why a hospital got (or avoided) its penalty.
 export function verdict(h, meta) {
-  const measured = CONDS.filter((k) => (h.c[k]?.n ?? 0) >= MIN_DISCHARGES && h.c[k].err != null);
   const r = contrib(h, meta);
-  const above = measured.filter((k) => r.byCond[k] > 0 || h.c[k].flag === 1);
+  const measured = CONDS.filter((k) => isMeasured(h.c[k]));
+  const above = measured.filter((k) => condState(h, k, meta, r.byCond) === 'counted');
   const top = above.reduce((best, k) => (best == null || r.byCond[k] > r.byCond[best] ? k : best), null);
   let status = 'penalized';
   if (h.paf >= 1) status = measured.length ? 'none-below' : 'none-measured';

@@ -1,34 +1,28 @@
-import { h, clear } from '../dom.js';
+import { h } from '../dom.js';
 import { omnibox } from '../ui/omnibox.js';
 import { themeButton } from '../ui/theme.js';
-import { link } from '../router.js';
+import { link, SECTION_LIST } from '../router.js';
 
-export const NAV = [
-  ['how', 'How it works'], ['picture', 'FY2027'], ['map', 'Map'], ['history', 'Fifteen years'],
-  ['explore', 'Every hospital'], ['research', 'Research'], ['methods', 'Methods'],
-];
+const LINKEDIN = 'https://www.linkedin.com/in/dalton-haslam';
 
 export function renderShell(D, index) {
-  const top = document.getElementById('topbar');
-  clear(top);
-  top.append(
+  const nav = [...SECTION_LIST.map(([id, label]) => [id, id === 'picture' ? D.edition.label : label]), ['methods', 'Methods']];
+  document.getElementById('topbar').append(
     h('div', { class: 'wrap topbar__row' },
       h('a', { class: 'wordmark', href: '#', 'aria-label': 'Thirty Days, home' },
         h('span', { class: 'wordmark__name' }, 'Thirty Days'),
-        h('span', { class: 'wordmark__tag' }, `HRRP · FY${D.meta.fy}`)),
+        h('span', { class: 'wordmark__tag' }, `HRRP · ${D.edition.label}`)),
       h('div', { class: 'topbar__search' }, omnibox(index)),
       themeButton()),
     h('nav', { class: 'nav', 'aria-label': 'Sections' },
-      h('ol', { class: 'wrap' }, NAV.map(([id, label], i) => h('li', {},
+      h('ol', { class: 'wrap' }, nav.map(([id, label], i) => h('li', {},
         h('a', { href: link(id), 'data-nav': id }, id === 'methods' ? null : h('span', { class: 'num' }, String(i + 1)), label))))));
 
-  const foot = document.getElementById('footer');
-  clear(foot);
-  foot.append(h('div', { class: 'wrap footer__grid' },
+  document.getElementById('footer').append(h('div', { class: 'wrap footer__grid' },
     h('div', {},
       h('p', { class: 'byline' }, 'Built by Dalton Haslam, MD, MBA · ',
-        h('a', { href: 'https://www.linkedin.com/in/dalton-haslam', rel: 'noopener', target: '_blank' }, 'LinkedIn')),
-      h('p', {}, `Data: CMS FY${D.meta.fy} Hospital Readmissions Reduction Program Supplemental Data File (posted ${D.meta.fileDate}), FY${D.meta.fy} IPPS final rule files, CMS Care Compare, and US Census geography. Figures marked "estimated" are modeled here; see `,
+        h('a', { href: LINKEDIN, rel: 'noopener', target: '_blank' }, 'LinkedIn')),
+      h('p', {}, `Data: CMS ${D.edition.label} Hospital Readmissions Reduction Program Supplemental Data File (posted ${D.meta.fileDate}), ${D.edition.label} IPPS final rule files, CMS Care Compare, and US Census geography. Figures marked "estimated" are modeled here; see `,
         h('a', { href: '#methods' }, 'Methods'), '.')),
     h('div', {},
       h('p', {}, 'An independent project. Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.'),

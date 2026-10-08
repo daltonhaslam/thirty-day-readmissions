@@ -17,7 +17,7 @@ async function open(hash, { width = 1280, scheme = 'light' } = {}) {
   page.on('pageerror', (e) => errors.push(String(e)));
   const t0 = Date.now();
   await page.goto(PAGE + hash);
-  await page.waitForFunction(() => document.querySelector('#main')?.children.length > 0);
+  await page.waitForFunction(() => document.querySelector('#main > div'));
   const ms = Date.now() - t0;
   await page.waitForTimeout(400);
   return { page, errors, ms };
@@ -99,6 +99,7 @@ for (const width of [1280, 360]) {
   check((await bg(light.page)) !== (await bg(dark.page)), 'dark mode background identical to light');
   await light.page.locator('.theme-btn').click();
   check((await light.page.getAttribute('html', 'data-theme')) === 'dark', 'theme toggle did not switch to dark');
+  check((await bg(light.page)) === (await bg(dark.page)), 'night-edition toggle does not match the dark palette');
   await light.page.close();
   await dark.page.close();
 }

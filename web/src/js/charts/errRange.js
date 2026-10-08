@@ -39,7 +39,7 @@ export function errRows(el, { rows, domain = [0.75, 1.25], label }) {
         const counted = r.state === 'counted';
         g.append('circle').attr('cx', x(r.err)).attr('cy', cy).attr('r', 6.5)
           .attr('fill', counted ? 'var(--form)' : r.state === 'few' ? 'var(--paper)' : 'var(--ink)')
-          .attr('stroke', counted ? 'var(--ink)' : 'var(--ink)').attr('stroke-width', 1.5)
+          .attr('stroke', 'var(--ink)').attr('stroke-width', 1.5)
           .on('mousemove', (e) => showTip(e, r.label, [['Ratio', r.err.toFixed(4)], ['Peer median', r.med?.toFixed(4) ?? '—'],
             r.band ? ['Middle 80% of peers', `${r.band[0].toFixed(3)}–${r.band[1].toFixed(3)}`] : '', r.sub]))
           .on('mouseleave', hideTip);

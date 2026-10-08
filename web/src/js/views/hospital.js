@@ -4,13 +4,12 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CONDS, MIN_DISCHARGES, contrib, peerMedian, peerBands, verdict, percentileRank, fmtInt, fmtPct, fmtMoney, ordinal } from '../model.js';
+import { CONDS, MIN_DISCHARGES, CAP, TEACH_LABEL, contrib, cutPct, condState, peerMedian, peerBands, verdict, percentileRank, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
 
 let bandsCache = null;
-const TEACH = { none: 'Non-teaching', minor: 'Minor teaching', major: 'Major teaching' };
 const TYPES = { SCH: 'Sole community hospital', MDH: 'Medicare-dependent hospital', RRC: 'Rural referral center', IHS: 'Indian Health Service', EACH: 'Essential access community hospital' };
 
 function rankLine(D, x) {
@@ -23,9 +22,9 @@ function rankLine(D, x) {
 
 function summarySentence(D, x, v) {
   const name = x.name;
-  if (v.status === 'none-measured') return `${name} has no FY${D.meta.fy} cut. None of its six conditions reached ${MIN_DISCHARGES} cases in the data window, so none could count against it.`;
-  if (v.status === 'none-below') return `${name} has no FY${D.meta.fy} cut. All ${v.nMeasured} of its measured conditions came in at or below its peer group's median.`;
-  return `Medicare will pay ${name} ${fmtPct(x.red)} less for every traditional-Medicare inpatient stay from October 1, 2026 through September 30, 2027. `
+  if (v.status === 'none-measured') return `${name} has no ${D.edition.label} cut. None of its six conditions reached ${MIN_DISCHARGES} cases in the data window, so none could count against it.`;
+  if (v.status === 'none-below') return `${name} has no ${D.edition.label} cut. All ${v.nMeasured} of its measured conditions came in at or below its peer group's median.`;
+  return `Medicare will pay ${name} ${fmtPct(x.red)} less for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
     + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${D.condByKey[v.top].short.toLowerCase()} added the most.`;
 }
 
@@ -34,30 +33,26 @@ function conditionRows(D, x, bands) {
   return CONDS.map((k) => {
     const c = x.c[k];
     const med = peerMedian(D.meta, x.peer, k);
-    const n = c?.n ?? 0;
-    let state = 'none';
-    if (c && n >= MIN_DISCHARGES) state = r.byCond[k] > 0 || c.flag === 1 ? 'counted' : 'below';
-    else if (c) state = 'few';
-    const sub = !c ? 'no cases' : `${fmtInt(n)} cases · ${state === 'counted' ? `adds ${(r.byCond[k] * 100).toFixed(3)} pts` : state === 'few' ? 'under 25, not counted' : 'no penalty'}`;
+    const state = condState(x, k, D.meta, r.byCond);
+    const what = { counted: `adds ${(r.byCond[k] * 100).toFixed(3)} pts`, few: `under ${MIN_DISCHARGES}, not counted`, below: 'no penalty' }[state];
+    const sub = !c ? 'no cases' : `${fmtInt(c.n ?? 0)} cases · ${what}`;
     return { key: k, label: D.condByKey[k].short, sub, err: c?.err ?? null, med, band: bands[x.peer]?.[k] || null, state };
   });
 }
 
-function whatIf(D, x) {
-  const measured = CONDS.filter((k) => (x.c[k]?.n ?? 0) >= MIN_DISCHARGES && x.c[k].err != null);
-  if (!measured.length) return h('p', { class: 'muted' }, 'No condition had at least 25 cases, so there is nothing to simulate.');
+function whatIf(D, x, measured) {
+  if (!measured.length) return h('p', { class: 'muted' }, `No condition had at least ${MIN_DISCHARGES} cases, so there is nothing to simulate.`);
   const over = {};
   const out = h('div', { class: 'form whatif__out' });
   const base = contrib(x, D.meta).paf;
   // Anchor to CMS's published factor; sliders move it by the recomputed difference.
   const paint = () => {
-    const paf = Math.round(Math.min(1, Math.max(0.97, x.paf + (contrib(x, D.meta, over).paf - base))) * 1e4) / 1e4;
-    const r = { paf };
-    const red = Math.round((1 - paf) * 1e4) / 100;
+    const paf = Math.round(Math.min(1, Math.max(1 - CAP, x.paf + (contrib(x, D.meta, over).paf - base))) * 1e4) / 1e4;
+    const red = cutPct(paf);
     const dollars = x.base != null ? x.base * (1 - paf) : null;
     clear(out).append(
       field('W1', 'Hypothetical cut', fmtPct(red), { big: true, note: `Actual: ${fmtPct(x.red)}` }),
-      field('W2', 'Payment adjustment factor', r.paf.toFixed(4), { note: `Actual: ${x.paf.toFixed(4)}` }),
+      field('W2', 'Payment adjustment factor', paf.toFixed(4), { note: `Actual: ${x.paf.toFixed(4)}` }),
       field('W3', 'Estimated dollars', fmtMoney(dollars), { note: x.pen != null ? `Actual estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
   };
   const sliders = measured.map((k) => {
@@ -83,7 +78,7 @@ function whatIf(D, x) {
 function historyChart(D, x) {
   const years = [...D.history.years, D.meta.fy];
   const hist = D.history.paf[x.id] || [];
-  const vals = years.map((fy, i) => (fy === D.meta.fy ? x.red : hist[i] != null ? Math.round((1 - hist[i]) * 1e4) / 100 : null));
+  const vals = years.map((fy, i) => (fy === D.meta.fy ? x.red : hist[i] != null ? cutPct(hist[i]) : null));
   const el = h('div');
   trendChart(el, { years, label: `Payment cut by year for ${x.name}`, yFormat: (d) => `${d}%`, yMax: Math.max(1, ...vals.filter((v) => v != null)) * 1.1,
     series: [{ label: x.name, kind: 'bar', values: vals, fmt: (v) => fmtPct(v), style: { fill: 'var(--p4)' } },
@@ -93,22 +88,23 @@ function historyChart(D, x) {
   return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: national average. "n/a" means the hospital was not in that year's file.` };
 }
 
+// Returns [element, title] or null for an unknown CCN.
 export function renderHospital(D, id) {
   const x = D.byId.get(id);
   if (!x) return null;
   bandsCache ??= peerBands(D.hospitals);
   const v = verdict(x, D.meta);
-  const types = [TEACH[x.teach], x.beds ? `${fmtInt(x.beds)} beds` : null, x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
+  const types = [TEACH_LABEL[x.teach], x.beds ? `${fmtInt(x.beds)} beds` : null, x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
   const neighbors = (x.cbsa ? D.byCbsa.get(x.cbsa) : D.byState.get(x.st).filter((y) => !y.cbsa)).filter(Boolean);
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
   const hist = historyChart(D, x);
 
-  return h('div', { class: 'wrap hosp' },
+  const el = h('div', { class: 'wrap hosp' },
     breadcrumb(crumbsFor(D, { region: x.region, division: x.division, st: x.st, cbsa: x.cbsa }), x.name),
     h('div', { class: 'hosp__top' },
       h('div', { class: 'form hosp__id' },
-        h('div', { class: 'form__title' }, h('span', {}, `Hospital record · FY${D.meta.fy}`), h('span', {}, `CCN ${x.id}`)),
+        h('div', { class: 'form__title' }, h('span', {}, `Hospital record · ${D.edition.label}`), h('span', {}, `CCN ${x.id}`)),
         h('div', { class: 'field field--wide' }, h('div', { class: 'field__label' }, h('span', { class: 'field__no' }, '1'), 'Hospital'),
           h('h1', { class: 'hosp__name' }, x.name)),
         field(2, 'Location', [x.place, x.zip ? ` ${x.zip}` : ''].join(''), { note: x.county ? `${x.county} County` : null }),
@@ -125,13 +121,14 @@ export function renderHospital(D, id) {
           field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
         h('p', { class: 'small muted' }, rankLine(D, x)))),
     figure({ title: 'Where the penalty came from', take: 'Each row is one condition. Dot: this hospital\'s ratio (red = counted toward the penalty; hollow = too few cases). Black tick: peer-group median. Gray band: middle 80% of peer hospitals.',
-      source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: condEl }),
+      source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: condEl }),
     h('div', { class: 'grid-2 grid-2--wide-left' },
-      figure({ title: 'What if?', take: 'Drag a ratio to see how the cut would change. Hypothetical: peer medians stay at their FY2027 values.', source: 'Recomputed with the CMS formula.', body: whatIf(D, x) }),
-      figure({ title: 'Penalty history', take: hist.take, source: 'CMS HRRP Supplemental Data Files, FY2013–FY2027.', body: hist.el })),
+      figure({ title: 'What if?', take: `Drag a ratio to see how the cut would change. Hypothetical: peer medians stay at their ${D.edition.label} values.`, source: 'Recomputed with the CMS formula.', body: whatIf(D, x, v.measured) }),
+      figure({ title: 'Penalty history', take: hist.take, source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: hist.el })),
     h('details', { class: 'hosp__ws' }, h('summary', { class: 'btn' }, 'Show the full worksheet'), worksheet(D, x, { compact: true })),
     neighbors.length > 1 ? figure({ title: x.cbsa ? `Other hospitals in ${x.cbsaName}` : `Other hospitals outside metro areas in ${D.meta.states[x.st]}`,
-      take: 'This hospital is highlighted.', source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`,
+      take: 'This hospital is highlighted.', source: `CMS ${D.edition.label} HRRP Supplemental Data File.`,
       body: greenbarTable({ columns: hospitalColumns(D, { compact: true }), rows: neighbors, pageSize: 12, sort: { key: 'red', dir: 'desc' },
         rowHref: (y) => link('hospital', y.id), rowClass: (y) => (y.id === x.id ? 'is-current' : null), csvName: 'nearby.csv' }).el }) : null);
+  return [el, x.name];
 }

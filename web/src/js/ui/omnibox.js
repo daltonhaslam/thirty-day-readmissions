@@ -1,6 +1,6 @@
 import { h, clear } from '../dom.js';
 import { search } from './search.js';
-import { link } from '../router.js';
+import { go as navigate } from '../router.js';
 
 let uid = 0;
 const TYPE_LABEL = { hospital: 'Hospital', state: 'State', metro: 'Metro' };
@@ -29,7 +29,7 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
     input.value = '';
     input.blur();
     if (onPick) onPick(r);
-    else window.location.hash = link(r.type, r.key);
+    else navigate(r.type, r.key);
   };
   const paint = () => {
     clear(list);
@@ -48,7 +48,7 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
   };
 
   input.addEventListener('input', () => {
-    results = search(input.value, index, types ? 30 : 10).filter((r) => !types || types.includes(r.type)).slice(0, 10);
+    results = search(input.value, index, { types });
     active = results.length ? 0 : -1;
     if (input.value.trim()) paint(); else close();
   });
@@ -59,6 +59,5 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
     else if (e.key === 'Escape') close();
   });
   input.addEventListener('blur', () => setTimeout(close, 120));
-  root.focusInput = () => input.focus();
   return root;
 }

@@ -7,7 +7,11 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const here = (p) => new URL(p, import.meta.url);
 const read = (p) => readFileSync(here(p), 'utf8');
 
-const css = (await transform(['tokens', 'base', 'components', 'charts'].map((n) => read(`src/styles/${n}.css`)).join('\n'),
+// The explicit night-edition toggle reuses the dark media block's tokens verbatim.
+const tokens = read('src/styles/tokens.css');
+const darkDecls = /:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/.exec(tokens)?.[1];
+if (!darkDecls) throw new Error('tokens.css: dark media block not found');
+const css = (await transform([tokens, `:root[data-theme="dark"] {${darkDecls}}`, ...['base', 'components', 'charts'].map((n) => read(`src/styles/${n}.css`))].join('\n'),
   { loader: 'css', minify: true })).code;
 const js = (await build({ entryPoints: [here('src/js/main.js').pathname], bundle: true, format: 'iife', minify: true,
   write: false, target: 'es2020', legalComments: 'none' })).outputFiles[0].text;

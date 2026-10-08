@@ -1,9 +1,10 @@
-.fig__body svg { display: block; overflow: visible; }
+.fig__body svg { display: block; }
+.fig__body svg:not(.usmap) { overflow: visible; }
 .hero__card { position: relative; align-self: start; }
 .hero__stamp { display: flex; justify-content: flex-end; margin-top: 16px; padding-right: 6px; }
 
 /* ---------- explainer ---------- */
-.steps { list-style: none; margin: 34px 0 0; padding: 0; display: grid; gap: 18px; }
+.steps { list-style: none; margin: 34px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .step { border-top: var(--rule) solid var(--form); padding-top: 18px; }
 .step__head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; margin-bottom: 18px; }
 .step__no { font: 400 2.6rem/0.9 var(--font-display); color: var(--form); min-width: 1.2em; }
@@ -41,9 +42,9 @@
 
 /* horizontal bars */
 .hbars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.hbars li { display: grid; grid-template-columns: minmax(110px, 34%) minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.hbars li { display: grid; grid-template-columns: minmax(96px, 30%) minmax(60px, 1fr) auto; gap: 10px; align-items: center; }
 .hbars__label { font-weight: 600; font-size: var(--fs-sm); line-height: 1.2; }
-.hbars__label small { display: block; font: 400 0.75rem/1.25 var(--font-type); color: var(--ink-3); }
+.hbars__label small { display: block; font: 400 var(--fs-xs)/1.25 var(--font-type); color: var(--ink-3); }
 .hbars__track { position: relative; height: 16px; background: var(--bar); }
 .hbars__bar { position: absolute; inset: 0 auto 0 0; background: var(--form); }
 .hbars__cmp { position: absolute; top: -3px; bottom: -3px; width: 2.5px; background: var(--ink); }
@@ -52,12 +53,11 @@
 /* map */
 .map { min-height: 200px; }
 .usmap path { transition: fill-opacity 0.15s; }
-.legend .sw--hatch { background: repeating-linear-gradient(45deg, var(--paper) 0 3px, var(--hatch) 3px 5px); }
 .regions { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .region { border-top: var(--rule) solid var(--form); padding-top: 8px; }
 .region__name { font: 400 var(--fs-lg)/1.2 var(--font-display); text-decoration: none; }
 .region ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--fs-sm); }
-.region__states { display: block; font: 400 0.75rem/1.4 var(--font-type); color: var(--ink-2); }
+.region__states { display: block; font: 400 var(--fs-xs)/1.4 var(--font-type); color: var(--ink-2); }
 .region__states a { text-decoration-thickness: 1px; }
 
 /* timeline ledger */
@@ -66,7 +66,7 @@
 .ledger li:nth-child(odd) { background: var(--bar); }
 .ledger__date { font-family: var(--font-type); color: var(--form-ink); padding-left: 6px; }
 .ledger li.is-future .ledger__date::after { content: ' →'; }
-.ledger a { font-family: var(--font-type); font-size: 0.75rem; color: var(--ink-2); }
+.ledger a { font-family: var(--font-type); font-size: var(--fs-xs); color: var(--ink-2); }
 
 /* explorer */
 .filters { align-items: flex-end; }
@@ -81,11 +81,9 @@
 .research__theme h3 { font: 400 var(--fs-lg)/1.2 var(--font-display); margin-bottom: 10px; }
 .research ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .cite { border-left: 3px solid var(--form); padding: 2px 0 2px 12px; }
-.cite__src { font: 400 0.75rem/1.4 var(--font-type); color: var(--ink-2); margin-top: 4px; }
-.hbars li { grid-template-columns: minmax(96px, 30%) minmax(60px, 1fr) auto; }
+.cite__src { font: 400 var(--fs-xs)/1.4 var(--font-type); color: var(--ink-2); margin-top: 4px; }
 .hbars--ink .hbars__bar { background: var(--ink); }
 .grid-4 { display: grid; gap: 22px 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
-.legend--tight { gap: 4px 14px; margin-bottom: 10px; }
 
 /* ---------- breadcrumb + scope ---------- */
 .crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 0; font: 400 var(--fs-sm)/1.4 var(--font-type); }
@@ -101,7 +99,7 @@
 
 /* ---------- hospital ---------- */
 .hosp > .crumbs { padding-top: 22px; }
-.hosp__top { display: grid; gap: 24px 36px; padding-block: 18px 36px; }
+.hosp__top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px 36px; padding-block: 18px 36px; }
 @media (min-width: 980px) { .hosp__top { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
 .hosp__id { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-self: start; }
 .field--wide { grid-column: 1 / -1; }
@@ -117,12 +115,12 @@
 .whatif__sliders { display: grid; gap: 10px; }
 .whatif__row { display: grid; grid-template-columns: minmax(110px, 30%) minmax(0, 1fr) 4.5em; gap: 12px; align-items: center; }
 .whatif__row label { display: grid; font-size: var(--fs-sm); }
-.whatif__row small { font: 400 0.75rem/1.2 var(--font-type); color: var(--ink-3); }
+.whatif__row small { font: 400 var(--fs-xs)/1.2 var(--font-type); color: var(--ink-3); }
 .whatif input[type="range"] { width: 100%; accent-color: var(--form); }
 .whatif__out { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
 /* ---------- methods ---------- */
-.methods__grid { display: grid; gap: 36px; padding-bottom: 30px; }
+.methods__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; padding-bottom: 30px; }
 @media (min-width: 960px) { .methods__grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
 .methods h2 { font: 400 var(--fs-xl)/1.1 var(--font-display); margin: 30px 0 12px; }
 .prose p, .prose li { margin-bottom: 10px; }
@@ -133,7 +131,3 @@
 .glossary dt { font-weight: 700; padding-top: 10px; }
 .glossary dd { margin: 2px 0 0; padding-bottom: 10px; border-bottom: 1px solid var(--bar-line); font-size: var(--fs-sm); color: var(--ink-2); }
 .notfound { padding-block: 48px; display: grid; gap: 16px; }
-.fig__body svg.usmap { overflow: hidden; }
-.field__value--sm { font-size: var(--fs-base); line-height: 1.4; }
-.legend .sw--dot { border-radius: 50%; border-color: var(--ink); }
-.steps { grid-template-columns: minmax(0, 1fr); } .step, .step__head > div, .hosp__top > *, .scope > * { min-width: 0; }

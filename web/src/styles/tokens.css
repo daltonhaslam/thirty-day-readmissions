@@ -31,6 +31,9 @@
   --gutter: 16px;
   --measure: 66ch;
   --page: 1180px;
+  --stamp-blend: multiply;
+  --stamp-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -2.2 1.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --fs-xs: 0.75rem;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -40,14 +43,8 @@
     --hatch: rgba(236, 235, 229, 0.3);
     --p0: #2b2d33; --p1: #4b2a2f; --p2: #7a3239; --p3: #b0424a; --p4: #e8574f; --p5: #ff9a86;
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    --stamp-blend: normal;
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --paper: #15161a; --paper-2: #1f2126; --ink: #ecebe5; --ink-2: #bdbcb5; --ink-3: #8d8c87;
-  --form: #ef5b55; --form-ink: #ff7d74; --form-tint: #3a1d21; --bar: #1a221e; --bar-line: #2b3a30;
-  --hatch: rgba(236, 235, 229, 0.3);
-  --p0: #2b2d33; --p1: #4b2a2f; --p2: #7a3239; --p3: #b0424a; --p4: #e8574f; --p5: #ff9a86;
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  color-scheme: dark;
-}
+/* The :root[data-theme="dark"] block is generated from the media block above by build.mjs. */

@@ -3,7 +3,7 @@ import { figure } from '../ui/figure.js';
 import { barRows } from '../charts/bars.js';
 import { stripPlot } from '../charts/strip.js';
 import { rampVar } from '../charts/scale.js';
-import { CONDS, MIN_DISCHARGES, summarize, median, fmtInt, fmtPct, fmtMoney, bedBand, BED_BANDS } from '../model.js';
+import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, bedBand, BED_BANDS } from '../model.js';
 import { link } from '../router.js';
 
 // Estimated dollars attributable to each condition: each hospital's penalty split by its contributions.
@@ -21,7 +21,7 @@ export function conditionFigure(D, list, { compare } = {}) {
   const dollars = dollarsByCondition(list);
   const totalD = Object.values(dollars).reduce((a, b) => a + b, 0) || 1;
   const rate = (pop, k) => {
-    const measured = pop.filter((x) => (x.c[k]?.n ?? 0) >= MIN_DISCHARGES);
+    const measured = pop.filter((x) => isMeasured(x.c[k]));
     return measured.length ? (100 * measured.filter((x) => x.c[k].flag === 1).length) / measured.length : null;
   };
   const rows = CONDS.map((k) => ({ k, share: (100 * dollars[k]) / totalD }));
@@ -44,7 +44,7 @@ export function conditionFigure(D, list, { compare } = {}) {
 }
 
 export function measuredFigure(D, list) {
-  const measured = (x) => CONDS.filter((k) => (x.c[k]?.n ?? 0) >= MIN_DISCHARGES).length;
+  const measured = (x) => CONDS.filter((k) => isMeasured(x.c[k])).length;
   const rows = [0, 1, 2, 3, 4, 5, 6].map((n) => {
     const grp = list.filter((x) => measured(x) === n);
     const sm = summarize(grp);
@@ -56,22 +56,22 @@ export function measuredFigure(D, list) {
 }
 
 export function peerFigure(D, list) {
-  const rows = [1, 2, 3, 4, 5].map((p) => ({ key: p, label: `Group ${p}` }));
-  const meds = {};
-  for (const p of [1, 2, 3, 4, 5]) meds[p] = median(list.filter((x) => x.peer === p).map((x) => x.red));
+  const rows = PEERS.map((p) => ({ key: p, label: `Group ${p}` }));
+  const groups = PEERS.map((p) => list.filter((x) => x.peer === p));
+  const meds = Object.fromEntries(PEERS.map((p, i) => [p, median(groups[i].map((x) => x.red))]));
   const el = h('div');
   stripPlot(el, { rows, points: list.map((x) => ({ id: x.id, row: x.peer, x: x.red, fill: rampVar(x.red),
-    tip: [x.name, [['Cut', fmtPct(x.red)], ['Peer group', x.peer], x.place]], href: link('hospital', x.id) })),
-  domain: [0, 3], ticks: [0, 0.5, 1, 1.5, 2, 2.5, 3], tickFormat: (d) => `${d}%`, medians: meds, rowH: 44,
-  label: 'Payment reductions by peer group', onPoint: (p) => { window.location.hash = p.href; } });
-  const sums = [1, 2, 3, 4, 5].map((p) => summarize(list.filter((x) => x.peer === p)));
+    tip: () => [x.name, [['Cut', fmtPct(x.red)], ['Peer group', x.peer], x.place]], href: link('hospital', x.id) })),
+  domain: [0, CAP_PCT], ticks: [0, 0.5, 1, 1.5, 2, 2.5, CAP_PCT], tickFormat: (d) => `${d}%`, medians: meds, rowH: 44,
+  label: 'Payment reductions by peer group' });
+  const sums = groups.map(summarize);
   return figure({ title: 'Penalties by peer group',
     take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. Black ticks mark each group's median cut. Share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: el });
 }
 
 const DIMENSIONS = [
-  ['Teaching status', (x) => ({ none: 'Non-teaching', minor: 'Minor teaching', major: 'Major teaching' }[x.teach]), ['Non-teaching', 'Minor teaching', 'Major teaching']],
+  ['Teaching status', (x) => TEACH_LABEL[x.teach], Object.values(TEACH_LABEL)],
   ['Beds', (x) => bedBand(x.beds), BED_BANDS],
   ['Location', (x) => (x.urban == null ? null : x.urban ? 'Urban' : 'Rural'), ['Urban', 'Rural']],
   ['Ownership', (x) => x.own, ['Nonprofit', 'For-profit', 'Government']],

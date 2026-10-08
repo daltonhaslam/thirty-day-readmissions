@@ -30,10 +30,10 @@ export function dualBands(el, { duals, cutoffs, highlight }) {
       g.append('text').attr('x', (x0 + x1) / 2).attr('y', m.t - 7).attr('text-anchor', 'middle')
         .attr('font-family', 'var(--font-type)').attr('font-size', 12).attr('fill', 'var(--form-ink)').text(x1 - x0 > 70 ? `Group ${i + 1}` : String(i + 1));
     });
-    g.append('g').selectAll('rect.b').data(bins).join('rect').attr('class', 'b')
-      .attr('x', (_, i) => x(i * STEP) + 0.5).attr('width', Math.max(1, x(STEP) - x(0) - 1))
-      .attr('y', (n) => y(n)).attr('height', (n) => H - m.b - y(n)).attr('fill', 'var(--ink)')
-      .on('mousemove', (e, n) => { const i = bins.indexOf(n); showTip(e, `${Math.round(i)}–${Math.round(i + 1)}% dual-eligible`, [[ 'Hospitals', fmtInt(n) ]]); })
+    g.append('g').selectAll('rect.b').data(bins.map((n, i) => ({ n, i }))).join('rect').attr('class', 'b')
+      .attr('x', (d) => x(d.i * STEP) + 0.5).attr('width', Math.max(1, x(STEP) - x(0) - 1))
+      .attr('y', (d) => y(d.n)).attr('height', (d) => H - m.b - y(d.n)).attr('fill', 'var(--ink)')
+      .on('mousemove', (e, d) => showTip(e, `${d.i}–${d.i + 1}% dual-eligible`, [['Hospitals', fmtInt(d.n)]]))
       .on('mouseleave', hideTip);
     if (highlight != null) {
       g.append('line').attr('x1', x(highlight)).attr('x2', x(highlight)).attr('y1', m.t - 4).attr('y2', H - m.b).attr('stroke', 'var(--form)').attr('stroke-width', 3);

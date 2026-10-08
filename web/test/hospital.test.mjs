@@ -37,3 +37,16 @@ test('verdict: no penalty because every measured condition was at or below media
 test('ordinal suffixes', () => {
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st']);
 });
+
+test('isMeasured, cutPct, condState, PEERS', async () => {
+  const { isMeasured, cutPct, condState, PEERS, slug } = await import('../src/js/model.js');
+  assert.equal(isMeasured({ n: 25, err: 1 }), true);
+  assert.equal(isMeasured({ n: 24, err: 1 }), false);
+  assert.equal(isMeasured(undefined), false);
+  assert.equal(cutPct(0.9886), 1.14);
+  assert.equal(cutPct(1), 0);
+  const h = { peer: 1, c: { HF: { n: 100, err: 1.2, flag: 1, ratio: 0.05 }, PN: { n: 100, err: 0.9, flag: 0, ratio: 0.05 }, AMI: { n: 5, err: 1.3, flag: 0, ratio: 0.01 } } };
+  assert.deepEqual(['HF', 'PN', 'AMI', 'CABG'].map((k) => condState(h, k, meta)), ['counted', 'below', 'few', 'none']);
+  assert.deepEqual(PEERS, [1, 2, 3, 4, 5]);
+  assert.equal(slug('South Atlantic'), 'south-atlantic');
+});
