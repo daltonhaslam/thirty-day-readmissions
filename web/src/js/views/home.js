@@ -1,9 +1,9 @@
 import { h } from '../dom.js';
-import { figure, part, field, resetFigures } from '../ui/figure.js';
+import { figure, part, field } from '../ui/figure.js';
 import { omnibox } from '../ui/omnibox.js';
 import { penaltyHistogram } from '../charts/histogram.js';
 import { greenbarTable } from '../ui/table.js';
-import { usMap, mapLegend, METRICS } from '../charts/usmap.js';
+import { usMap, mapLegend, dotLegend, METRICS } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { summarize, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
@@ -65,11 +65,12 @@ function mapPart(D) {
   const legendHolder = h('div');
   const map = usMap(mapEl, D, { metric, dots: false, hospitals: D.hospitals,
     onState: (st) => { window.location.hash = link('state', st); }, onHospital: (id) => { window.location.hash = link('hospital', id); } });
-  const setLegend = () => legendHolder.replaceChildren(mapLegend(metric));
+  let showDots = false;
+  const setLegend = () => legendHolder.replaceChildren(mapLegend(metric), showDots ? dotLegend() : '');
   setLegend();
   const btns = Object.entries(METRICS).map(([k, m]) => h('button', { class: 'btn', type: 'button', 'aria-pressed': String(k === metric),
     onclick: (e) => { metric = k; for (const b of btns) b.setAttribute('aria-pressed', String(b === e.currentTarget)); map.update({ metric }); setLegend(); } }, m.label));
-  const dots = h('input', { type: 'checkbox', id: 'map-dots', onchange: (e) => map.update({ dots: e.target.checked }) });
+  const dots = h('input', { type: 'checkbox', id: 'map-dots', onchange: (e) => { showDots = e.target.checked; map.update({ dots: showDots }); setLegend(); } });
 
   const rows = [...D.byState.entries()].map(([st, list]) => ({ st, name: D.meta.states[st], ...summarize(list) }));
   const stTable = greenbarTable({ rows, pageSize: 15, sort: { key: 'meanRed', dir: 'desc' }, csvName: 'states.csv', rowHref: (r) => link('state', r.st),
@@ -142,7 +143,6 @@ function researchPart(D) {
 }
 
 export function renderHome(D, index) {
-  resetFigures();
   const S = summarize(D.hospitals);
   return h('div', {},
     hero(D, index, S),

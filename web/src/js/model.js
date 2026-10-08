@@ -134,3 +134,47 @@ export function toCSV(rows, columns) {
   for (const r of rows) lines.push(columns.map((c) => csvCell(c.value ? c.value(r) : r[c.key])).join(','));
   return `${lines.join('\r\n')}\r\n`;
 }
+
+export function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
+
+function pct(sorted, q) {
+  if (!sorted.length) return null;
+  const i = (sorted.length - 1) * q;
+  const lo = Math.floor(i);
+  return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (i - lo);
+}
+
+// {peer: {cond: [p10, p90]}} of ERRs among hospitals with >= 25 cases.
+export function peerBands(list) {
+  const acc = {};
+  for (const x of list) {
+    for (const [k, c] of Object.entries(x.c)) {
+      if ((c.n ?? 0) < MIN_DISCHARGES || c.err == null) continue;
+      ((acc[x.peer] ??= {})[k] ??= []).push(c.err);
+    }
+  }
+  const out = {};
+  for (const [p, conds] of Object.entries(acc)) {
+    out[p] = {};
+    for (const [k, v] of Object.entries(conds)) {
+      v.sort((a, b) => a - b);
+      out[p][k] = [pct(v, 0.1), pct(v, 0.9)];
+    }
+  }
+  return out;
+}
+
+// Why a hospital got (or avoided) its penalty.
+export function verdict(h, meta) {
+  const measured = CONDS.filter((k) => (h.c[k]?.n ?? 0) >= MIN_DISCHARGES && h.c[k].err != null);
+  const r = contrib(h, meta);
+  const above = measured.filter((k) => r.byCond[k] > 0 || h.c[k].flag === 1);
+  const top = above.reduce((best, k) => (best == null || r.byCond[k] > r.byCond[best] ? k : best), null);
+  let status = 'penalized';
+  if (h.paf >= 1) status = measured.length ? 'none-below' : 'none-measured';
+  return { status, top, nAbove: above.length, nMeasured: measured.length, measured, above };
+}

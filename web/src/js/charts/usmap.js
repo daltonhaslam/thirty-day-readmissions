@@ -4,7 +4,7 @@ import { scaleSqrt } from 'd3-scale';
 import { feature, mesh } from 'topojson-client';
 import { s, h, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
-import { rampVar } from './scale.js';
+import { rampVar, BINS } from './scale.js';
 import { summarize, fmtPct, fmtInt, fmtMoney } from '../model.js';
 
 const step = (cuts, labels) => ({ cls: (v) => `p${1 + cuts.filter((c) => v >= c).length}`, labels });
@@ -37,7 +37,12 @@ export function mapLegend(metricKey) {
     h('span', {}, h('span', { class: 'sw sw--hatch' }), 'not in program'));
 }
 
-// opts: { metric, dots, hospitals (dots), focusStates: [abbr] | null, focusPoints: bool, onState, onHospital }
+export function dotLegend() {
+  return h('div', { class: 'legend' }, h('span', { class: 'cap muted' }, 'Hospital dots, by cut:'),
+    BINS.map((b, i) => h('span', {}, h('span', { class: 'sw sw--dot', style: { background: i === 0 ? 'var(--paper)' : `var(--${b.cls})` } }), b.label)));
+}
+
+// opts: { metric, plain (neutral state fill), dots, hospitals (dots), context (faint gray dots), focusStates: [abbr] | null, focusPoints: bool, onState, onHospital }
 export function usMap(el, D, opts) {
   const { states, borders } = geometry(D);
   let o = { ...opts };
@@ -48,8 +53,15 @@ export function usMap(el, D, opts) {
     const proj = geoAlbersUsa();
     const focusFeatures = o.focusStates ? states.filter((f) => o.focusStates.includes(f.abbr)) : null;
     const pts = (o.hospitals || []).filter((x) => x.lat != null);
-    if (o.focusPoints && pts.length > 1) {
-      proj.fitExtent([[24, 24], [W - 24, H - 24]], { type: 'MultiPoint', coordinates: pts.map((x) => [x.lon, x.lat]) });
+    if (o.focusPoints && pts.length) {
+      // Frame the points' bounding box, padded to at least ~1.6 degrees so nearby context shows.
+      const lons = pts.map((x) => x.lon);
+      const lats = pts.map((x) => x.lat);
+      const cx = (Math.min(...lons) + Math.max(...lons)) / 2;
+      const cy = (Math.min(...lats) + Math.max(...lats)) / 2;
+      const hw = Math.max(0.8, (Math.max(...lons) - Math.min(...lons)) * 0.8);
+      const hh = Math.max(0.55, (Math.max(...lats) - Math.min(...lats)) * 0.8);
+      proj.fitExtent([[12, 12], [W - 12, H - 12]], { type: 'MultiPoint', coordinates: [[cx - hw, cy - hh], [cx + hw, cy + hh]] });
     } else if (focusFeatures?.length) {
       proj.fitExtent([[12, 12], [W - 12, H - 12]], { type: 'FeatureCollection', features: focusFeatures });
     } else {
@@ -67,7 +79,8 @@ export function usMap(el, D, opts) {
       .attr('d', path)
       .attr('fill', (f) => {
         const sm = f.abbr && stateSummary.get(f.abbr);
-        return sm ? `var(--${metric.cls(metric.value(sm))})` : 'url(#hatch)';
+        if (!sm) return 'url(#hatch)';
+        return o.plain ? 'var(--paper-2)' : `var(--${metric.cls(metric.value(sm))})`;
       })
       .attr('fill-opacity', (f) => (inFocus(f) ? 1 : 0.28))
       .attr('stroke', 'var(--ink)').attr('stroke-width', (f) => (o.focusStates && inFocus(f) ? 1.6 : 0.6))
@@ -80,9 +93,13 @@ export function usMap(el, D, opts) {
       .on('mouseleave', hideTip)
       .on('click', (e, f) => f.abbr && o.onState?.(f.abbr));
     g.append('path').attr('d', path(borders)).attr('fill', 'none').attr('stroke', 'var(--ink)').attr('stroke-width', 0.6).attr('pointer-events', 'none');
+    if (o.context?.length) {
+      g.append('g').selectAll('circle').data(o.context.filter((x) => x.lat != null).map((x) => proj([x.lon, x.lat])).filter(Boolean)).join('circle')
+        .attr('cx', (p) => p[0]).attr('cy', (p) => p[1]).attr('r', 2).attr('fill', 'var(--ink-3)').attr('fill-opacity', 0.45).attr('pointer-events', 'none');
+    }
     if (o.dots) {
       const maxBase = Math.max(...pts.map((x) => x.base || 0), 1);
-      const r = scaleSqrt().domain([0, maxBase]).range([1.3, W > 700 ? 9 : 6]);
+      const r = scaleSqrt().domain([0, maxBase]).range(o.plain ? [3.2, W > 700 ? 12 : 9] : [1.3, W > 700 ? 9 : 6]);
       const placed = pts.map((x) => ({ x, p: proj([x.lon, x.lat]) })).filter((d) => d.p).sort((a, b) => (b.x.base || 0) - (a.x.base || 0));
       g.append('g').selectAll('circle').data(placed).join('circle')
         .attr('cx', (d) => d.p[0]).attr('cy', (d) => d.p[1]).attr('r', (d) => r(d.x.base || 0))
