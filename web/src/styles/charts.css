@@ -136,3 +136,4 @@
 .fig__body svg.usmap { overflow: hidden; }
 .field__value--sm { font-size: var(--fs-base); line-height: 1.4; }
 .legend .sw--dot { border-radius: 50%; border-color: var(--ink); }
+.steps { grid-template-columns: minmax(0, 1fr); } .step, .step__head > div, .hosp__top > *, .scope > * { min-width: 0; }
