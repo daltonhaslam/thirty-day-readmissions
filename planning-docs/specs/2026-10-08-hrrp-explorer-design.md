@@ -158,11 +158,29 @@ hrrp-explorer/
 - **Responsive**: 16px gutters, no horizontal page scroll at 360px; tables scroll inside
   their container; charts re-render on resize.
 
-## 6. Visual direction
-Editorial data-journalism, not dashboard-template. Serif display (Newsreader) + IBM Plex Sans
-for UI, tabular numerals. Warm paper background, ink text, one sequential penalty ramp
-(pale sand → amber → deep red), Okabe-Ito for the six conditions. No stock gradients, no
-emoji, no glassmorphism. Copy written plainly; numbers do the talking.
+## 6. Visual direction — "1970s statistical almanac" (Dalton, 2026-10-08: retro, no AI tells, still intuitive)
+Working title on the masthead: **Thirty Days — An almanac of Medicare's readmission penalties,
+FY2027 edition** ("Vol. 15": FY2027 is the program's 15th payment year). Easy to rename.
+- **Paper & ink**: warm cream paper with a faint grain; brown-black ink; two/three spot colors
+  as if offset-printed — vermilion, mustard, petrol teal. Night edition (dark mode) = charcoal
+  paper, cream ink, same spot colors lifted for contrast.
+- **Type**: Alfa Slab One (wood-type masthead + section heads), Libre Franklin (body/UI —
+  Franklin Gothic is the classic American newspaper/government face), Courier Prime (numbers,
+  tables, axis ticks, captions — typed-report feel, monospaced digits align).
+- **Report conventions as navigation aids**: numbered parts ("Part II"), every chart captioned
+  "Figure N." with a one-line takeaway and a source line; hairline + double rules between
+  sections; index-tab section nav; small-caps labels.
+- **Tables** printed like green-bar computer paper (alternating pale bands, Courier) — retro and
+  genuinely easier to scan.
+- **Charts**: thin ink axes, hatched fills for "not eligible (<25 discharges)", penalty ramp
+  cream → mustard → vermilion → oxblood; condition palette = print-muted Okabe-Ito
+  (color-blind-safe).
+- **Banned AI tells**: gradient text/backgrounds, glassmorphism, rounded-2xl card grids with
+  soft shadows, purple/blue tech palettes, emoji/icon-feature trios, Inter/DM Sans/Space
+  Grotesk/Fraunces, pill-badge clutter, "unlock/dive deep/empower/seamless" copy, centered
+  everything. Copy is plain, specific, and written like a careful reporter.
+- **Intuitive first**: sticky top bar with search always visible; breadcrumb on every scoped
+  view; every chart clickable to drill down; obvious back paths; no hidden gestures.
 
 ## 7. Error handling
 - Pipeline: hard-fail on schema drift (missing expected columns), checksum mismatch, PAF out of
