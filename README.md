@@ -2,6 +2,8 @@
 
 **An almanac of Medicare's Hospital Readmissions Reduction Program (HRRP), FY2027 edition.**
 
+**Live site: https://thirty-day-readmissions.vercel.app**
+
 Each October, Medicare cuts payments to hospitals whose patients come back within 30 days more often than
 expected. For fiscal year 2027 (October 1, 2026 – September 30, 2027), CMS cut payments at 2,334 of the
 2,912 hospitals it evaluated. This site explains how the penalty works and lets anyone look up the result
@@ -16,6 +18,8 @@ for the nation, a census region or division, a state, a metro area, or a single 
   FY2013–FY2027, and nearby hospitals.
 - **Fifteen years:** share penalized, average cut, and estimated totals since FY2013, with a sourced timeline.
 - **Every table** can be sorted, filtered, and exported as CSV.
+
+Readers can send corrections and ideas through a short form on every page; see `feedback/`.
 
 Every chart has a text label and a sortable table alternative; selecting individual chart marks needs a mouse or touch.
 
