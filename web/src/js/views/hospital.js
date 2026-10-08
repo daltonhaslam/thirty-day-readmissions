@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CONDS, MIN_DISCHARGES, TEACH_LABEL, contrib, cutPct, condState, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -34,7 +34,7 @@ function conditionRows(D, x, bands) {
     const c = x.c[k];
     const med = peerMedian(D.meta, x.peer, k);
     const state = condState(x, k, D.meta, r.byCond);
-    const counted = c?.ratio == null ? 'flagged by CMS · weight not published' : `adds ${(r.byCond[k] * 100).toFixed(3)} pts`;
+    const counted = weightPublished(c) ? `adds ${(r.byCond[k] * 100).toFixed(3)} pts` : WEIGHT_MISSING;
     const what = { counted, few: `under ${MIN_DISCHARGES}, not counted`, below: 'no penalty' }[state];
     const sub = !c ? 'no cases' : `${fmtInt(c.n ?? 0)} cases · ${what}`;
     return { key: k, label: D.condByKey[k].short, sub, err: c?.err ?? null, med, band: bands[x.peer]?.[k] || null, state };
@@ -120,7 +120,7 @@ export function renderHospital(D, id) {
           field('A', 'Payment adjustment factor', x.paf.toFixed(4), { note: 'CMS, final' }),
           field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
         h('p', { class: 'small muted' }, rankLine(D, x)))),
-    figure({ title: 'Where the penalty came from', take: 'Each row is one condition. Dot: this hospital\'s ratio (red = counted toward the penalty; hollow = too few cases). Black tick: peer-group median. Gray band: middle 80% of peer hospitals.',
+    figure({ title: 'Where the penalty came from', take: 'Each row is one condition. Dot: this hospital\'s ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals.',
       source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: condEl }),
     h('div', { class: 'grid-2 grid-2--wide-left' },
       figure({ title: 'What if?', take: `Drag a ratio to see how the cut would change. Hypothetical: peer medians stay at their ${D.edition.label} values.`, source: 'Recomputed with the CMS formula.', body: whatIf(D, x, v.measured) }),

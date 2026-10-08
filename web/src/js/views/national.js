@@ -37,7 +37,7 @@ export function conditionFigure(D, list, { compare } = {}) {
     .map((r) => ({ label: D.condByKey[r.k].short, value: r.v, display: fmtPct(r.v, 0), compare: r.c, compareDisplay: fmtPct(r.c, 0) })),
   { max: 100, compareLabel: 'All hospitals' });
   return figure({ title: 'Which conditions drive the penalties here',
-    take: 'Left: share of measured hospitals penalized on each condition (black tick: all hospitals, about half by design). Right: share of the estimated dollars.',
+    take: 'Left: share of measured hospitals penalized on each condition (tick: all hospitals, about half by design). Right: share of the estimated dollars.',
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; dollars modeled (see Methods).`,
     body: h('div', { class: 'grid-2 grid-2--tight' }, h('div', {}, h('div', { class: 'cap muted sub' }, 'Penalized on this condition'), ratesEl),
       h('div', {}, h('div', { class: 'cap muted sub' }, 'Share of estimated dollars'), money)) });
@@ -66,7 +66,7 @@ export function peerFigure(D, list) {
   label: 'Payment reductions by peer group' });
   const sums = groups.map(summarize);
   return figure({ title: 'Penalties by peer group',
-    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. Black ticks mark each group's median cut. Share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
+    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. The thick tick in each row marks that group's median cut. Share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: el });
 }
 

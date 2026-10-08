@@ -46,3 +46,12 @@ test('binIndex puts threshold values in the upper bin despite floating point', (
   assert.equal(binIndex(1.0, 0.05), 20);
   assert.equal(binIndex(0.29, 0.01), 29);
 });
+
+test('niceDomain widens defaults to contain the data on a grid', async () => {
+  const { niceDomain, weightPublished } = await import('../src/js/model.js');
+  assert.deepEqual(niceDomain([1.02], [0.8, 1.25], 0.05, 0.05), [0.8, 1.25]);
+  assert.deepEqual(niceDomain([1.401, 0.9], [0.75, 1.25], 0.05, 0.02), [0.75, 1.45]);
+  assert.deepEqual(niceDomain([0.5765], [0.7, 1.3], 0.1, 0), [0.5, 1.3]);
+  assert.equal(weightPublished({ ratio: 0.02 }), true);
+  assert.equal(weightPublished({ ratio: null }), false);
+});

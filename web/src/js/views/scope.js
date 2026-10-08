@@ -49,7 +49,6 @@ const rankOf = (D, kind, value) => {
   return { rank: avgs.findIndex((v) => v <= value + 1e-12) + 1, of: avgs.length };
 };
 
-
 function scopeTrend(D, list) {
   const { years } = D;
   const per = years.map((fy, i) => {
@@ -65,7 +64,7 @@ function scopeTrend(D, list) {
 }
 
 // Returns [element, title] or null when the route matches nothing.
-export function renderScope(D, route) {
+export function renderScope(D, route, state = {}) {
   const sc = resolveScope(D, route);
   if (!sc) return null;
   const { list } = sc;
@@ -126,6 +125,6 @@ export function renderScope(D, route) {
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: scopeTrend(D, list) })),
     childTable,
     part({ no: null, id: 'scope-hospitals', title: `Hospitals in ${sc.name}` },
-      explorer(D, list, { showState: route.view !== 'state', csvName: `${slugify(sc.name)}-hospitals.csv`, stateKey: `${route.view}-${route.key}` })));
+      explorer(D, list, { showState: route.view !== 'state', csvName: `${slugify(sc.name)}-hospitals.csv`, state })));
   return [el, sc.name];
 }

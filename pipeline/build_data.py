@@ -102,11 +102,11 @@ def locate(g, imp, st, zcta, county_fips, county_name):
     return None, None, None
 
 
-def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates):
+def hospital_record(ccn, s, imp, g, zcta, county_fips, county_name, cbsa_names, rates):
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat, lon, gsrc = locate(g, imp, st, zcta, *counties)
+    lat, lon, gsrc = locate(g, imp, st, zcta, county_fips, county_name)
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     base = model.est_base_payment(imp, rates)
     pen = model.est_penalty(base, s["paf"])
@@ -143,7 +143,7 @@ def build():
     zcta = parse.read_zcta(path("zcta"))
     cbsa_names = parse.read_cbsa_names(path("cbsa"))
     rates = parse.read_rates(path("rates"))
-    counties = geo.county_centroids(path("counties"))
+    county_fips, county_name = geo.county_centroids(path("counties"))
 
     t15_mismatch = sorted(set(t15) ^ set(supp)) + [c for c in supp if c in t15 and t15[c] != supp[c]["paf"]]
     if t15_mismatch:
@@ -160,8 +160,8 @@ def build():
         peer_med[str(p)] = {k: group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median")
                             for k in parse.CONDITIONS}
 
-    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, counties,
-                                 cbsa_names, rates) for ccn in sorted(supp)]
+    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, county_fips,
+                                 county_name, cbsa_names, rates) for ccn in sorted(supp)]
     status = {c: model.replication_status(supp[c]) for c in sorted(supp)}
     geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("zip", "county", "none")}
 

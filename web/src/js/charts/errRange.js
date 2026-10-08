@@ -4,12 +4,13 @@ import { axisTop } from 'd3-axis';
 import { s, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
 import { styleAxis } from './scale.js';
+import { niceDomain } from '../model.js';
 
 // One row per condition: peer-group 10th–90th band, peer median tick, this hospital's ratio dot.
 // rows: [{key, label, sub, err, med, band:[lo,hi]|null, state:'counted'|'below'|'few'|'none'}]
 export function errRows(el, { rows, label }) {
   const vals = rows.flatMap((r) => [r.err, r.med, ...(r.band || [])]).filter((v) => v != null);
-  const domain = [Math.min(0.75, Math.floor((Math.min(...vals) - 0.02) * 20) / 20), Math.max(1.25, Math.ceil((Math.max(...vals) + 0.02) * 20) / 20)];
+  const domain = niceDomain(vals, [0.75, 1.25], 0.05, 0.02);
   responsive(el, (W) => {
     el.replaceChildren();
     const narrow = W < 560;

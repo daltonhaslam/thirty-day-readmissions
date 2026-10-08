@@ -16,11 +16,12 @@ const css = (await transform([tokens, `:root[data-theme="dark"] {${darkDecls}}`,
   { loader: 'css', minify: true })).code;
 const js = (await build({ entryPoints: [fileURLToPath(here('src/js/main.js'))], bundle: true, format: 'iife', minify: true,
   write: false, target: 'es2020', legalComments: 'none' })).outputFiles[0].text;
+const rawData = read('src/data/hrrp.json');
+const { fy } = JSON.parse(rawData).meta;
 // Escape every '<' so no data string can close the script element.
-const data = read('src/data/hrrp.json').replace(/</g, '\\u003c');
+const data = rawData.replace(/</g, '\\u003c');
 const shell = read('src/shell.html');
 
-const { fy } = JSON.parse(read('src/data/hrrp.json')).meta;
 const DESC = `How Medicare's Hospital Readmissions Reduction Program works, and the FY${fy} penalty for every hospital, state, and metro area.`;
 const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
   + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Libre+Franklin:ital,wght@0,400;0,600;0,700;1,400&display=swap">';

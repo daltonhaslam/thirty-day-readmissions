@@ -5,13 +5,13 @@ import { penaltyHistogram } from '../charts/histogram.js';
 import { greenbarTable } from '../ui/table.js';
 import { usMap, mapLegend, dotLegend, METRICS } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
-import { fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
 import { hospitalColumns, summaryColumns } from './columns.js';
 import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, go, partNo } from '../router.js';
-import { safeHref, fmtDate } from './util.js';
+import { safeHref } from './util.js';
 
 function hero(D, index, S) {
   const bigMetro = [...D.byCbsa.entries()].reduce((a, b) => (b[1].length > a[1].length ? b : a));
@@ -118,7 +118,7 @@ function historyPart(D) {
   return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: 'The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much.' },
     h('div', { class: 'grid-2' },
       figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
-      figure({ title: 'Average cut', take: 'Red: among penalized hospitals. Black: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
+      figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
       figure({ title: 'Estimated total penalties', take: `Dark bars: CMS estimates from each year's payment rule. Light bars: totals reported by KFF Health News. CMS did not publish a total for ${missing}.`,
         source: `Federal Register IPPS final rules; KFF Health News. ${D.edition.label} is CMS's rule-time estimate made with preliminary data.`, body: dolEl }),
@@ -135,7 +135,7 @@ function researchPart(D) {
         h('p', { class: 'cite__src' }, safeHref(r.url) ? h('a', { href: safeHref(r.url), target: '_blank', rel: 'noopener' }, r.cite) : r.cite, ` · ${r.title}`))))))));
 }
 
-export function renderHome(D, index) {
+export function renderHome(D, index, state = {}) {
   const S = D.nation;
   return h('div', {},
     hero(D, index, S),
@@ -145,6 +145,6 @@ export function renderHome(D, index) {
       mapPart(D),
       historyPart(D),
       part({ no: partNo('explore'), id: 'explore', title: 'Every hospital', lede: `All ${fmtInt(D.hospitals.length)} hospitals in the ${D.edition.label} program. Filter, sort, and download.` },
-        explorer(D, D.hospitals, { csvName: `hrrp-${D.edition.label.toLowerCase()}-hospitals.csv`, stateKey: 'home' })),
+        explorer(D, D.hospitals, { csvName: `hrrp-${D.edition.label.toLowerCase()}-hospitals.csv`, state })),
       researchPart(D)));
 }

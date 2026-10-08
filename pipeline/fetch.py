@@ -81,13 +81,11 @@ def fetch_source(src, refresh_hashes=False, raw_dir=RAW_DIR):
     """
     folder = raw_dir / src["name"]
     dest = folder / src["file"]
-    if refresh_hashes:
+    if refresh_hashes or not dest.exists() or sha256_of(dest) != src["sha256"]:
         print(f"  downloading {src['url']}")
-        download(src["url"], dest)
-        src["sha256"] = sha256_of(dest)
-    elif not dest.exists() or sha256_of(dest) != src["sha256"]:
-        print(f"  downloading {src['url']}")
-        download(src["url"], dest, src["sha256"])
+        download(src["url"], dest, None if refresh_hashes else src["sha256"])
+        if refresh_hashes:
+            src["sha256"] = sha256_of(dest)
     if src.get("unzip"):
         safe_unzip(dest, folder / "extracted")
 

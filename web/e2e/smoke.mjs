@@ -158,6 +158,24 @@ for (const width of [1280, 360]) {
   await p2.close();
 }
 
+// 10b. Back restores explorer filters; a fresh visit starts clean.
+{
+  const { page } = await open('#state-ut');
+  const box = page.locator('#scope-hospitals input[type="checkbox"]').first();
+  await box.check();
+  await page.evaluate(() => { location.hash = '#hospital-460011'; });
+  await page.waitForTimeout(300);
+  await page.goBack();
+  await page.waitForTimeout(500);
+  check(await page.locator('#scope-hospitals input[type="checkbox"]').first().isChecked(), 'Back did not restore explorer filter');
+  await page.evaluate(() => { location.hash = '#state-id'; });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { location.hash = '#state-ut'; });
+  await page.waitForTimeout(300);
+  check(!(await page.locator('#scope-hospitals input[type="checkbox"]').first().isChecked()), 'fresh visit kept old explorer filter');
+  await page.close();
+}
+
 // 11. A route change moves focus to the new page heading.
 {
   const { page } = await open('');

@@ -16,9 +16,9 @@ SPECIAL = {"UMASS": "UMass", "UCHEALTH": "UCHealth", "MEDSTAR": "MedStar", "PROM
            "WELLSPAN": "WellSpan", "OHIOHEALTH": "OhioHealth", "ADVENTHEALTH": "AdventHealth",
            "HONORHEALTH": "HonorHealth", "BAYCARE": "BayCare", "MERCYONE": "MercyOne", "UNITYPOINT": "UnityPoint",
            "TRINITYHEALTH": "TrinityHealth", "UOFL": "UofL"}
-# Vowel-less abbreviations that are words, not acronyms (title-cased, not upper-cased)
-TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "SYS", "CNTY", "RGNL", "REGL", "PKWY", "HWY", "BLVD",
-              "MGMT", "ST", "MT", "FT", "DR", "JR", "SR"}
+# Vowel-less abbreviations that are words, not acronyms (title-cased, not upper-cased). Y counts as a vowel,
+# so words like SYS or PKWY already title-case.
+TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "RGNL", "BLVD", "MGMT", "ST", "MT", "FT", "DR", "JR", "SR"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
 VOWELS = set("AEIOUY")
 
@@ -69,7 +69,7 @@ def smart_title(name):
             tokens.append(t)
     out = []
     for i, t in enumerate(tokens):
-        after_sep = i > 0 and (tokens[i - 1] in SEPARATORS or tokens[i - 1].endswith(SEPARATORS))
+        after_sep = i > 0 and tokens[i - 1].endswith(SEPARATORS)
         out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep))
     return " ".join(out)
 

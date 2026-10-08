@@ -37,7 +37,13 @@ export function clear(el) {
 
 // Re-draw `draw(width)` now and whenever the element's width changes meaningfully (debounced).
 // One observer per element: calling again replaces the previous drawing function.
+// Charts are built detached, so the first draw waits for layout: flushDraws() runs it right after mounting.
 const observers = new WeakMap();
+const pending = new Set();
+export function flushDraws() {
+  for (const run of pending) run();
+  pending.clear();
+}
 export function responsive(el, draw) {
   observers.get(el)?.disconnect();
   let last = -1;
@@ -57,5 +63,6 @@ export function responsive(el, draw) {
   });
   ro.observe(el);
   observers.set(el, ro);
-  requestAnimationFrame(run);
+  pending.add(run);
+  requestAnimationFrame(() => { if (pending.delete(run)) run(); });
 }

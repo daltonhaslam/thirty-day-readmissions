@@ -37,6 +37,8 @@ export function mapLegend(metricKey) {
     h('span', {}, h('span', { class: 'sw sw--hatch' }), 'not in program'));
 }
 
+const mapLabel = (metricKey) => `Map of ${METRICS[metricKey || 'avg'].label.toLowerCase()} by state`;
+
 export function dotLegend() {
   return h('div', { class: 'legend' }, h('span', { class: 'cap muted' }, 'Hospital dots, by cut:'),
     BINS.map((b, i) => h('span', {}, h('span', { class: 'sw sw--dot', style: { background: i === 0 ? 'var(--paper)' : `var(--${b.cls})` } }), b.label)));
@@ -75,8 +77,7 @@ export function usMap(el, D, opts) {
       proj.fitExtent([[4, 4], [W - 4, H - 4]], { type: 'FeatureCollection', features: states.filter((f) => f.abbr || f.properties.name === 'Maryland') });
     }
     const path = geoPath(proj);
-    const metric = METRICS[o.metric || 'avg'];
-    const svg = s('svg', { width: W, height: H, role: 'img', 'aria-label': `Map of ${metric.label.toLowerCase()} by state`, class: 'usmap' },
+    const svg = s('svg', { width: W, height: H, role: 'img', 'aria-label': mapLabel(o.metric), class: 'usmap' },
       s('defs', {}, s('pattern', { id: 'hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
         s('rect', { width: 6, height: 6, fill: 'var(--paper)' }), s('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'var(--hatch)', 'stroke-width': 2 }))));
     el.append(svg);
@@ -122,7 +123,7 @@ export function usMap(el, D, opts) {
       o = { ...o, ...next };
       if (onlyMetric && statePaths) {
         statePaths.attr('fill', fillOf);
-        el.querySelector('svg')?.setAttribute('aria-label', `Map of ${METRICS[o.metric].label.toLowerCase()} by state`);
+        el.querySelector('svg')?.setAttribute('aria-label', mapLabel(o.metric));
       }
       else if (lastW) draw(lastW);
     },

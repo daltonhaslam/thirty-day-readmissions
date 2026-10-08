@@ -3,7 +3,7 @@ import { figure, part, field } from '../ui/figure.js';
 import { barRows } from '../charts/bars.js';
 import { stripPlot } from '../charts/strip.js';
 import { dualBands } from '../charts/dualBands.js';
-import { CONDS, PEERS, contrib, peerMedian, condState, isMeasured, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CONDS, PEERS, contrib, peerMedian, condState, isMeasured, weightPublished, niceDomain, WEIGHT_MISSING, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { link, partNo } from '../router.js';
 import { omnibox } from '../ui/omnibox.js';
 
@@ -28,7 +28,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
     const state = condState(hosp, k, D.meta, r.byCond);
     const counted = state === 'counted' && r.byCond[k] > 0;
     const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median',
-      counted: c?.ratio == null ? 'flagged; weight not published' : 'rounds to 0' }[state];
+      counted: weightPublished(c) ? 'rounds to 0' : WEIGHT_MISSING }[state];
     return h('tr', { class: counted ? 'is-on' : 'is-off' },
       h('th', { scope: 'row' }, D.condByKey[k].short),
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
@@ -81,8 +81,7 @@ export function explainerPart(D, index) {
       id: x.id, row: 'r', x: x.c[k].err, fill: x.c[k].err > 1 ? 'var(--form)' : 'var(--ink-3)',
       tip: () => [x.name, [['Ratio', x.c[k].err.toFixed(4)], ['Cases', fmtInt(x.c[k].n)], x.place]], href: link('hospital', x.id),
     }));
-    const lo = Math.min(0.7, Math.floor(Math.min(...pts.map((p) => p.x)) * 10) / 10);
-    const hi = Math.max(1.3, Math.ceil(Math.max(...pts.map((p) => p.x)) * 10) / 10);
+    const [lo, hi] = niceDomain(pts.map((p) => p.x), [0.7, 1.3], 0.1, 0);
     const ticks = Array.from({ length: Math.round((hi - lo) * 10) + 1 }, (_, i) => Math.round((lo + i * 0.1) * 10) / 10);
     stripPlot(stripEl, { rows: [{ key: 'r', label: '' }], points: pts, domain: [lo, hi], ticks,
       tickFormat: (d) => d.toFixed(1), refs: [{ value: 1, label: '1.0 = as expected' }], highlight: ex.id, rowH: 150,

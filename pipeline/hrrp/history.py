@@ -21,11 +21,12 @@ def summarize_fy(fy, pafs, cap_pct):
     """National summary for one FY from its PAFs (same definitions as the historical summary CSV)."""
     reds = [(1 - p) * 100 for p in pafs]
     pen = [r for r in reds if r > 1e-9]
+    avg = lambda xs: sum(xs) / len(xs) if xs else 0  # noqa: E731
     return {
         "fy": fy, "n": len(reds), "nPen": len(pen),
         "pctPen": round(100 * len(pen) / len(reds), 2) if reds else 0,
-        "meanRed": round(sum(reds) / len(reds), 4) if reds else 0,
-        "meanRedPen": round(sum(pen) / len(pen), 4) if pen else 0,
+        "meanRed": round(avg(reds), 4),
+        "meanRedPen": round(avg(pen), 4),
         "medianRedPen": round(statistics.median(pen), 4) if pen else 0,
         "nMax": sum(1 for r in reds if r >= cap_pct - 1e-6), "cap": cap_pct,
     }

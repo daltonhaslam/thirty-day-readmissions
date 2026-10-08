@@ -1,4 +1,4 @@
-import { contrib, CONDS, summarize, slug, fmtDateLong } from './model.js';
+import { contrib, CONDS, summarize, slug, fmtDate } from './model.js';
 
 const WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
   'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'];
@@ -10,7 +10,7 @@ export function edition(meta, history) {
   const nYears = fy - firstFy + 1;
   return {
     fy, label: `FY${fy}`, firstFy, nYears, yearsWord: WORDS[nYears] || String(nYears),
-    perfLong: `${fmtDateLong(meta.perf[0])} through ${fmtDateLong(meta.perf[1])}`,
+    perfLong: `${fmtDate(meta.perf[0], 'long')} through ${fmtDate(meta.perf[1], 'long')}`,
     payShort: `Oct 1, ${fy - 1} – Sep 30, ${fy}`,
     payLong: `October 1, ${fy - 1} through September 30, ${fy}`,
     payStart: `October 1, ${fy - 1}`,

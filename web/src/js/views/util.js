@@ -7,5 +7,3 @@ export function safeHref(url) {
     return null;
   }
 }
-
-export { fmtDate } from '../model.js';

@@ -35,10 +35,6 @@ def replication_status(h):
     return "rounding" if diff <= 0.0001 + 1e-9 else "mismatch"
 
 
-def replicates(h):
-    return replication_status(h) != "mismatch"
-
-
 def est_base_payment(imp, rates):
     """Estimated annual Medicare FFS base operating DRG payments (federal rate only).
 

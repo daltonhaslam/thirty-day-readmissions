@@ -23,7 +23,7 @@ export function peerMedian(meta, peer, cond) {
 export function conditionContribution(c, med, nm, errOverride) {
   if (!isMeasured(c)) return 0;
   const err = errOverride ?? c.err;
-  if (med == null || c.ratio == null) return 0;
+  if (med == null || !weightPublished(c)) return 0;
   return nm * c.ratio * Math.max(err - med, 0);
 }
 
@@ -188,7 +188,8 @@ export function verdict(h, meta) {
 }
 
 // What-if factor: CMS's published factor moved by the recomputed change. When no measured condition is
-// above its median any more, the cut is zero (CMS's own rule), even if part of it could not be recomputed.
+// above its median any more the cut is zero by CMS's rule; this also absorbs the 0.0001 rounding gap and
+// any share CMS counted that cannot be recomputed (a flagged condition with no published payment weight).
 export function whatIfPaf(h, meta, over) {
   const anyAbove = CONDS.some((k) => {
     const c = h.c[k];
@@ -200,12 +201,19 @@ export function whatIfPaf(h, meta, over) {
   return Math.round(Math.min(1, Math.max(1 - CAP, moved)) * 1e4) / 1e4;
 }
 
-// Slider bounds that always contain the actual ratio, with room on both sides.
-export function sliderRange(err) {
-  const lo = Math.min(0.8, Math.floor((err - 0.05) * 20) / 20);
-  const hi = Math.max(1.25, Math.ceil((err + 0.05) * 20) / 20);
-  return [Math.round(lo * 100) / 100, Math.round(hi * 100) / 100];
+// [lo, hi] widened as needed to contain `values` plus `pad`, snapped outward to multiples of `step`.
+export function niceDomain(values, [lo, hi], step, pad) {
+  const snap = (v) => Math.round(v * 1e6) / 1e6;
+  return [snap(Math.min(lo, Math.floor((Math.min(...values) - pad) / step + 1e-9) * step)),
+    snap(Math.max(hi, Math.ceil((Math.max(...values) + pad) / step - 1e-9) * step))];
 }
+
+// Slider bounds that always contain the actual ratio, with room on both sides.
+export const sliderRange = (err) => niceDomain([err], [0.8, 1.25], 0.05, 0.05);
+
+// CMS can flag a condition without publishing its payment weight; its share of the cut then can't be recomputed.
+export const weightPublished = (c) => c?.ratio != null;
+export const WEIGHT_MISSING = 'flagged by CMS; payment weight not published';
 
 // "Larger cut than N% of hospitals": floored and never 100 (a hospital is never above itself).
 export function rankPct(sorted, v) {
@@ -225,6 +233,4 @@ export function vsLabel(a, b, dp, unit, word = 'nation') {
 // Histogram bin for value v with width step; bins are [lo, hi) and robust to float error.
 export const binIndex = (v, step) => Math.floor(v / step + 1e-9);
 
-const asDate = (iso) => new Date(`${iso}T12:00:00`);
-export const fmtDate = (iso) => asDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-export const fmtDateLong = (iso) => asDate(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+export const fmtDate = (iso, month = 'short') => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month, day: 'numeric', year: 'numeric' });

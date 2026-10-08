@@ -2,10 +2,11 @@ import { h, clear } from '../dom.js';
 import { toCSV } from '../model.js';
 
 // Green-bar printout table: sortable headers, pagination, CSV copy/download of all (filtered) rows.
-export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption, csvName = 'hospitals.csv', csvColumns, rowClass, rowHref }) {
+// `state` (optional) is a per-page object that keeps sort and page across Back/Forward.
+export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption, csvName = 'hospitals.csv', csvColumns, rowClass, rowHref, state }) {
   let data = rows;
-  let page = 0;
-  let sortState = sort || null; // { key, dir: 'desc'|'asc' }
+  let page = state?.page ?? 0;
+  let sortState = state?.sort ?? sort ?? null; // { key, dir: 'desc'|'asc' }
   const thead = h('thead');
   const tbody = h('tbody');
   const status = h('span', { 'aria-live': 'polite' });
@@ -89,8 +90,10 @@ export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption
     status.textContent = `${from.toLocaleString()}–${Math.min(all.length, (page + 1) * pageSize).toLocaleString()} of ${all.length.toLocaleString()}`;
     prev.disabled = page === 0;
     next.disabled = page >= pages - 1;
+    if (state) Object.assign(state, { sort: sortState, page });
   }
 
   paint();
-  return { el, setRows(r) { data = r; page = 0; paint(); } };
+  let firstPaint = true;
+  return { el, setRows(r) { data = r; if (!firstPaint) page = 0; firstPaint = false; paint(); } };
 }

@@ -6,18 +6,19 @@ import { link } from '../router.js';
 
 let uid = 0;
 const opt = (value, label) => h('option', { value }, label);
-const remembered = new Map(); // stateKey -> filter object, so Back restores the user's filters
 
 // Filterable, sortable, exportable hospital table. `list` is the population (nation or a scope).
-export function explorer(D, list, { showState = true, csvName = 'hospitals.csv', pageSize = 25, stateKey } = {}) {
+// `state` is the page's view-state object (filters, sort, page), kept by main.js for Back/Forward.
+export function explorer(D, list, { showState = true, csvName = 'hospitals.csv', pageSize = 25, state = {} } = {}) {
   uid += 1;
   const id = (k) => `ex${uid}-${k}`;
-  const f = (stateKey && remembered.get(stateKey)) || {};
-  if (stateKey) remembered.set(stateKey, f);
-  const table = greenbarTable({ columns: hospitalColumns(D), rows: applyFilters(list, f), pageSize, sort: { key: 'red', dir: 'desc' }, csvName,
-    csvColumns: CSV_COLUMNS, rowHref: (x) => link('hospital', x.id),
+  state.table ??= {};
+  const f = (state.filters ??= {});
+  const table = greenbarTable({ columns: hospitalColumns(D), rows: [], pageSize, sort: { key: 'red', dir: 'desc' }, csvName,
+    csvColumns: CSV_COLUMNS, rowHref: (x) => link('hospital', x.id), state: state.table,
     caption: `Hospitals and their ${D.edition.label} readmission penalties` });
   const refresh = () => table.setRows(applyFilters(list, f));
+  refresh();
   const sel = (key, label, options, parse = (v) => v) => {
     const el = h('select', { class: 'select', id: id(key), onchange: (e) => { f[key] = e.target.value === '' ? null : parse(e.target.value); refresh(); } },
       opt('', 'All'), options.map(([v, l]) => opt(v, l)));
