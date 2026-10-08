@@ -183,7 +183,7 @@ export function verdict(h, meta) {
   const above = measured.filter((k) => condState(h, k, meta, r.byCond) === 'counted');
   const top = above.reduce((best, k) => (best == null || r.byCond[k] > r.byCond[best] ? k : best), null);
   let status = 'penalized';
-  if (h.paf >= 1) status = measured.length ? 'none-below' : 'none-measured';
+  if (h.paf >= 1) status = !measured.length ? 'none-measured' : above.length ? 'none-rounded' : 'none-below';
   return { status, top, nAbove: above.length, nMeasured: measured.length, measured, above };
 }
 

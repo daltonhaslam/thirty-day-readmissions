@@ -120,7 +120,7 @@ function historyPart(D) {
       figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
       figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
-      figure({ title: 'Estimated total penalties', take: `Dark bars: CMS estimates from each year's payment rule. Light bars: totals reported by KFF Health News. CMS did not publish a total for ${missing}.`,
+      figure({ title: 'Estimated total penalties', take: `Dark bars: CMS estimates from each year's payment rule. Light bars: totals reported by KFF Health News. We found no total for ${missing}.`,
         source: `Federal Register IPPS final rules; KFF Health News. ${D.edition.label} is CMS's rule-time estimate made with preliminary data.`, body: dolEl }),
       figure({ title: 'Timeline', body: timeline })));
 }

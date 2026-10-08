@@ -72,7 +72,7 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in ${D.edition.label}, averaging ${fmtPct(S.meanRed)} across all of them`
-    + `${rank ? `, the ${ordinal(rank.rank)}-largest average of ${rank.of} states` : ''}. Estimated total: ${fmtMoney(S.penTotal)}.`;
+    + `${rank ? `, ${rank.rank === 1 ? 'the largest average' : `the ${ordinal(rank.rank)}-largest average`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}.`;
 
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),

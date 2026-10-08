@@ -24,7 +24,12 @@ function summarySentence(D, x, v) {
   const name = x.name;
   if (v.status === 'none-measured') return `${name} has no ${D.edition.label} cut. None of its six conditions reached ${MIN_DISCHARGES} cases in the data window, so none could count against it.`;
   if (v.status === 'none-below') return `${name} has no ${D.edition.label} cut. All ${v.nMeasured} of its measured conditions came in at or below its peer group's median.`;
-  return `Medicare will pay ${name} ${fmtPct(x.red)} less for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
+  if (v.status === 'none-rounded') {
+    const names = v.above.map((k) => inSentence(D.condByKey[k].short)).join(' and ');
+    return `${name} has no ${D.edition.label} cut. ${names[0].toUpperCase()}${names.slice(1)} came in above the peer-group median, but `
+      + `${v.above.length > 1 ? 'their share' : 'its share'} of the hospital's Medicare payments is small enough that the reduction rounded to zero.`;
+  }
+  return `Medicare will pay ${name} ${fmtPct(x.red)} less on the base payment for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
     + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${inSentence(D.condByKey[v.top].short)} added the most.`;
 }
 

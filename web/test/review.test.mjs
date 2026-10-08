@@ -55,3 +55,10 @@ test('niceDomain widens defaults to contain the data on a grid', async () => {
   assert.equal(weightPublished({ ratio: 0.02 }), true);
   assert.equal(weightPublished({ ratio: null }), false);
 });
+
+test('verdict distinguishes a flagged condition that rounded to a zero cut', async () => {
+  const { verdict } = await import('../src/js/model.js');
+  const h = { peer: 1, paf: 1, c: { COPD: { n: 200, err: 1.03, flag: 1, ratio: 0.002 }, HF: { n: 300, err: 0.95, flag: 0, ratio: 0.05 } } };
+  const v = verdict(h, meta);
+  assert.deepEqual([v.status, v.top, v.nAbove, v.nMeasured], ['none-rounded', 'COPD', 1, 2]);
+});

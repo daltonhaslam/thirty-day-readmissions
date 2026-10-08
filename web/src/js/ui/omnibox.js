@@ -42,7 +42,8 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
         onmousedown: (e) => { e.preventDefault(); go(r); },
       }, h('span', { class: 't' }, r.label), h('span', { class: 's' }, r.sub), h('span', { class: 'k' }, TYPE_LABEL[r.type])));
     });
-    input.setAttribute('aria-activedescendant', active >= 0 ? `${listId}-${active}` : '');
+    if (active >= 0) input.setAttribute('aria-activedescendant', `${listId}-${active}`);
+    else input.removeAttribute('aria-activedescendant');
     list.hidden = false;
     input.setAttribute('aria-expanded', 'true');
   };

@@ -45,6 +45,12 @@ for (const width of [1280, 360]) {
   const { page } = await open('#hospital-999999');
   check((await page.textContent('main')).includes('No record found'), 'unknown CCN does not show not-found view');
   await page.close();
+  {
+    const { page: p } = await open('#hospital-460001');
+    const t = await p.textContent('.hosp__summary');
+    check(t.includes('rounded to zero') && !t.includes('at or below'), `460001 (flag rounded to zero) summary: "${t}"`);
+    await p.close();
+  }
   for (const id of ['010051', '010021']) {
     const { page: p } = await open(`#hospital-${id}`);
     const t = await p.textContent('main');

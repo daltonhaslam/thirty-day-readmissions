@@ -10,6 +10,6 @@
   {"fy": 2021, "totalEst": 553000000, "src": {"kind": "CMS", "label": "FY2021 IPPS final rule, 85 FR 58438", "url": "https://www.federalregister.gov/documents/2020/09/18/2020-19637"}},
   {"fy": 2022, "totalEst": 521000000, "src": {"kind": "KFF", "label": "KFF Health News, Oct 28, 2021", "url": "https://kffhealthnews.org/aging/hospital-readmission-rates-medicare-penalties/"}},
   {"fy": 2023, "totalEst": 320000000, "src": {"kind": "KFF", "label": "KFF Health News, Nov 1, 2022", "url": "https://kffhealthnews.org/aging/medicare-fines-hospital-readmissions-drop-covid/"}},
-  {"fy": 2025, "totalEst": 316131336, "src": {"kind": "CMS", "label": "FY2026 IPPS final rule, Table VI.K-03 (90 FR 36938)", "url": "https://www.federalregister.gov/documents/2025/08/04/2025-14681"}},
+  {"fy": 2025, "totalEst": 316131336, "src": {"kind": "CMS", "label": "CMS simulation of FY2025 penalties under the pre-FY2027 method, FY2026 IPPS final rule Table VI.K-03 (90 FR 36938)", "url": "https://www.federalregister.gov/documents/2025/08/04/2025-14681"}},
   {"fy": 2027, "totalEst": 361347626, "src": {"kind": "CMS", "label": "FY2027 IPPS final rule, Table V.I.-05 (91 FR 49892); made with preliminary data", "url": "https://www.federalregister.gov/documents/2026/08/04/2026-15833"}}
 ]

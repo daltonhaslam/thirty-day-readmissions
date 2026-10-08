@@ -45,7 +45,7 @@ export function renderMethods(D) {
         h('pre', { class: 'formula' }, 'cases × case-mix index × (labor amount × wage index + non-labor amount × cost-of-living adjustment)'),
         h('p', {}, `Cases and case-mix index are each hospital's transfer-adjusted traditional-Medicare figures from the ${E.label} IPPS impact file, which uses claims from two years earlier. The standardized amounts come from ${E.label} Tables 1A and 1B (correction notice), choosing the column that matches each hospital's quality-reporting and EHR status.`),
         h('p', {}, `Across all hospitals this gives about ${fmtMoney(m.totals.modelBase)} in base payments and ${fmtMoney(m.totals.modelPen)} in penalties. CMS's own estimate in the ${E.label} final rule was ${fmtMoney(m.totals.cmsEst)}, made before the final factors with preliminary data.`),
-        h('p', {}, `Limits: volume from two years earlier stands in for ${E.label}; hospitals paid on a hospital-specific rate (some sole community and Medicare-dependent hospitals) are estimated at the federal rate; nine hospitals missing from the impact file have no estimate. Teaching, low-income-patient, and outlier add-ons are excluded because the cut does not apply to them.`),
+        h('p', {}, `Limits: volume from two years earlier stands in for ${E.label}; hospitals paid on a hospital-specific rate (some sole community and Medicare-dependent hospitals) are estimated at the federal rate; ${fmtInt(D.hospitals.filter((x) => x.base == null).length)} hospitals missing from the impact file have no estimate. Teaching, low-income-patient, and outlier add-ons are excluded because the cut does not apply to them.`),
 
         h('h2', {}, 'How to read a penalty'),
         h('ul', {},
@@ -61,7 +61,9 @@ export function renderMethods(D) {
 
         h('h2', {}, 'History'),
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
-          + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals are CMS estimates from each year's payment rule, or KFF Health News reporting where CMS printed none; CMS did not publish a total for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
+          + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals are CMS estimates from each year's payment rule, or KFF Health News reporting where CMS printed none. FY2025 uses CMS's simulation of that year under the pre-FY2027 method. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
+        h('h2', {}, 'Accessibility'),
+        h('p', {}, 'Every chart has a text label, and every chart\'s numbers are also available in a sortable table on the same page. Selecting individual dots or map areas requires a mouse or touch; the tables, search, and links offer the same destinations by keyboard.'),
       h('aside', {},
         h('h2', {}, 'Sources'),
         h('ul', { class: 'sources' }, src,

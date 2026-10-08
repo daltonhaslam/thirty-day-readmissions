@@ -101,6 +101,10 @@ class ContractTest(unittest.TestCase):
         for g in pm.values():
             self.assertEqual(sorted(g), sorted(["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"]))
 
+    def test_hospital_without_a_name_in_cms_files_is_labeled(self):
+        x = next(x for x in self.h if x["id"] == "420117")
+        self.assertEqual(x["name"], "Hospital 420117 (name not in CMS files)")
+
     def test_ownership_prefers_care_compare(self):
         x = next(x for x in self.h if x["id"] == "010012")
         self.assertEqual((x["own"], x["ownDetail"]), ("For-profit", "Proprietary"))

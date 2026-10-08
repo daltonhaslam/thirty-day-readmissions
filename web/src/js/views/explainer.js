@@ -28,7 +28,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
     const state = condState(hosp, k, D.meta, r.byCond);
     const counted = state === 'counted' && r.byCond[k] > 0;
     const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median',
-      counted: weightPublished(c) ? 'rounds to 0' : WEIGHT_MISSING }[state];
+      counted: weightPublished(c) ? 'ties the median at 4 decimals; CMS counted it' : WEIGHT_MISSING }[state];
     return h('tr', { class: counted ? 'is-on' : 'is-off' },
       h('th', { scope: 'row' }, D.condByKey[k].short),
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),

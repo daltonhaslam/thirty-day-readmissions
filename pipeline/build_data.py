@@ -112,7 +112,7 @@ def hospital_record(ccn, s, imp, g, zcta, county_fips, county_name, cbsa_names, 
     pen = model.est_penalty(base, s["paf"])
     return {
         "id": ccn,
-        "name": names.display_name(g.get("name"), imp.get("name")) or ccn,
+        "name": names.display_name(g.get("name"), imp.get("name")) or f"Hospital {ccn} (name not in CMS files)",
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
         "county": names.smart_title(g.get("county")) or None,
@@ -209,7 +209,8 @@ def main():
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e6:.2f} MB)")
     rep = m["replication"]
     print(f"hospitals {len(h)} | penalized {sum(1 for x in h if x['paf'] < 1)} | PAF replication: {rep['exact']} exact, {rep['rounding']} within rounding, {len(rep['mismatches'])} mismatched")
-    print(f"geocode {m['geocode']} | no state {sum(1 for x in h if not x['st'])} | no impact match {sum(1 for x in h if x['base'] is None)}")
+    print(f"geocode {m['geocode']} | no state {sum(1 for x in h if not x['st'])} | no impact match {sum(1 for x in h if x['base'] is None)}"
+          f" | no name {sum(1 for x in h if x['name'].endswith('(name not in CMS files)'))}")
     print(f"history hospitals {len(data['history']['paf'])} | modeled penalty ${m['totals']['modelPen'] / 1e6:.1f}M on base ${m['totals']['modelBase'] / 1e9:.2f}B")
 
 

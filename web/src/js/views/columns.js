@@ -10,7 +10,8 @@ export function condStrip(D, x) {
   return h('span', {},
     h('span', { class: 'cstrip', 'aria-hidden': 'true' }, CONDS.map((k, i) => {
       const [cls, text] = STRIP[states[i]];
-      return h('i', { class: cls, title: `${D.condByKey[k].short}: ${text}` });
+      const note = states[i] === 'counted' && x.paf >= 1 ? ' (rounded to zero)' : '';
+      return h('i', { class: cls, title: `${D.condByKey[k].short}: ${text}${note}` });
     })),
     h('span', { class: 'visually-hidden' }, counted.length ? `Penalized on ${counted.join(', ')}` : 'No condition penalized'));
 }
