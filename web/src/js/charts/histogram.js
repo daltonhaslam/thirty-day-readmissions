@@ -5,15 +5,16 @@ import { max } from 'd3-array';
 import { s, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
 import { rampVar, styleAxis } from './scale.js';
-import { fmtInt, fmtPct, mean, CAP_PCT } from '../model.js';
+import { fmtInt, fmtPct, mean, CAP_PCT, binIndex } from '../model.js';
 
-const STEP = 0.1;
-const N_BINS = Math.round(CAP_PCT / STEP); // 0 to the 3% cap in 0.1-point bins
+// 0.05-point bins line up with the color thresholds (0.25, 0.5, 1, 2), so each bar has one color.
+const STEP = 0.05;
+const N_BINS = Math.round(CAP_PCT / STEP);
 
 function binCounts(reds) {
   const zero = reds.filter((r) => r <= 0).length;
   const bins = new Array(N_BINS).fill(0);
-  for (const r of reds) if (r > 0) bins[Math.min(N_BINS - 1, Math.floor((r - 1e-9) / STEP))] += 1;
+  for (const r of reds) if (r > 0) bins[Math.min(N_BINS - 1, binIndex(r, STEP))] += 1;
   return { zero, bins };
 }
 
@@ -49,8 +50,8 @@ export function penaltyHistogram(el, { reds, compare, compareLabel = 'All hospit
       .attr('font-size', 11).text(asShare ? 'share of hospitals' : 'hospitals');
 
     const bars = [{ x0: 0, x1: zeroW, n: a.zero, red: 0, title: 'No penalty' },
-      ...a.bins.map((n, i) => ({ x0: x(i * STEP), x1: x((i + 1) * STEP), n, red: (i + 0.5) * STEP,
-        title: `${(i * STEP).toFixed(1)}–${((i + 1) * STEP).toFixed(1)}% reduction` }))];
+      ...a.bins.map((n, i) => ({ x0: x(i * STEP), x1: x((i + 1) * STEP), n, red: i * STEP + 1e-6,
+        title: `${(i * STEP).toFixed(2)}–${((i + 1) * STEP - 0.01).toFixed(2)}% reduction` }))];
     g.append('g').selectAll('rect').data(bars).join('rect')
       .attr('x', (d) => d.x0 + 0.5).attr('width', (d) => Math.max(1, d.x1 - d.x0 - 1))
       .attr('y', (d) => y(norm(d.n, reds.length))).attr('height', (d) => hgt - y(norm(d.n, reds.length)))

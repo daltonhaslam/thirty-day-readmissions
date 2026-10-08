@@ -186,3 +186,45 @@ export function verdict(h, meta) {
   if (h.paf >= 1) status = measured.length ? 'none-below' : 'none-measured';
   return { status, top, nAbove: above.length, nMeasured: measured.length, measured, above };
 }
+
+// What-if factor: CMS's published factor moved by the recomputed change. When no measured condition is
+// above its median any more, the cut is zero (CMS's own rule), even if part of it could not be recomputed.
+export function whatIfPaf(h, meta, over) {
+  const anyAbove = CONDS.some((k) => {
+    const c = h.c[k];
+    if (!isMeasured(c)) return false;
+    return (over[k] ?? c.err) > peerMedian(meta, h.peer, k);
+  });
+  if (!anyAbove) return 1;
+  const moved = h.paf + (contrib(h, meta, over).paf - contrib(h, meta).paf);
+  return Math.round(Math.min(1, Math.max(1 - CAP, moved)) * 1e4) / 1e4;
+}
+
+// Slider bounds that always contain the actual ratio, with room on both sides.
+export function sliderRange(err) {
+  const lo = Math.min(0.8, Math.floor((err - 0.05) * 20) / 20);
+  const hi = Math.max(1.25, Math.ceil((err + 0.05) * 20) / 20);
+  return [Math.round(lo * 100) / 100, Math.round(hi * 100) / 100];
+}
+
+// "Larger cut than N% of hospitals": floored and never 100 (a hospital is never above itself).
+export function rankPct(sorted, v) {
+  return Math.min(99, Math.floor(percentileRank(sorted, v)));
+}
+
+// Condition label inside a sentence: acronyms stay, words go lowercase.
+export const inSentence = (label) => (label === label.toUpperCase() ? label : label.toLowerCase());
+
+// "+0.05 pts vs nation", compared after rounding to what is shown.
+export function vsLabel(a, b, dp, unit, word = 'nation') {
+  const d = Number(a.toFixed(dp)) - Number(b.toFixed(dp));
+  if (Math.abs(d) < 10 ** -(dp + 2)) return `same as ${word}`;
+  return `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(dp)} ${unit} vs ${word}`;
+}
+
+// Histogram bin for value v with width step; bins are [lo, hi) and robust to float error.
+export const binIndex = (v, step) => Math.floor(v / step + 1e-9);
+
+const asDate = (iso) => new Date(`${iso}T12:00:00`);
+export const fmtDate = (iso) => asDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+export const fmtDateLong = (iso) => asDate(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });

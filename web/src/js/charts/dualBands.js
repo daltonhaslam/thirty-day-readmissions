@@ -5,14 +5,14 @@ import { max } from 'd3-array';
 import { s, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
 import { styleAxis } from './scale.js';
-import { fmtInt } from '../model.js';
+import { fmtInt, binIndex } from '../model.js';
 
 // Histogram of hospitals' dual-eligible share with the five peer-group bands behind it.
 export function dualBands(el, { duals, cutoffs, highlight }) {
   const STEP = 0.01;
   const top = Math.min(1, Math.ceil((Math.max(...duals) + 0.01) * 20) / 20);
   const bins = new Array(Math.round(top / STEP)).fill(0);
-  for (const d of duals) bins[Math.min(bins.length - 1, Math.floor(d / STEP))] += 1;
+  for (const d of duals) bins[Math.min(bins.length - 1, binIndex(d, STEP))] += 1;
   responsive(el, (W) => {
     el.replaceChildren();
     const m = { t: 34, r: 14, b: 34, l: 14 };

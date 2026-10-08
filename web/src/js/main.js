@@ -17,6 +17,18 @@ renderShell(D, index);
 const main = document.getElementById('main');
 const SITE = 'Thirty Days';
 let current = null;
+let fromHistory = false;
+const positions = new Map(); // route key -> scrollY, restored on Back/Forward
+const afterLayout = (fn) => requestAnimationFrame(() => requestAnimationFrame(fn)); // charts draw on the next frame
+
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.addEventListener('popstate', () => { fromHistory = true; });
+let scrollTimer = null;
+window.addEventListener('scroll', () => {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => { if (current) positions.set(current, window.scrollY); }, 100);
+}, { passive: true });
+document.querySelector('.skip').addEventListener('click', (e) => { e.preventDefault(); main.focus(); });
 
 const titled = (r) => (r ? [r[0], `${r[1]} · ${SITE}`] : null);
 
@@ -35,17 +47,31 @@ function view(route) {
   }
 }
 
+let first = true;
 onRoute((route) => {
   hideTip();
   const key = `${route.view}:${route.key ?? ''}`;
+  const restoring = fromHistory && positions.has(key) && !route.section;
+  fromHistory = false;
   if (key !== current) {
+    if (current) positions.set(current, window.scrollY);
     const [el, title] = view(route) || [renderNotFound(D, index), `Not found · ${SITE}`];
     clear(main).append(el);
     numberFigures(main);
     document.title = title;
     current = key;
-    if (!route.section) window.scrollTo(0, 0);
+    if (!first && !route.section) {
+      const h1 = main.querySelector('h1');
+      if (h1) { h1.tabIndex = -1; h1.focus({ preventScroll: true }); }
+    }
+    if (restoring) afterLayout(() => window.scrollTo(0, positions.get(key)));
+    else if (!route.section) window.scrollTo(0, 0);
   }
-  if (route.section) document.getElementById(route.section)?.scrollIntoView({ block: 'start' });
+  if (route.section) {
+    const target = () => document.getElementById(route.section)?.scrollIntoView({ block: 'start' });
+    target();
+    afterLayout(target);
+  }
+  first = false;
   markNav(route.section || (route.view === 'methods' ? 'methods' : null));
 });

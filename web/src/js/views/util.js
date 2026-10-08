@@ -8,4 +8,4 @@ export function safeHref(url) {
   }
 }
 
-export const fmtDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+export { fmtDate } from '../model.js';

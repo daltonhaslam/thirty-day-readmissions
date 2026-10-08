@@ -120,7 +120,10 @@ export function usMap(el, D, opts) {
     update(next) {
       const onlyMetric = Object.keys(next).every((k) => k === 'metric');
       o = { ...o, ...next };
-      if (onlyMetric && statePaths) statePaths.attr('fill', fillOf);
+      if (onlyMetric && statePaths) {
+        statePaths.attr('fill', fillOf);
+        el.querySelector('svg')?.setAttribute('aria-label', `Map of ${METRICS[o.metric].label.toLowerCase()} by state`);
+      }
       else if (lastW) draw(lastW);
     },
   };

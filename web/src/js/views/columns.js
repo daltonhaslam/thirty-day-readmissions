@@ -5,11 +5,14 @@ import { link } from '../router.js';
 // Six boxes: filled = condition added to the penalty; outline = measured, no penalty; dotted = too few cases.
 const STRIP = { counted: ['on', 'penalized'], below: [null, 'no penalty'], few: ['na', `under ${MIN_DISCHARGES} cases`], none: ['na', 'no cases'] };
 export function condStrip(D, x) {
-  return h('span', { class: 'cstrip', 'aria-label': `Penalized on ${x.flags.length} of ${CONDS.length} conditions` },
-    CONDS.map((k) => {
-      const [cls, text] = STRIP[condState(x, k, D.meta, x.cx)];
+  const states = CONDS.map((k) => condState(x, k, D.meta, x.cx));
+  const counted = CONDS.filter((_, i) => states[i] === 'counted').map((k) => D.condByKey[k].short);
+  return h('span', {},
+    h('span', { class: 'cstrip', 'aria-hidden': 'true' }, CONDS.map((k, i) => {
+      const [cls, text] = STRIP[states[i]];
       return h('i', { class: cls, title: `${D.condByKey[k].short}: ${text}` });
-    }));
+    })),
+    h('span', { class: 'visually-hidden' }, counted.length ? `Penalized on ${counted.join(', ')}` : 'No condition penalized'));
 }
 
 // Columns for tables of areas (states, metros, divisions) whose rows carry summarize() fields plus label/href.

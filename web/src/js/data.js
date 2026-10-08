@@ -1,8 +1,7 @@
-import { contrib, CONDS, summarize, slug } from './model.js';
+import { contrib, CONDS, summarize, slug, fmtDateLong } from './model.js';
 
 const WORDS = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
   'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty'];
-const longDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
 // Every edition-specific phrase, derived from the data so a new fiscal year is a data refresh.
 export function edition(meta, history) {
@@ -11,7 +10,7 @@ export function edition(meta, history) {
   const nYears = fy - firstFy + 1;
   return {
     fy, label: `FY${fy}`, firstFy, nYears, yearsWord: WORDS[nYears] || String(nYears),
-    perfLong: `${longDate(meta.perf[0])} through ${longDate(meta.perf[1])}`,
+    perfLong: `${fmtDateLong(meta.perf[0])} through ${fmtDateLong(meta.perf[1])}`,
     payShort: `Oct 1, ${fy - 1} – Sep 30, ${fy}`,
     payLong: `October 1, ${fy - 1} through September 30, ${fy}`,
     payStart: `October 1, ${fy - 1}`,
@@ -50,7 +49,7 @@ export function loadData(raw) {
   const nationalByFy = Object.fromEntries(history.national.map((r) => [r.fy, r]));
   return {
     meta, conditions, condByKey, hospitals, byId, byState, byCbsa, cbsaNames, sortedRed, stateSummary,
-    nation: summarize(hospitals), edition: edition(meta, history),
+    nation: summarize(hospitals), edition: edition(meta, history), years: [...history.years, meta.fy],
     divisions, regions, history, nationalByFy, timeline, research, geo,
   };
 }

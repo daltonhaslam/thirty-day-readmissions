@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CONDS, MIN_DISCHARGES, CAP, TEACH_LABEL, contrib, cutPct, condState, peerMedian, peerBands, verdict, percentileRank, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CONDS, MIN_DISCHARGES, TEACH_LABEL, contrib, cutPct, condState, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -15,7 +15,7 @@ const TYPES = { SCH: 'Sole community hospital', MDH: 'Medicare-dependent hospita
 function rankLine(D, x) {
   const st = D.byState.get(x.st).map((y) => y.red).sort((a, b) => a - b);
   const peer = D.hospitals.filter((y) => y.peer === x.peer).map((y) => y.red).sort((a, b) => a - b);
-  const p = (arr) => Math.round(percentileRank(arr, x.red));
+  const p = (arr) => rankPct(arr, x.red);
   if (x.red <= 0) return 'No reduction, like ' + fmtInt(D.hospitals.filter((y) => y.red <= 0).length - 1) + ' other hospitals.';
   return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
 }
@@ -25,7 +25,7 @@ function summarySentence(D, x, v) {
   if (v.status === 'none-measured') return `${name} has no ${D.edition.label} cut. None of its six conditions reached ${MIN_DISCHARGES} cases in the data window, so none could count against it.`;
   if (v.status === 'none-below') return `${name} has no ${D.edition.label} cut. All ${v.nMeasured} of its measured conditions came in at or below its peer group's median.`;
   return `Medicare will pay ${name} ${fmtPct(x.red)} less for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
-    + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${D.condByKey[v.top].short.toLowerCase()} added the most.`;
+    + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${inSentence(D.condByKey[v.top].short)} added the most.`;
 }
 
 function conditionRows(D, x, bands) {
@@ -34,7 +34,8 @@ function conditionRows(D, x, bands) {
     const c = x.c[k];
     const med = peerMedian(D.meta, x.peer, k);
     const state = condState(x, k, D.meta, r.byCond);
-    const what = { counted: `adds ${(r.byCond[k] * 100).toFixed(3)} pts`, few: `under ${MIN_DISCHARGES}, not counted`, below: 'no penalty' }[state];
+    const counted = c?.ratio == null ? 'flagged by CMS · weight not published' : `adds ${(r.byCond[k] * 100).toFixed(3)} pts`;
+    const what = { counted, few: `under ${MIN_DISCHARGES}, not counted`, below: 'no penalty' }[state];
     const sub = !c ? 'no cases' : `${fmtInt(c.n ?? 0)} cases · ${what}`;
     return { key: k, label: D.condByKey[k].short, sub, err: c?.err ?? null, med, band: bands[x.peer]?.[k] || null, state };
   });
@@ -44,10 +45,8 @@ function whatIf(D, x, measured) {
   if (!measured.length) return h('p', { class: 'muted' }, `No condition had at least ${MIN_DISCHARGES} cases, so there is nothing to simulate.`);
   const over = {};
   const out = h('div', { class: 'form whatif__out' });
-  const base = contrib(x, D.meta).paf;
-  // Anchor to CMS's published factor; sliders move it by the recomputed difference.
   const paint = () => {
-    const paf = Math.round(Math.min(1, Math.max(1 - CAP, x.paf + (contrib(x, D.meta, over).paf - base))) * 1e4) / 1e4;
+    const paf = whatIfPaf(x, D.meta, over);
     const red = cutPct(paf);
     const dollars = x.base != null ? x.base * (1 - paf) : null;
     clear(out).append(
@@ -59,7 +58,8 @@ function whatIf(D, x, measured) {
     const id = `wi-${k}`;
     const med = peerMedian(D.meta, x.peer, k);
     const val = h('output', { for: id, class: 'type' }, x.c[k].err.toFixed(3));
-    const input = h('input', { type: 'range', id, min: '0.80', max: '1.25', step: '0.001', value: String(x.c[k].err),
+    const [lo, hi] = sliderRange(x.c[k].err);
+    const input = h('input', { type: 'range', id, min: String(lo), max: String(hi), step: '0.001', value: String(x.c[k].err),
       oninput: (e) => { over[k] = Number(e.target.value); val.textContent = over[k].toFixed(3); paint(); } });
     input.dataset.k = k;
     return h('div', { class: 'whatif__row' },
@@ -76,7 +76,7 @@ function whatIf(D, x, measured) {
 }
 
 function historyChart(D, x) {
-  const years = [...D.history.years, D.meta.fy];
+  const { years } = D;
   const hist = D.history.paf[x.id] || [];
   const vals = years.map((fy, i) => (fy === D.meta.fy ? x.red : hist[i] != null ? cutPct(hist[i]) : null));
   const el = h('div');

@@ -6,24 +6,27 @@ import { link } from '../router.js';
 
 let uid = 0;
 const opt = (value, label) => h('option', { value }, label);
+const remembered = new Map(); // stateKey -> filter object, so Back restores the user's filters
 
 // Filterable, sortable, exportable hospital table. `list` is the population (nation or a scope).
-export function explorer(D, list, { showState = true, csvName = 'hospitals.csv', pageSize = 25, current } = {}) {
+export function explorer(D, list, { showState = true, csvName = 'hospitals.csv', pageSize = 25, stateKey } = {}) {
   uid += 1;
   const id = (k) => `ex${uid}-${k}`;
-  const f = {};
-  const table = greenbarTable({ columns: hospitalColumns(D), rows: list, pageSize, sort: { key: 'red', dir: 'desc' }, csvName,
-    csvColumns: CSV_COLUMNS, rowHref: (x) => link('hospital', x.id), rowClass: (x) => (x.id === current ? 'is-current' : null),
+  const f = (stateKey && remembered.get(stateKey)) || {};
+  if (stateKey) remembered.set(stateKey, f);
+  const table = greenbarTable({ columns: hospitalColumns(D), rows: applyFilters(list, f), pageSize, sort: { key: 'red', dir: 'desc' }, csvName,
+    csvColumns: CSV_COLUMNS, rowHref: (x) => link('hospital', x.id),
     caption: `Hospitals and their ${D.edition.label} readmission penalties` });
   const refresh = () => table.setRows(applyFilters(list, f));
   const sel = (key, label, options, parse = (v) => v) => {
     const el = h('select', { class: 'select', id: id(key), onchange: (e) => { f[key] = e.target.value === '' ? null : parse(e.target.value); refresh(); } },
-      opt('', `All`), options.map(([v, l]) => opt(v, l)));
+      opt('', 'All'), options.map(([v, l]) => opt(v, l)));
+    if (f[key] != null) el.value = String(f[key]);
     return h('label', { class: 'ctl', for: id(key) }, h('span', { class: 'cap' }, label), el);
   };
   const states = Object.entries(D.meta.states).filter(([st]) => list.some((x) => x.st === st));
-  const text = h('input', { class: 'select', id: id('q'), type: 'search', placeholder: 'Name, city, or CCN', oninput: (e) => { f.text = e.target.value; refresh(); } });
-  const pen = h('input', { type: 'checkbox', id: id('pen'), onchange: (e) => { f.penalized = e.target.checked; refresh(); } });
+  const text = h('input', { class: 'select', id: id('q'), type: 'search', placeholder: 'Name, city, or CCN', value: f.text || null, oninput: (e) => { f.text = e.target.value; refresh(); } });
+  const pen = h('input', { type: 'checkbox', id: id('pen'), checked: f.penalized || null, onchange: (e) => { f.penalized = e.target.checked; refresh(); } });
   const controls = h('div', { class: 'controls filters' },
     h('label', { class: 'ctl ctl--grow', for: id('q') }, h('span', { class: 'cap' }, 'Filter'), text),
     showState && states.length > 1 ? sel('st', 'State', states) : null,

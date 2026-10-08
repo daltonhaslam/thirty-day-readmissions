@@ -52,19 +52,24 @@ export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption
     });
   }
 
-  function header() {
-    clear(thead);
-    thead.append(h('tr', {}, columns.map((c) => {
+  // Header is built once so a focused sort button survives re-sorting; aria-sort is updated in place.
+  const ths = columns.map((c) => {
+    const th = h('th', { scope: 'col', class: c.num ? 'num' : null });
+    if (c.sortable === false) th.append(c.label);
+    else th.append(h('button', { type: 'button', onclick: () => {
       const active = sortState?.key === c.key;
-      const th = h('th', { scope: 'col', class: c.num ? 'num' : null, 'aria-sort': active ? (sortState.dir === 'asc' ? 'ascending' : 'descending') : null });
-      if (c.sortable === false) th.append(c.label);
-      else th.append(h('button', { type: 'button', onclick: () => {
-        sortState = { key: c.key, dir: active && sortState.dir === 'desc' ? 'asc' : c.firstDir || 'desc' };
-        page = 0;
-        paint();
-      } }, c.label));
-      return th;
-    })));
+      sortState = { key: c.key, dir: active ? (sortState.dir === 'asc' ? 'desc' : 'asc') : c.firstDir || 'desc' };
+      page = 0;
+      paint();
+    } }, c.label));
+    return th;
+  });
+  thead.append(h('tr', {}, ths));
+  function header() {
+    columns.forEach((c, i) => {
+      if (sortState?.key === c.key) ths[i].setAttribute('aria-sort', sortState.dir === 'asc' ? 'ascending' : 'descending');
+      else ths[i].removeAttribute('aria-sort');
+    });
   }
 
   function paint() {

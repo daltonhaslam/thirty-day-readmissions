@@ -90,6 +90,11 @@ class ContractTest(unittest.TestCase):
             for k, c in x["c"].items():
                 self.assertFalse(c["n"] is None and c["err"] is None, (x["id"], k))
 
+    def test_whats_new_is_for_this_fiscal_year(self):
+        items = self.d["meta"]["whatsNew"]
+        self.assertTrue(items)
+        self.assertTrue(all(set(i) == {"title", "body"} for i in items))
+
     def test_peer_medians_cover_every_group_and_condition(self):
         pm = self.d["meta"]["peerMedians"]
         self.assertEqual(sorted(pm), ["1", "2", "3", "4", "5"])

@@ -145,6 +145,6 @@ export function renderHome(D, index) {
       mapPart(D),
       historyPart(D),
       part({ no: partNo('explore'), id: 'explore', title: 'Every hospital', lede: `All ${fmtInt(D.hospitals.length)} hospitals in the ${D.edition.label} program. Filter, sort, and download.` },
-        explorer(D, D.hospitals, { csvName: `hrrp-${D.edition.label.toLowerCase()}-hospitals.csv` })),
+        explorer(D, D.hospitals, { csvName: `hrrp-${D.edition.label.toLowerCase()}-hospitals.csv`, stateKey: 'home' })),
       researchPart(D)));
 }

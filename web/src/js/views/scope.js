@@ -6,7 +6,7 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, PEERS } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, vsLabel, PEERS } from '../model.js';
 import { summaryColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
@@ -33,7 +33,7 @@ export function resolveScope(D, route) {
     const rows = metros.map((c) => ({ label: D.cbsaNames[c], href: link('metro', c), list: list.filter((x) => x.cbsa === c) }));
     const rural = list.filter((x) => !x.cbsa);
     if (rural.length) rows.push({ label: 'Outside metro areas', list: rural });
-    return { kind: 'State', name: D.meta.states[key], list, crumbs: crumbsFor(D, { region: any.region, division: any.division }), state: key,
+    return { kind: 'State', name: D.meta.states[key], list, crumbs: crumbsFor(D, { region: any.region, division: any.division }),
       children: { title: 'Metro areas', rows } };
   }
   const st = [...new Set(list.map((x) => x.st))];
@@ -49,14 +49,9 @@ const rankOf = (D, kind, value) => {
   return { rank: avgs.findIndex((v) => v <= value + 1e-12) + 1, of: avgs.length };
 };
 
-const vs = (a, b, fmt, word = 'nation') => {
-  const d = a - b;
-  if (Math.abs(d) < 1e-9) return `same as ${word}`;
-  return `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))} vs ${word}`;
-};
 
 function scopeTrend(D, list) {
-  const years = [...D.history.years, D.meta.fy];
+  const { years } = D;
   const per = years.map((fy, i) => {
     const vals = list.map((x) => (fy === D.meta.fy ? x.paf : D.history.paf[x.id]?.[i])).filter((v) => v != null);
     return vals.length ? mean(vals.map(cutPct)) : null;
@@ -83,8 +78,8 @@ export function renderScope(D, route) {
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
     field(1, 'Hospitals', fmtInt(S.n)),
-    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: vs(S.pctPen, N.pctPen, (v) => `${v.toFixed(0)} pts`) }),
-    field(3, 'Average cut', fmtPct(S.meanRed), { note: vs(S.meanRed, N.meanRed, (v) => `${v.toFixed(2)} pts`) }),
+    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: vsLabel(S.pctPen, N.pctPen, 0, 'pts') }),
+    field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),
     field(6, 'Estimated dollars', fmtMoney(S.penTotal), { note: 'modeled; see Methods' }));
@@ -131,6 +126,6 @@ export function renderScope(D, route) {
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: scopeTrend(D, list) })),
     childTable,
     part({ no: null, id: 'scope-hospitals', title: `Hospitals in ${sc.name}` },
-      explorer(D, list, { showState: route.view !== 'state', csvName: `${slugify(sc.name)}-hospitals.csv` })));
+      explorer(D, list, { showState: route.view !== 'state', csvName: `${slugify(sc.name)}-hospitals.csv`, stateKey: `${route.view}-${route.key}` })));
   return [el, sc.name];
 }

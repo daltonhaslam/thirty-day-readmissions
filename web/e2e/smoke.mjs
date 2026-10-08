@@ -112,6 +112,89 @@ for (const width of [1280, 360]) {
   await page.close();
 }
 
+// 8. Skip link moves focus to the content without changing the page.
+{
+  const { page } = await open('#hospital-010006');
+  const title = await page.title();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  check((await page.title()) === title, 'skip link changed the page');
+  check((await page.evaluate(() => document.activeElement.id)) === 'main', 'skip link did not focus main');
+  await page.close();
+}
+
+// 9. Tables: second click on an ascending-first column sorts descending; focus stays on the sort button.
+{
+  const { page } = await open('#state-ut');
+  const th = page.locator('#scope-hospitals th', { hasText: 'Hospital' }).first();
+  await th.locator('button').click();
+  await th.locator('button').click();
+  check((await th.getAttribute('aria-sort')) === 'descending', 'name column cannot sort descending');
+  await page.locator('#scope-hospitals th button', { hasText: 'Cut' }).focus();
+  await page.keyboard.press('Enter');
+  check(await page.evaluate(() => document.activeElement?.closest('thead') != null), 'sorting dropped keyboard focus');
+  await page.close();
+}
+
+// 10. Section links land on the section even without scroll anchoring (Safari); Back restores scroll.
+{
+  const { page } = await open('#hospital-010006');
+  await page.addStyleTag({ content: 'html { overflow-anchor: none !important; }' });
+  await page.locator('.nav a[data-nav="history"]').click();
+  await page.waitForTimeout(700);
+  const top = await page.evaluate(() => document.getElementById('history').getBoundingClientRect().top);
+  check(top >= -2 && top < 200, `nav to #history landed ${Math.round(top)}px from the top`);
+  await page.close();
+  const { page: p2 } = await open('#state-ut');
+  await p2.evaluate(() => window.scrollTo(0, 2400));
+  await p2.waitForTimeout(150);
+  await p2.evaluate(() => { location.hash = '#hospital-460011'; });
+  await p2.waitForTimeout(400);
+  await p2.goBack();
+  await p2.waitForTimeout(700);
+  const y = await p2.evaluate(() => window.scrollY);
+  check(Math.abs(y - 2400) < 120, `Back restored scroll to ${Math.round(y)} instead of ~2400`);
+  await p2.close();
+}
+
+// 11. A route change moves focus to the new page heading.
+{
+  const { page } = await open('');
+  await page.evaluate(() => { location.hash = '#state-ut'; });
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => document.activeElement?.tagName === 'H1'), 'route change did not move focus to the heading');
+  await page.close();
+}
+
+// 12. What-if: an out-of-range ratio does not jump on first touch; copy details.
+{
+  const { page } = await open('#hospital-040020');
+  const cut = () => page.locator('.whatif__out .field__value').first().textContent();
+  const actual = await cut();
+  const slider = page.locator('#wi-CABG');
+  await slider.focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  check((await cut()) === actual, `what-if jumped on first touch (${actual} -> ${await cut()})`);
+  await page.close();
+  const { page: p2 } = await open('#hospital-010001');
+  check((await p2.textContent('.hosp__summary')).includes('COPD added the most'), 'COPD lowercased in summary');
+  await p2.close();
+  const { page: p3 } = await open('#hospital-050690');
+  const t = await p3.textContent('main');
+  check(!t.includes('rounds to 0') && t.includes('weight not published'), 'missing-weight condition mislabeled');
+  await p3.close();
+}
+
+// 13. Conditions column is readable by screen readers.
+{
+  const { page } = await open('#explore');
+  const txt = await page.locator('#explore tbody tr').first().locator('td').nth(4).textContent();
+  check(/penalized on|no condition/i.test(txt), `conditions cell has no text alternative ("${txt}")`);
+  await page.close();
+}
+
 await browser.close();
 if (failures.length) {
   console.log(`FAIL (${failures.length})\n- ${failures.join('\n- ')}`);

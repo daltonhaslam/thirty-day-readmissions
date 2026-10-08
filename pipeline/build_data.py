@@ -175,6 +175,7 @@ def build():
         row["totalSrc"] = totals.get(row["fy"], {}).get("src")
 
     states = {st: geo.STATE_NAMES[st] for st in sorted({x["st"] for x in hospitals if x["st"]})}
+    whats_new = load_content("whats_new.json") or {}
     return {
         "meta": {
             "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": nm,
@@ -186,6 +187,7 @@ def build():
                             "rounding": sum(1 for v in status.values() if v == "rounding"), "total": len(supp),
                             "mismatches": [c for c, v in status.items() if v == "mismatch"]},
             "geocode": geocode, "states": states,
+            "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}
                           for d, (r, sts) in geo.DIVISIONS.items()],
             "sources": [{"name": s["note"], "url": s["url"]} for s in json.loads(SOURCES.read_text(encoding="utf-8"))],

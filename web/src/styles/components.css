@@ -95,7 +95,7 @@
 
 /* ---------- green-bar printout table ---------- */
 .printout { position: relative; border: var(--rule) solid var(--ink); background: var(--paper); }
-.printout__scroll { overflow-x: auto; }
+.printout__scroll { overflow-x: auto; position: relative; }
 .gb { width: 100%; border-collapse: collapse; font: 400 var(--fs-sm)/1.35 var(--font-type); }
 .gb th { position: sticky; top: 0; background: var(--paper); text-align: left; font: 600 var(--fs-cap)/1.2 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--form-ink); padding: 9px 10px; border-bottom: var(--rule) solid var(--ink); white-space: nowrap; vertical-align: bottom; }
 .gb th button { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }

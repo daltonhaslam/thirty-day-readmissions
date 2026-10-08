@@ -27,7 +27,8 @@ export function worksheet(D, hosp, { compact = false } = {}) {
     const n = c?.n ?? 0;
     const state = condState(hosp, k, D.meta, r.byCond);
     const counted = state === 'counted' && r.byCond[k] > 0;
-    const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median', counted: 'rounds to 0' }[state];
+    const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median',
+      counted: c?.ratio == null ? 'flagged; weight not published' : 'rounds to 0' }[state];
     return h('tr', { class: counted ? 'is-on' : 'is-off' },
       h('th', { scope: 'row' }, D.condByKey[k].short),
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
@@ -67,8 +68,7 @@ export function explainerPart(D, index) {
   const ex = exampleHospital(D);
 
   // Step 1: eligibility per condition
-  const elig = CONDS.map((k) => ({ k, n: all.filter((x) => isMeasured(x.c[k])).length,
-    cases: all.reduce((s, x) => s + (x.c[k]?.n ?? 0), 0) }));
+  const elig = CONDS.map((k) => ({ k, n: all.filter((x) => isMeasured(x.c[k])).length }));
   const step1 = barRows(elig.map((e) => ({ label: D.condByKey[e.k].short, note: D.condByKey[e.k].label.replace(/\s*\(.*\)$/, ''),
     value: e.n, display: `${fmtInt(e.n)} hospitals` })), { max: all.length, ink: true });
 
@@ -81,7 +81,10 @@ export function explainerPart(D, index) {
       id: x.id, row: 'r', x: x.c[k].err, fill: x.c[k].err > 1 ? 'var(--form)' : 'var(--ink-3)',
       tip: () => [x.name, [['Ratio', x.c[k].err.toFixed(4)], ['Cases', fmtInt(x.c[k].n)], x.place]], href: link('hospital', x.id),
     }));
-    stripPlot(stripEl, { rows: [{ key: 'r', label: '' }], points: pts, domain: [0.7, 1.3], ticks: [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3],
+    const lo = Math.min(0.7, Math.floor(Math.min(...pts.map((p) => p.x)) * 10) / 10);
+    const hi = Math.max(1.3, Math.ceil(Math.max(...pts.map((p) => p.x)) * 10) / 10);
+    const ticks = Array.from({ length: Math.round((hi - lo) * 10) + 1 }, (_, i) => Math.round((lo + i * 0.1) * 10) / 10);
+    stripPlot(stripEl, { rows: [{ key: 'r', label: '' }], points: pts, domain: [lo, hi], ticks,
       tickFormat: (d) => d.toFixed(1), refs: [{ value: 1, label: '1.0 = as expected' }], highlight: ex.id, rowH: 150,
       label: `Excess readmission ratios for ${D.condByKey[k].short}` });
   };
@@ -106,13 +109,9 @@ export function explainerPart(D, index) {
   const picker = omnibox(index, { placeholder: 'Try another hospital: name, city, or CCN', types: ['hospital'],
     onPick: (r) => showWs(D.byId.get(r.key)) });
 
-  const newBox = h('aside', { class: 'callout' },
+  const newBox = D.meta.whatsNew?.length ? h('aside', { class: 'callout' },
     h('div', { class: 'callout__title cap' }, `New for ${D.edition.label}`),
-    h('ul', {},
-      h('li', {}, h('b', {}, 'Medicare Advantage patients now count. '), 'The ratios include patients in private Medicare Advantage plans for the first time. The cut still applies only to traditional Medicare payments.'),
-      h('li', {}, h('b', {}, 'Two years of data instead of three. '), `Discharges from ${D.edition.perfLong}.`),
-      h('li', {}, h('b', {}, 'COVID-19 patients are back in. '), 'The pandemic-era exclusion ended.'),
-      h('li', {}, h('b', {}, 'Coming in FY2030: '), 'readmissions after sepsis become a seventh measure.')));
+    h('ul', {}, D.meta.whatsNew.map((i) => h('li', {}, h('b', {}, `${i.title} `), i.body)))) : null;
 
   const whoBox = h('aside', { class: 'callout callout--ink' },
     h('div', { class: 'callout__title cap' }, 'Who is in the program'),
