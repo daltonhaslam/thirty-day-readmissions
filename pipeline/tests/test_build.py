@@ -1,5 +1,6 @@
 import json
 import math
+import re
 import unittest
 from pathlib import Path
 
@@ -176,6 +177,16 @@ class ContractTest(unittest.TestCase):
         for x in self.h:
             for k, c in x["c"].items():
                 self.assertFalse(c["n"] is None and c["err"] is None, (x["id"], k))
+
+    def test_readme_headline_numbers_match_the_data(self):
+        text = (ROOT / "README.md").read_text(encoding="utf-8")
+        count = lambda pattern: [int(g.replace(",", "")) for g in re.search(pattern, text).groups()]  # noqa: E731
+        fy, n_pen, n = count(r"For fiscal year (\d{4}) .*?cut payments at ([\d,]+) of the\s+([\d,]+) hospitals it evaluated")
+        self.assertEqual((fy, n_pen, n), (self.d["meta"]["fy"], sum(1 for x in self.h if x["paf"] < 1), len(self.h)))
+        self.assertIn(f"FY{fy} edition", text)
+        (exact,) = count(r"reproduces it exactly for all\s+([\d,]+) hospitals")
+        self.assertEqual(exact, self.d["meta"]["replication"]["exact"])
+        self.assertEqual(exact, len(self.h))
 
     def test_dollar_check_is_copied_from_content(self):
         dc = self.d["meta"]["dollarCheck"]
