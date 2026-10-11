@@ -11,7 +11,7 @@ import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, go, partNo } from '../router.js';
-import { safeHref } from './util.js';
+import { safeHref, estTag, dollarsNote } from './util.js';
 import { SITE_NAME_TOP, SITE_NAME_RED } from '../site.js';
 
 function hero(D, index, S) {
@@ -38,7 +38,7 @@ function hero(D, index, S) {
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
         field(4, 'Average cut, penalized only', fmtPct(S.meanRedPen)),
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
-        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: `Modeled here. CMS's rule-time estimate, from preliminary data: ${fmtMoney(D.meta.totals.cmsEst)}.${noEst ? ` ${noEst}.` : ''}` }),
+        field(6, 'Estimated dollars', [`≈ ${fmtMoney(D.meta.totals.modelPen)}`, estTag()], { note: `Modeled here. CMS's rule-time estimate, from preliminary data: ${fmtMoney(D.meta.totals.cmsEst)}.${noEst ? ` ${noEst}.` : ''}` }),
         field(7, 'Data window', `${fmtDate(D.meta.perf[0])} – ${fmtDate(D.meta.perf[1])}`),
         field(8, 'Payment year', D.edition.payShort)),
       h('div', { class: 'hero__stamp' }, h('span', { class: 'stamp' }, `Final · posted ${fmtDate(D.meta.fileDate)}`))));
@@ -59,7 +59,7 @@ function picturePart(D, S) {
     peerFigure(D, all),
     typeFigure(D, all),
     figure({ title: 'The largest penalties', take: 'Several are small surgical hospitals measured on a single condition, where one high ratio can reach the cap. Select a row to see what drove the penalty.',
-      source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; dollar estimates modeled from the FY${D.meta.fy} IPPS impact file.`, body: topTable.el }));
+      source: [`CMS FY${D.meta.fy} HRRP Supplemental Data File; `, dollarsNote(), ` from the FY${D.meta.fy} IPPS impact file.`], body: topTable.el }));
 }
 
 function mapPart(D) {

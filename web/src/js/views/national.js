@@ -5,6 +5,7 @@ import { stripPlot } from '../charts/strip.js';
 import { rampVar } from '../charts/scale.js';
 import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, bedBand, BED_BANDS } from '../model.js';
 import { link } from '../router.js';
+import { dollarsNote } from './util.js';
 
 // Estimated dollars attributable to each condition: each hospital's penalty split by its contributions.
 export function dollarsByCondition(list) {
@@ -33,7 +34,7 @@ export function conditionFigure(D, list, { compare } = {}) {
   if (!compare) {
     return figure({ title: 'Which conditions cost hospitals the most',
       take: `Each hospital's estimated penalty, split by how much each condition added to it. ${D.condByKey[top.k].short} leads because it is common and carries a large share of payments.`,
-      source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; dollars modeled (see Methods).`, body: money });
+      source: [`CMS FY${D.meta.fy} HRRP Supplemental Data File; `, dollarsNote(), '.'], body: money });
   }
   const ratesEl = barRows(CONDS.map((k) => ({ k, v: rate(list, k), c: rate(compare, k) })).filter((r) => r.v != null)
     .map((r) => ({ label: D.condByKey[r.k].short, note: `${fmtInt(r.v.nPen)} of ${fmtInt(r.v.n)} measured`, value: r.v.pct, display: fmtPct(r.v.pct, 0),
@@ -41,7 +42,7 @@ export function conditionFigure(D, list, { compare } = {}) {
   { max: 100, compareLabel: 'All hospitals' });
   return figure({ title: 'Which conditions drive the penalties here',
     take: 'Left: share of measured hospitals penalized on each condition (tick: all hospitals, about half). Right: share of the estimated dollars.',
-    source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; dollars modeled (see Methods).`,
+    source: [`CMS FY${D.meta.fy} HRRP Supplemental Data File; `, dollarsNote(), '.'],
     body: h('div', { class: 'grid-2 grid-2--tight' }, h('div', {}, h('div', { class: 'cap muted sub' }, 'Penalized on this condition'), ratesEl),
       h('div', {}, h('div', { class: 'cap muted sub' }, 'Share of estimated dollars'), money)) });
 }

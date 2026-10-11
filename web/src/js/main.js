@@ -69,5 +69,5 @@ onRoute((route) => {
   }
   if (route.section) document.getElementById(route.section)?.scrollIntoView({ block: 'start' });
   history.replaceState({ thirtyDays: key }, '');
-  markNav(route.section || (route.view === 'methods' ? 'methods' : null));
+  markNav(route.view === 'methods' ? 'methods' : route.section);
 });

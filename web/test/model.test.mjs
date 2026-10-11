@@ -139,6 +139,6 @@ test('CSV quotes specials and neutralizes spreadsheet formulas in text', () => {
 
 test('noEstimateNote counts hospitals with no dollar estimate, and is empty when none', () => {
   assert.equal(noEstimateNote([{ pen: 5 }, { pen: 0 }]), '');
-  assert.equal(noEstimateNote([{ pen: null }, { pen: 5 }]), '1 hospital has no estimate and is counted as $0');
-  assert.equal(noEstimateNote([{ pen: null }, { pen: undefined }]), '2 hospitals have no estimate and are counted as $0');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: 5 }]), '1 hospital has no estimate and is left out of the total');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: undefined }]), '2 hospitals have no estimate and are left out of the total');
 });

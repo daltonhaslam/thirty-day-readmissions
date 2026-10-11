@@ -1,6 +1,7 @@
 import { h } from '../dom.js';
 import { part } from '../ui/figure.js';
-import { fmtInt, fmtMoney, noEstimate } from '../model.js';
+import { fmtInt, fmtMoney, fmtPct, fmtDate, noEstimate } from '../model.js';
+import { METHODS_SECTIONS } from '../router.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
 import { FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
@@ -22,6 +23,67 @@ const GLOSSARY = [
   ['Beds', 'The hospital\'s bed count from its Medicare cost report, as listed in the IPPS impact file. It can differ from licensed or certified beds.'],
   ['Metro area (CBSA)', 'A Core-Based Statistical Area defined by the Office of Management and Budget: a city and the counties tied to it by commuting.'],
 ];
+
+const count = (n, one, many) => `${fmtInt(n)} ${n === 1 ? one : many}`;
+
+// "Oct–Dec 2026": the part of the payment year before an end date.
+function monthsBefore(fy, endIso) {
+  const end = new Date(`${endIso}T12:00:00`);
+  const mon = end.toLocaleDateString('en-US', { month: 'short' });
+  return end.getFullYear() === fy - 1 ? `Oct–${mon} ${fy - 1}` : `Oct ${fy - 1}–${mon} ${end.getFullYear()}`;
+}
+
+// How the estimates compare with hospitals' cost reports; empty until the data carries that check.
+export function accuracyLine(dc) {
+  if (dc?.within15 == null) return '';
+  return `Checked against hospitals' own Medicare cost reports, ${fmtPct(dc.within15, 0)} of estimates land within 15% after allowing for two years of payment-rate growth`
+    + `${dc.within15Small != null ? ` (${fmtPct(dc.within15Small, 0)} for hospitals under 100 beds)` : ''}.`;
+}
+
+// [assumption, effect on the estimate] rows, worded from what the data says about MDH, inactive, and missing hospitals.
+export function assumptionRows(D) {
+  const m = D.meta;
+  const E = D.edition;
+  const dc = m.dollarCheck;
+  const nMdh = D.hospitals.filter((x) => x.types?.includes('MDH')).length;
+  const nInactive = D.hospitals.filter((x) => x.inactive).length;
+  const nNoEst = noEstimate(D.hospitals);
+  const costFy = /FY ?(\d{4})/.exec(dc?.source ?? '')?.[1];
+  return [
+    [`Penalty = the ${E.label} cut (1 − adjustment factor) × the hospital's base DRG payments`, 'Mirrors how CMS applies the cut; the cut factor itself is CMS\'s exact value'],
+    [`Payments priced at ${E.label} rates`, dc?.rateDrift
+      ? `Runs about ${fmtPct((dc.rateDrift - 1) * 100, 1)} above ${costFy ? `FY${costFy} ` : ''}cost reports, by design`
+      : 'Runs above earlier years\' cost reports, by design'],
+    [`Medicare volume taken from FY${E.fy - 2}`, `Off in proportion if a hospital's ${E.label} volume differs`],
+    ['Traditional Medicare only', 'Medicare Advantage enters the ratios but is not cut'],
+    ['Sole community hospitals priced at the federal rate', 'What the law requires'],
+    m.mdh?.endDate
+      ? [`Medicare-dependent add-on included for ${monthsBefore(E.fy, m.mdh.endDate)} only, assuming MDH status ends ${fmtDate(m.mdh.endDate, 'long')}, as current law says (${count(nMdh, 'hospital', 'hospitals')})`,
+        'If Congress extends MDH status, estimates for these hospitals run low, up to about 45% for some']
+      : [`Medicare-dependent hospitals' own add-on left out (${count(nMdh, 'hospital', 'hospitals')})`, 'The cut covers it, so estimates for these hospitals run low'],
+    ['New-technology add-on payments left out', 'The cut covers them; about 0.1% of payments nationally'],
+    ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent', 'They were paid on global budgets; low-medium confidence'],
+    ['New hospitals use partial-year volume', 'Likely understated'],
+    nInactive ? [`${count(nInactive, 'hospital', 'hospitals')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
+      'CMS will not pay them under this ID, so their cut is unlikely to be collected'] : null,
+    nNoEst ? [`${count(nNoEst, 'hospital', 'hospitals')} missing from the impact file ${nNoEst === 1 ? 'gets' : 'get'} no estimate`,
+      'Totals note the count instead of adding $0'] : null,
+  ].filter(Boolean);
+}
+
+// The section every "estimate" tag links to: what the dollar figures assume, and how well they hold up.
+function dollarAssumptions(D) {
+  const id = METHODS_SECTIONS.dollars;
+  const accuracy = accuracyLine(D.meta.dollarCheck);
+  return h('section', { id, class: 'methods__sec', 'aria-labelledby': `${id}-h` },
+    h('h2', { id: `${id}-h` }, 'Assumptions behind the dollar estimates'),
+    h('p', {}, `Dollar figures are estimates made for this site, not amounts CMS publishes. They apply each hospital's ${D.edition.label} cut to its estimated base Medicare payments, using the assumptions below.`),
+    accuracy ? h('p', {}, accuracy) : null,
+    h('div', { class: 'printout__scroll' }, h('table', { class: 'assume' },
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Assumption'), h('th', { scope: 'col' }, 'Effect on the estimate'))),
+      h('tbody', {}, assumptionRows(D).map(([a, b]) => h('tr', {}, h('td', {}, a), h('td', {}, b)))))),
+    h('p', {}, 'Teaching, low-income-patient, low-volume, and outlier add-ons are excluded because the cut does not apply to them.'));
+}
 
 export function renderMethods(D) {
   const m = D.meta;
@@ -49,7 +111,7 @@ export function renderMethods(D) {
         h('pre', { class: 'formula' }, 'cases × case-mix index × (labor amount × wage index + non-labor amount × cost-of-living adjustment)'),
         h('p', {}, `Cases and case-mix index are each hospital's transfer-adjusted traditional-Medicare figures from the ${E.label} IPPS impact file, which uses claims from two years earlier. The standardized amounts come from ${E.label} Tables 1A and 1B (correction notice), choosing the column that matches each hospital's quality-reporting and EHR status as CMS flags it in the impact file.`),
         h('p', {}, `Across all hospitals this gives about ${fmtMoney(m.totals.modelBase)} in base payments and ${fmtMoney(m.totals.modelPen)} in penalties. CMS's own estimate in the ${E.label} final rule was ${fmtMoney(m.totals.cmsEst)}, made before the final factors from 2022–23 readmissions and FY2023 payments. It is a ballpark, not a check of these figures.`),
-        h('p', {}, `Limits: volume from two years earlier stands in for ${E.label}; for sole community hospitals the law applies the cut to the federal-rate amount, so they are estimated at the federal rate by design; for Medicare-dependent hospitals the cut also covers their hospital-specific add-on, which is left out here, so their estimates run low; new-technology add-ons are subject to the cut but left out (about 0.1% of payments nationally); ${fmtInt(noEstimate(D.hospitals))} hospitals missing from the impact file have no estimate. Teaching, low-income-patient, low-volume, and outlier add-ons are excluded because the cut does not apply to them.`),
+        dollarAssumptions(D),
 
         h('h2', {}, 'How to read a penalty'),
         h('ul', {},

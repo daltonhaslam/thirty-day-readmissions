@@ -8,6 +8,7 @@ import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, c
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
+import { estTag } from './util.js';
 import { openFeedback, FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 
 let bandsCache = null;
@@ -58,7 +59,7 @@ function whatIf(D, x, measured) {
     clear(out).append(
       field('W1', 'Hypothetical cut', fmtPct(red), { big: true, note: `Actual: ${fmtPct(x.red)}` }),
       field('W2', 'Payment adjustment factor', paf.toFixed(4), { note: `Actual: ${x.paf.toFixed(4)}` }),
-      field('W3', 'Estimated dollars', fmtMoney(dollars), { note: x.pen != null ? `Current estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
+      field('W3', 'Estimated dollars', dollars != null ? [fmtMoney(dollars), estTag()] : '—', { note: x.pen != null ? `Current estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
   };
   const sliders = measured.map((k) => {
     const id = `wi-${k}`;
@@ -127,7 +128,7 @@ export function renderHospital(D, id) {
         h('p', { class: 'hosp__summary' }, summarySentence(D, x, v)),
         h('div', { class: 'form hosp__nums' },
           field('A', 'Payment adjustment factor', x.paf.toFixed(4), { note: 'CMS, final' }),
-          field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
+          field('B', 'Estimated dollars', x.pen != null ? [fmtMoney(x.pen), estTag()] : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
         h('p', { class: 'small muted' }, rankLine(D, x)),
         FEEDBACK_ENABLED ? h('button', { class: 'btn hosp__report', type: 'button', onclick: () => openFeedback({ kind: 'data' }) }, 'Report a problem with this hospital\'s data') : null)),
     figure({ title: 'Where the penalty came from', take: `Each row is one condition. Dot: this hospital's ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals with enough cases to be measured on that condition.${capNote}`,

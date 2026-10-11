@@ -11,6 +11,7 @@ import { summaryColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
+import { estTag } from './util.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
 export function resolveScope(D, route) {
@@ -77,7 +78,8 @@ export function renderScope(D, route, state = {}) {
   const hosp = (n) => `${fmtInt(n)} ${n === 1 ? 'hospital' : 'hospitals'}`;
   const deck = `${fmtInt(S.nPen)} of ${hosp(S.n)} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
     + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${hosp(S.n)}`}, is ${fmtPct(S.meanRed)}`
-    + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}${noEstNote ? ` (${noEstNote})` : ''}.`;
+    + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
+  const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];
 
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
@@ -86,7 +88,7 @@ export function renderScope(D, route, state = {}) {
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),
-    field(6, 'Estimated dollars', fmtMoney(S.penTotal), { note: noEstNote ? `modeled; see Methods. ${noEstNote}` : 'modeled; see Methods' }));
+    field(6, 'Estimated dollars', [fmtMoney(S.penTotal), estTag()], { note: noEstNote ? `${noEstNote[0].toUpperCase()}${noEstNote.slice(1)}.` : null }));
 
   const mapEl = h('div', { class: 'map map--scope' });
   const scopeStates = [...new Set(list.map((x) => x.st))];
@@ -115,7 +117,7 @@ export function renderScope(D, route, state = {}) {
       breadcrumb(sc.crumbs, sc.name),
       h('div', { class: 'cap hero__kicker' }, sc.kind + (sc.multiState ? ` · spans ${sc.states.join(', ')}` : '')),
       h('h1', { class: 'scope__title' }, sc.name),
-      h('p', { class: 'scope__deck' }, deck)),
+      h('p', { class: 'scope__deck' }, deck, total)),
     kpis,
     h('div', { class: 'grid-2 grid-2--wide-left scope__row' },
       figure({ title: 'Hospitals on the map', take: route.view === 'metro' ? 'Hospitals in this metro area are sized by Medicare volume and shaded by cut; gray dots are other hospitals in the state. Select one to open it.' : 'Dots are sized by Medicare volume and shaded by cut. Select one to open it.',

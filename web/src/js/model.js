@@ -46,12 +46,12 @@ export function median(a) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-// Hospitals with no dollar estimate (missing from the IPPS impact file); dollar totals count them as $0.
+// Hospitals with no dollar estimate (missing from the IPPS impact file); dollar totals leave them out.
 export const noEstimate = (list) => list.filter((h) => h.pen == null).length;
 // Short clause for a dollar total's note; empty when every hospital has an estimate.
 export function noEstimateNote(list) {
   const n = noEstimate(list);
-  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} counted as $0` : '';
+  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} left out of the total` : '';
 }
 
 // Measured on at least one condition: only these hospitals can be penalized.

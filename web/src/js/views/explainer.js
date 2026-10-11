@@ -6,6 +6,7 @@ import { dualBands } from '../charts/dualBands.js';
 import { CONDS, PEERS, contrib, peerMedian, condState, isMeasured, weightPublished, niceDomain, WEIGHT_MISSING, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { link, partNo } from '../router.js';
 import { omnibox } from '../ui/omnibox.js';
+import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
 
@@ -60,7 +61,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('li', {}, h('span', {}, 'Line 8 · Line 7, capped at 3%, rounded'), h('b', {}, fmtPct(Math.round(r.reduction * 1e4) / 100))),
       h('li', {}, h('span', {}, 'Line 9 · Payment adjustment factor (1 − line 8)'), h('b', {}, recomputed.toFixed(4))),
       h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${match ? '· matches' : '· differs by 0.0001 (CMS used unrounded values; this file rounds them to four decimals)'}`)),
-      compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, `≈ ${fmtMoney(hosp.pen)} estimated`))));
+      compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, hosp.pen != null ? [`≈ ${fmtMoney(hosp.pen)}`, estTag()] : 'no estimate'))));
 }
 
 export function explainerPart(D, index) {

@@ -126,6 +126,12 @@
 .prose p, .prose li { margin-bottom: 10px; }
 .prose ul { padding-left: 20px; }
 .formula { font: 400 var(--fs-sm)/1.5 var(--font-type); border: var(--rule) solid var(--form); padding: 10px 12px; overflow-x: auto; background: var(--paper); white-space: pre-wrap; }
+.assume { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); line-height: 1.4; border-top: var(--rule) solid var(--ink); }
+.assume th { text-align: left; font: 600 var(--fs-cap)/1.25 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--form-ink); padding: 8px; border-bottom: var(--rule) solid var(--ink); }
+.assume td { padding: 8px; vertical-align: top; border-bottom: 1px solid var(--bar-line); }
+.assume td:first-child { width: 55%; font-weight: 600; }
+.assume tbody tr:nth-child(odd) { background: var(--bar); }
+.methods__sec .printout__scroll { margin-bottom: 12px; }
 .sources { padding-left: 18px; font-size: var(--fs-sm); display: grid; gap: 6px; }
 .glossary { margin: 0; border-top: var(--rule) solid var(--ink); }
 .glossary dt { font-weight: 700; padding-top: 10px; }

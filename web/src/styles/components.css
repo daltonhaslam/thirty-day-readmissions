@@ -125,6 +125,10 @@
 .cstrip i.na { border-style: dotted; opacity: 0.55; }
 .pbar { display: inline-block; height: 9px; background: var(--form); vertical-align: middle; margin-left: 6px; }
 
+/* "estimate" tag beside modeled dollar figures; links to the assumptions on Methods */
+.est { display: inline-block; margin-left: 8px; padding: 2px 5px 1px; border: 1px solid var(--form); color: var(--form-ink); font: 600 var(--fs-cap)/1.2 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; vertical-align: 0.15em; white-space: nowrap; }
+.est:hover { background: var(--form); color: var(--paper); }
+
 /* ---------- stamp ---------- */
 .stamp { display: inline-block; border: 3px solid var(--form); color: var(--form); padding: 6px 14px 4px; font: 400 var(--fs-lg)/1.05 var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; transform: rotate(-3deg); border-radius: 4px; mix-blend-mode: var(--stamp-blend); -webkit-mask-image: var(--stamp-mask); mask-image: var(--stamp-mask); }
 .stamp--ink { border-color: var(--ink); color: var(--ink); }

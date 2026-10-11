@@ -26,8 +26,14 @@ test('home sections route to home with a section', () => {
   assert.deepEqual(parseHash('#methods'), { view: 'methods', key: null, section: null });
 });
 
+test('a Methods section is the methods view with a scroll target; unknown ones are not found', () => {
+  assert.deepEqual(parseHash('#methods-dollars'), { view: 'methods', key: null, section: 'methods-dollars' });
+  assert.equal(link('methods', 'dollars'), '#methods-dollars');
+  assert.equal(link('methods'), '#methods');
+});
+
 test('garbage is notfound and never throws', () => {
-  for (const h of ['#hospital-', '#nope-thing', '#<script>', '#state-', '#%E0%A4%A']) {
+  for (const h of ['#hospital-', '#nope-thing', '#<script>', '#state-', '#%E0%A4%A', '#methods-nope']) {
     assert.equal(parseHash(h).view, 'notfound', h);
   }
 });

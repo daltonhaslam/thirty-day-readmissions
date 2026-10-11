@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 
 const PAGE = `file://${new URL('../../docs/index.html', import.meta.url).pathname}`;
 const ROUTES = ['', '#region-south', '#division-south-atlantic', '#state-ut', '#metro-41620', '#hospital-010006',
-  '#hospital-010051', '#hospital-010021', '#methods', '#hospital-999999', '#map', '#nope-route'];
+  '#hospital-010051', '#hospital-010021', '#methods', '#methods-dollars', '#hospital-999999', '#map', '#nope-route'];
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); };
 
@@ -233,6 +233,19 @@ for (const width of [1280, 360]) {
   const { page } = await open('#explore');
   const txt = await page.locator('#explore tbody tr').first().locator('td').nth(4).textContent();
   check(/penalized on|no condition/i.test(txt), `conditions cell has no text alternative ("${txt}")`);
+  await page.close();
+}
+
+// 14. "estimate" tags link to the dollar assumptions on Methods; the section lands in view and Methods is marked.
+{
+  const { page } = await open('#hospital-010006');
+  check(await page.locator('main .est').count() >= 2, 'hospital page lacks "estimate" tags');
+  await page.locator('.hosp__nums .est').click();
+  await page.waitForTimeout(600);
+  const top = await page.evaluate(() => document.getElementById('methods-dollars')?.getBoundingClientRect().top);
+  check(top != null && top >= -2 && top < 200, `estimate tag landed ${top}px from the dollar assumptions`);
+  check(await page.getAttribute('.nav a[data-nav="methods"]', 'aria-current') === 'true', 'Methods nav not marked on a Methods section');
+  check(await page.locator('#methods-dollars table.assume tbody tr').count() >= 9, 'assumptions table is missing rows');
   await page.close();
 }
 

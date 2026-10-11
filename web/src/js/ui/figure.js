@@ -5,7 +5,7 @@ export function numberFigures(root) {
   root.querySelectorAll('.fig__no').forEach((el, i) => { el.textContent = `Fig. ${i + 1}`; });
 }
 
-// A report-style figure: "FIG. N", title, one-line takeaway, body, source line.
+// A report-style figure: "FIG. N", title, one-line takeaway, body, source line (text, or text and links).
 export function figure({ title, take, source, body, id, cls }) {
   return h('figure', { class: `fig ${cls || ''}`, id },
     h('figcaption', { class: 'fig__head' },
@@ -13,7 +13,7 @@ export function figure({ title, take, source, body, id, cls }) {
       h('span', { class: 'fig__title' }, title),
       take ? h('span', { class: 'fig__take' }, take) : null),
     h('div', { class: 'fig__body' }, body),
-    source ? h('div', { class: 'fig__src' }, `Source: ${source}`) : null);
+    source ? h('div', { class: 'fig__src' }, 'Source: ', source) : null);
 }
 
 export function part({ no, id, title, lede }, ...children) {
