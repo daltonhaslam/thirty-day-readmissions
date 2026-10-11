@@ -128,7 +128,7 @@ export function explainerPart(D, index) {
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File (eligible discharges).`, body: step1 })),
       h('li', { class: 'step' }, stepHead(2, 'Each hospital gets a ratio',
         'The excess readmission ratio (ERR) divides the readmissions CMS predicts for this hospital by the readmissions an average hospital would have with the same patients. Above 1.0 means more than expected.'),
-        figure({ title: 'Every hospital\'s ratio, one dot each', take: `Red dots are above 1.0, more readmissions than expected. A hospital is penalized only for being above its peer group's median for the condition; across all groups and conditions those medians run from ${f4(medLo)} to ${f4(medHi)}. The large dot is ${ex.name}, used in the worksheet below. Select a dot to open that hospital.`,
+        figure({ title: 'Every hospital\'s ratio, one dot each', take: `Red dots are above 1.0, more readmissions than expected. A hospital is penalized only for being above its peer group's median for the condition${meds.length ? `; across all groups and conditions those medians run from ${f4(medLo)} to ${f4(medHi)}` : ''}. The large dot is ${ex.name}, used in the worksheet below. Select a dot to open that hospital.`,
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File. Hospitals with at least ${MIN_DISCHARGES} cases.`, body: h('div', {}, h('div', { class: 'controls' }, condBtns), stripEl) })),
       h('li', { class: 'step' }, stepHead(3, 'Hospitals are compared with peers',
         'Since FY2019, hospitals are split into five equal groups by the share of their Medicare patients who also qualify for full Medicaid, a common marker of low income. Each hospital is judged only against its own group.'),

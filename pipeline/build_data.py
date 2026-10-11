@@ -182,9 +182,10 @@ def build():
                                  cbsa_names, rates, moved) for ccn in sorted(supp)]
     if moved:
         print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(moved)}")
-    unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in counties.shape)
+    unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
     if unchecked:
-        print(f"stray-point check skipped for {unchecked} hospitals whose impact-file county is not in the atlas")
+        print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
+              "their map points are not checked")
     status = {c: model.replication_status(supp[c]) for c in sorted(supp)}
     geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("zip", "county", "none")}
 
