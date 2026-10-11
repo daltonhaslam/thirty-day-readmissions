@@ -31,7 +31,9 @@ export function summaryColumns(label) {
 export function hospitalColumns(D, { compact = false } = {}) {
   const cols = [
     { key: 'name', label: 'Hospital', cls: 'name', firstDir: 'asc', sort: (x) => x.name,
-      render: (x) => [h('a', { href: link('hospital', x.id) }, x.name), h('small', {}, `${x.place} · CCN ${x.id}`)], csv: (x) => x.name },
+      render: (x) => [h('a', { href: link('hospital', x.id) }, x.name),
+        x.inactive ? h('span', { class: 'tag', title: `CMS lists this hospital's Medicare agreement as ended on ${x.inactive.date}` }, 'inactive') : null,
+        h('small', {}, `${x.place} · CCN ${x.id}`)], csv: (x) => x.name },
     { key: 'red', label: 'Cut', num: true, sort: (x) => x.red,
       render: (x) => [fmtPct(x.red), h('span', { class: 'pbar', style: { width: `${(x.red / CAP_PCT) * 48}px` } })] },
     { key: 'pen', label: 'Est. $', num: true, sort: (x) => x.pen, render: (x) => fmtMoney(x.pen) },
@@ -39,7 +41,8 @@ export function hospitalColumns(D, { compact = false } = {}) {
     { key: 'flags', label: 'Conditions', sort: (x) => x.flags.length, render: (x) => condStrip(D, x), csv: (x) => x.flags.join(' ') },
   ];
   if (!compact) {
-    cols.push({ key: 'beds', label: 'Beds', num: true, sort: (x) => x.beds, render: (x) => (x.beds ?? '—') });
+    cols.push({ key: 'beds', label: 'Beds', num: true, sort: (x) => x.beds,
+      render: (x) => [x.beds != null ? fmtInt(x.beds) : '—', x.bedsSrc === 'cr' ? h('small', { class: 'bedsrc', title: 'From the Medicare cost report; CMS lists no certified beds' }, ' cost rpt') : null] });
   }
   return cols;
 }

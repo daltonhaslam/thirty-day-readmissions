@@ -122,7 +122,7 @@ export function applyFilters(list, f = {}) {
     && (f.beds == null || bedBand(h.beds) === f.beds)
     && (f.urban == null || h.urban === f.urban)
     && (f.cond == null || h.c?.[f.cond]?.flag === 1)
-    && (!text || norm(`${h.name} ${h.city} ${h.st} ${h.id}`).includes(text)));
+    && (!text || norm(`${h.name} ${h.alias ?? ''} ${h.city} ${h.st} ${h.id}`).includes(text)));
 }
 
 export function fmtPct(v, dp = 2) {

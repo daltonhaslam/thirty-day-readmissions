@@ -47,6 +47,15 @@ test('place names find states and metros', () => {
   assert.equal(search('utah', index)[0].type, 'state');
 });
 
+test('a hospital is found by the other name CMS lists it under, and the result says so', () => {
+  const idx = buildIndex({ hospitals: [...hospitals, { id: '450100', name: 'Baylor Scott & White Medical Center', alias: 'Hillcrest Baptist Medical Center', city: 'Waco', st: 'TX', zip: '76712' }], states: {}, metros: {} });
+  const r = search('hillcrest baptist', idx);
+  assert.equal(r[0].key, '450100');
+  assert.equal(r[0].label, 'Baylor Scott & White Medical Center');
+  assert.match(r[0].sub, /also listed as Hillcrest Baptist Medical Center$/);
+  assert.equal(search('hillcrest', index).length, 0, 'hospitals without an alias are unaffected');
+});
+
 test('markup and empty queries return nothing without throwing', () => {
   assert.deepEqual(search('<script>', index), []);
   assert.deepEqual(search('   ', index), []);

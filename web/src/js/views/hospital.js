@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
 import { hospitalColumns, CSV_COLUMNS } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -21,6 +21,16 @@ function rankLine(D, x) {
   const p = (arr) => rankPct(arr, x.red);
   if (x.red <= 0) return 'No reduction, like ' + fmtInt(D.hospitals.filter((y) => y.red <= 0).length - 1) + ' other hospitals.';
   return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% of the ${fmtInt(st.length)} in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
+}
+
+// Bed counts are CMS certified beds; the few from the cost report instead are marked.
+export const bedsLabel = (x) => (x.beds ? `${fmtInt(x.beds)} beds${x.bedsSrc === 'cr' ? ' (cost report)' : ''}` : null);
+
+// For a hospital whose Medicare agreement CMS lists as ended. It stays in every ranking and total.
+export function inactiveSentence(D, x) {
+  const { date, reason } = x.inactive;
+  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended on ${fmtDate(date, 'long')}${reason ? ` (${reason})` : ''}. `
+    + `It will not be paid under this ID in ${D.edition.label}, so its cut is unlikely to be collected.`;
 }
 
 function summarySentence(D, x, v) {
@@ -103,7 +113,7 @@ export function renderHospital(D, id) {
   if (!x) return null;
   bandsCache ??= peerBands(D.hospitals);
   const v = verdict(x, D.meta);
-  const types = [TEACH_LABEL[x.teach], x.beds ? `${fmtInt(x.beds)} beds` : null, x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
+  const types = [TEACH_LABEL[x.teach], bedsLabel(x), x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
   const neighbors = (x.cbsa ? D.byCbsa.get(x.cbsa) : D.byState.get(x.st).filter((y) => !y.cbsa)).filter(Boolean);
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
@@ -118,7 +128,8 @@ export function renderHospital(D, id) {
       h('div', { class: 'form hosp__id' },
         h('div', { class: 'form__title' }, h('span', {}, `Hospital record · ${D.edition.label}`), h('span', {}, `CCN ${x.id}`)),
         h('div', { class: 'field field--wide' }, h('div', { class: 'field__label' }, h('span', { class: 'field__no' }, '1'), 'Hospital'),
-          h('h1', { class: 'hosp__name' }, x.name)),
+          h('h1', { class: 'hosp__name' }, x.name),
+          x.alias ? h('p', { class: 'hosp__alias' }, `Also listed by CMS as ${x.alias}`) : null),
         field(2, 'Location', [x.place, x.zip ? ` ${x.zip}` : ''].join(''), { note: x.county ? `${x.county} County` : null }),
         field(3, 'Metro area', x.cbsaName || 'Outside metro areas', { note: x.cbsa ? h('a', { href: link('metro', x.cbsa) }, 'See this metro') : h('a', { href: link('state', x.st) }, `See ${D.meta.states[x.st]}`) }),
         field(4, 'Type', types.join(' · ') || '—', { small: true }),
@@ -126,8 +137,11 @@ export function renderHospital(D, id) {
         field(6, 'Care Compare stars', x.star ? `${'★'.repeat(x.star)}${'☆'.repeat(5 - x.star)}` : 'Not rated',
           { note: h('a', { href: `https://www.medicare.gov/care-compare/details/hospital/${x.id}`, target: '_blank', rel: 'noopener' }, 'Open on Medicare.gov') })),
       h('div', { class: 'hosp__verdict' },
-        h('span', { class: `stamp ${x.red > 0 ? '' : 'stamp--ink'}` }, x.red > 0 ? `Cut ${fmtPct(x.red)}` : 'No cut'),
+        h('div', { class: 'hosp__stamps' },
+          h('span', { class: `stamp ${x.red > 0 ? '' : 'stamp--ink'}` }, x.red > 0 ? `Cut ${fmtPct(x.red)}` : 'No cut'),
+          x.inactive ? h('span', { class: 'stamp stamp--ink' }, 'Inactive') : null),
         h('p', { class: 'hosp__summary' }, summarySentence(D, x, v)),
+        x.inactive ? h('p', { class: 'hosp__inactive' }, inactiveSentence(D, x)) : null,
         h('div', { class: 'form hosp__nums' },
           field('A', 'Payment adjustment factor', x.paf.toFixed(4), { note: 'CMS, final' }),
           field('B', 'Estimated dollars', x.pen != null ? [fmtMoney(x.pen), estTag()] : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),

@@ -7,7 +7,7 @@ import { omnibox } from '../ui/omnibox.js';
 import { FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 import { SITE_NAME, LINKEDIN_URL } from '../site.js';
 
-const GLOSSARY = [
+const glossary = (D) => [
   ['Readmission', 'An unplanned return to any acute-care hospital within 30 days of discharge, for any reason. Planned returns, such as a scheduled chemotherapy stay, do not count.'],
   ['Excess readmission ratio (ERR)', 'Predicted readmissions for this hospital divided by expected readmissions for an average hospital with the same patients. Above 1.0 means more than expected.'],
   ['Peer group', 'One of five equal-sized groups of hospitals, sorted by the share of their Medicare stays from patients who also have full Medicaid.'],
@@ -20,7 +20,10 @@ const GLOSSARY = [
   ['IPPS', 'The Inpatient Prospective Payment System, which sets Medicare payments to general acute-care hospitals each fiscal year.'],
   ['CCN', 'CMS Certification Number, the six-digit ID CMS assigns each hospital.'],
   ['Teaching level', 'Major teaching means a resident-to-bed ratio of 0.25 or more; minor teaching is any lower ratio above zero. The ratio comes from the IPPS impact file, which draws on Medicare cost reports.'],
-  ['Beds', 'The hospital\'s bed count from its Medicare cost report, as listed in the IPPS impact file. It can differ from licensed or certified beds.'],
+  // bedsSrc arrives with certified beds; before that, every count came from the cost report.
+  ['Beds', D.hospitals.some((x) => x.bedsSrc)
+    ? 'Certified beds from CMS\'s Provider of Services file; for the few hospitals without one, the bed count from the Medicare cost report (IPPS impact file), marked "cost report". Either can differ from licensed beds.'
+    : 'The hospital\'s bed count from its Medicare cost report, as listed in the IPPS impact file. It can differ from licensed or certified beds.'],
   ['Metro area (CBSA)', 'A Core-Based Statistical Area defined by the Office of Management and Budget: a city and the counties tied to it by commuting.'],
 ];
 
@@ -123,7 +126,10 @@ export function renderMethods(D) {
           h('li', {}, 'Not included: Maryland (its own all-payer model), critical access, children\'s, cancer, psychiatric, rehabilitation, and long-term care hospitals. Puerto Rico hospitals are not subject to the cut.')),
 
         h('h2', {}, 'Places'),
-        h('p', {}, `Map dots are approximate: each hospital is placed at the center of its ZIP code (${fmtInt(m.geocode.zip)} hospitals) or, when the ZIP is not in the Census file or its center falls far outside the hospital's county, the center of that county (${fmtInt(m.geocode.county)}). Metro areas are the CBSA where each hospital sits, from the IPPS impact file. Regions and divisions follow the Census Bureau.`),
+        h('p', {}, m.geocode.address
+          ? `Map dots come from each hospital's street address, geocoded with the U.S. Census Bureau Geocoder (${fmtInt(m.geocode.address)} hospitals). When an address does not match, or its point falls far outside the hospital's county, the dot goes to the center of its ZIP code (${fmtInt(m.geocode.zip)}) or, failing that, its county (${fmtInt(m.geocode.county)}).`
+          : `Map dots are approximate: each hospital is placed at the center of its ZIP code (${fmtInt(m.geocode.zip)} hospitals) or, when the ZIP is not in the Census file or its center falls far outside the hospital's county, the center of that county (${fmtInt(m.geocode.county)}).`,
+        ' Metro areas are the CBSA where each hospital sits, from the IPPS impact file. Regions and divisions follow the Census Bureau.'),
 
         h('h2', {}, 'History'),
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
@@ -137,11 +143,13 @@ export function renderMethods(D) {
       h('aside', {},
         h('h2', {}, 'Sources'),
         h('ul', { class: 'sources' }, src,
+          m.geocode.address && !m.sources.some((s) => /geocoder/i.test(s.name))
+            ? h('li', {}, h('a', { href: 'https://geocoding.geo.census.gov/geocoder/', target: '_blank', rel: 'noopener' }, 'U.S. Census Bureau Geocoder')) : null,
           h('li', {}, `CMS archived HRRP supplemental data files, FY${E.firstFy}–FY${E.fy - 1}`),
           h('li', {}, `Federal Register IPPS final rules, ${E.span}`),
           h('li', {}, 'KFF Health News annual readmission-penalty reporting')),
         h('h2', {}, 'Glossary'),
-        h('dl', { class: 'glossary' }, GLOSSARY.map(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
+        h('dl', { class: 'glossary' }, glossary(D).map(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
         h('h2', {}, 'Reuse'),
         h('p', {}, 'Code is MIT-licensed. Federal source data are public domain. Every table on the site can be copied or downloaded as CSV.'
           + ' In those files the CCN is written as ="010001" so spreadsheets keep its leading zero, headers name their units, and a condition\'s "penalized" column is blank when the hospital had fewer than 25 cases of it.'))));

@@ -11,7 +11,7 @@ import { summaryColumns, summaryCsvColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
-import { estTag } from './util.js';
+import { estTag, placesSource } from './util.js';
 import { meanCutByYear, COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
@@ -120,7 +120,7 @@ export function renderScope(D, route, state = {}) {
     kpis,
     h('div', { class: 'grid-2 grid-2--wide-left scope__row' },
       figure({ title: 'Hospitals on the map', take: route.view === 'metro' ? 'Hospitals in this metro area are sized by Medicare volume and shaded by cut; gray dots are other hospitals in the state. Select one to open it.' : 'Dots are sized by Medicare volume and shaded by cut. Select one to open it.',
-        source: 'Locations from Care Compare addresses and Census ZIP centroids.', body: h('div', {}, mapEl, dotLegend()) }),
+        source: `${placesSource(D.meta).replace(/^./, (c) => c.toUpperCase())}.`, body: h('div', {}, mapEl, dotLegend()) }),
       figure({ title: 'Size of the cuts', take: `Bars: ${sc.name}. Outline: all hospitals. Both as shares, so areas of any size compare.`,
         source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: histEl })),
     conditionFigure(D, list, { compare: D.hospitals }),

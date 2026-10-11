@@ -34,6 +34,28 @@ test('verdict: no penalty because every measured condition was at or below media
   assert.deepEqual([v.status, v.nMeasured], ['none-below', 1]);
 });
 
+test('beds: certified counts read plainly; only the cost-report fallback is marked', async () => {
+  const { bedsLabel } = await import('../src/js/views/hospital.js');
+  assert.equal(bedsLabel({ beds: 2059, bedsSrc: 'pos' }), '2,059 beds');
+  assert.equal(bedsLabel({ beds: 25, bedsSrc: 'cr' }), '25 beds (cost report)');
+  assert.equal(bedsLabel({ beds: 25 }), '25 beds', 'data from before bedsSrc');
+  assert.equal(bedsLabel({ beds: null }), null);
+});
+
+test('inactive hospitals get a sentence naming the CCN, end date, and reason', async () => {
+  const { inactiveSentence } = await import('../src/js/views/hospital.js');
+  const D = { edition: { label: 'FY2027' } };
+  assert.equal(inactiveSentence(D, { id: '050001', inactive: { date: '2025-03-31', code: '01', reason: 'voluntary termination' } }),
+    'CMS lists this hospital\'s Medicare agreement under CCN 050001 as ended on March 31, 2025 (voluntary termination). It will not be paid under this ID in FY2027, so its cut is unlikely to be collected.');
+  assert.match(inactiveSentence(D, { id: '050001', inactive: { date: '2025-03-31', code: '07' } }), /ended on March 31, 2025\. It will/);
+});
+
+test('explorer text filter matches the alias', async () => {
+  const { applyFilters } = await import('../src/js/model.js');
+  const list = [{ id: '450100', name: 'Baylor Scott & White', alias: 'Hillcrest Baptist', city: 'Waco', st: 'TX' }, { id: '1', name: 'Other', city: 'Waco', st: 'TX' }];
+  assert.deepEqual(applyFilters(list, { text: 'hillcrest' }).map((x) => x.id), ['450100']);
+});
+
 test('ordinal suffixes', () => {
   assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st']);
 });
