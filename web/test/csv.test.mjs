@@ -29,7 +29,7 @@ test('hospital CSV: units in headers, rounded values, CCN kept as text, new bed 
   assert.equal(r['Payment reduction (%)'], '0.04');
   assert.equal(r['Estimated penalty ($, modeled)'], '19712');
   assert.equal(r['Dual proportion'], '0.1824');
-  assert.equal(r['AMI ERR'], '0.9899');
+  assert.equal(r['AMI ERR'], '0.989933', 'ERRs keep six decimals so the factors can be recomputed');
   assert.deepEqual([r.Beds, r['Beds source'], r['Inactive (date)']], ['334', 'cost report', '2025-03-31']);
 });
 

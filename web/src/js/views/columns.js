@@ -71,6 +71,6 @@ export const CSV_COLUMNS = [
   { label: 'Estimated penalty ($, modeled)', value: (x) => roundTo(x.pen, 0) },
   { label: 'Peer group', value: (x) => x.peer }, { label: 'Dual proportion', value: (x) => roundTo(x.dual, 4) },
   ...CONDS.flatMap((k) => [
-    { label: `${k} discharges`, value: (x) => x.c[k]?.n }, { label: `${k} ERR`, value: (x) => roundTo(x.c[k]?.err, 4) },
+    { label: `${k} discharges`, value: (x) => x.c[k]?.n }, { label: `${k} ERR`, value: (x) => roundTo(x.c[k]?.err, 6) },
     { label: `${k} penalized (Y/N)`, value: (x) => (isMeasured(x.c[k]) ? (x.c[k].flag === 1 ? 'Y' : 'N') : null) }]),
 ];
