@@ -143,7 +143,8 @@ export function renderMethods(D) {
         h('h2', {}, 'Glossary'),
         h('dl', { class: 'glossary' }, GLOSSARY.map(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
         h('h2', {}, 'Reuse'),
-        h('p', {}, 'Code is MIT-licensed. Federal source data are public domain. Every table on the site can be copied or downloaded as CSV.'))));
+        h('p', {}, 'Code is MIT-licensed. Federal source data are public domain. Every table on the site can be copied or downloaded as CSV.'
+          + ' In those files the CCN is written as ="010001" so spreadsheets keep its leading zero, headers name their units, and a condition\'s "penalized" column is blank when the hospital had fewer than 25 cases of it.'))));
 }
 
 export function renderNotFound(D, index) {

@@ -5,7 +5,7 @@ import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
 import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
-import { hospitalColumns } from './columns.js';
+import { hospitalColumns, CSV_COLUMNS } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
 import { estTag } from './util.js';
@@ -142,6 +142,6 @@ export function renderHospital(D, id) {
     neighbors.length > 1 ? figure({ title: x.cbsa ? `Other hospitals in ${x.cbsaName}` : `Other hospitals outside metro areas in ${D.meta.states[x.st]}`,
       take: 'This hospital is highlighted.', source: `CMS ${D.edition.label} HRRP Supplemental Data File.`,
       body: greenbarTable({ columns: hospitalColumns(D, { compact: true }), rows: neighbors, pageSize: 12, sort: { key: 'red', dir: 'desc' },
-        rowHref: (y) => link('hospital', y.id), rowClass: (y) => (y.id === x.id ? 'is-current' : null), csvName: 'nearby.csv' }).el }) : null);
+        rowHref: (y) => link('hospital', y.id), rowClass: (y) => (y.id === x.id ? 'is-current' : null), csvName: 'nearby.csv', csvColumns: CSV_COLUMNS }).el }) : null);
   return [el, x.name];
 }

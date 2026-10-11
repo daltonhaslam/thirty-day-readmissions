@@ -7,7 +7,7 @@ import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
 import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, PEERS } from '../model.js';
-import { summaryColumns } from './columns.js';
+import { summaryColumns, summaryCsvColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
@@ -105,9 +105,10 @@ export function renderScope(D, route, state = {}) {
   let childTable = null;
   if (sc.children?.rows.length) {
     const rows = sc.children.rows.map((c) => ({ ...c, ...summarize(c.list) })).filter((r) => r.n);
+    const rowLabel = sc.children.title.replace(/s$/, '');
     childTable = figure({ title: sc.children.title, take: 'Select a row to drill down.', source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`,
       body: greenbarTable({ rows, pageSize: 25, sort: { key: 'n', dir: 'desc' }, csvName: `${slugify(sc.name)}-${slugify(sc.children.title)}.csv`,
-        rowHref: (r) => r.href, columns: summaryColumns(sc.children.title.replace(/s$/, '')) }).el });
+        rowHref: (r) => r.href, columns: summaryColumns(rowLabel), csvColumns: summaryCsvColumns(rowLabel) }).el });
   }
 
   const el = h('div', { class: 'wrap scope' },

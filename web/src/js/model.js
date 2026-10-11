@@ -144,16 +144,23 @@ export function fmtMoney(v) {
   return `$${Math.round(v)}`;
 }
 
-function csvCell(v) {
+// For export: v rounded to dp decimals, or null.
+export const roundTo = (v, dp) => (v == null || !Number.isFinite(v) ? null : Number(v.toFixed(dp)));
+
+// Excel drops a CCN's leading zero unless the cell is the formula ="010001". Only a strict six-character code in a
+// column marked `ccn` gets that; every other text cell starting with a formula character is neutralized.
+const CCN_CELL = /^[0-9A-Z]{6}$/;
+function csvCell(v, ccn = false) {
   if (v == null) return '';
   let s = String(v);
-  if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (ccn && CCN_CELL.test(s)) s = `="${s}"`;
+  else if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCSV(rows, columns) {
   const lines = [columns.map((c) => csvCell(c.label)).join(',')];
-  for (const r of rows) lines.push(columns.map((c) => csvCell(c.value ? c.value(r) : r[c.key])).join(','));
+  for (const r of rows) lines.push(columns.map((c) => csvCell(c.value ? c.value(r) : r[c.key], c.ccn)).join(','));
   return `${lines.join('\r\n')}\r\n`;
 }
 

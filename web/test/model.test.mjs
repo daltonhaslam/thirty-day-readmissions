@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONDS, contrib, summarize, percentileRank, scopeFilter, applyFilters, bedBand,
-  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote,
+  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo,
 } from '../src/js/model.js';
 
 // CMS methodology infographic, Hospital A (peer group 4, NM 0.9458)
@@ -135,6 +135,15 @@ test('CSV quotes specials and neutralizes spreadsheet formulas in text', () => {
     [{ key: 'name', label: 'Name' }, { key: 'note', label: 'Note' }, { key: 'v', label: 'V' }],
   );
   assert.equal(csv, 'Name,Note,V\r\n"He said ""hi"", ok",\'=SUM(A1),-1.5\r\n');
+});
+
+test('CSV writes a CCN column as ="010001" so Excel keeps the zero; the formula guard still covers everything else', () => {
+  const cols = [{ key: 'id', label: 'CCN', ccn: true }, { key: 'note', label: 'Note' }];
+  const csv = toCSV([{ id: '010001', note: '="010001"' }, { id: '=1+1', note: 'ok' }, { id: '05012F', note: '+x' }], cols);
+  assert.deepEqual(csv.split('\r\n'), ['CCN,Note', '"=""010001""","\'=""010001"""', '\'=1+1,ok', '"=""05012F""",\'+x', '']);
+  assert.equal(roundTo(91.66666666666667, 1), 91.7);
+  assert.equal(roundTo(null, 2), null);
+  assert.equal(roundTo(19712.4, 0), 19712);
 });
 
 test('noEstimateNote counts hospitals with no dollar estimate, and is empty when none', () => {

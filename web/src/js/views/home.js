@@ -6,7 +6,7 @@ import { greenbarTable } from '../ui/table.js';
 import { usMap, mapLegend, dotLegend, METRICS } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { fmtInt, fmtPct, fmtMoney, fmtDate, noEstimateNote } from '../model.js';
-import { hospitalColumns, summaryColumns } from './columns.js';
+import { hospitalColumns, summaryColumns, summaryCsvColumns, CSV_COLUMNS } from './columns.js';
 import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
 import { explorer } from './explorer.js';
@@ -51,7 +51,7 @@ function picturePart(D, S) {
   penaltyHistogram(histEl, { reds: all.map((x) => x.red) });
   const top = [...all].sort((a, b) => b.red - a.red || (b.pen ?? 0) - (a.pen ?? 0)).slice(0, 10);
   const topTable = greenbarTable({ columns: hospitalColumns(D), rows: top, pageSize: 10, sort: { key: 'red', dir: 'desc' },
-    csvName: 'largest-penalties.csv', rowHref: (x) => link('hospital', x.id) });
+    csvName: 'largest-penalties.csv', csvColumns: CSV_COLUMNS, rowHref: (x) => link('hospital', x.id) });
   return part({ no: partNo('picture'), id: 'picture', title: `The ${D.edition.label} picture`,
     lede: `Most cuts are small. The typical penalized hospital loses ${fmtPct(S.medianRedPen)} of its base Medicare inpatient payments; ${fmtInt(S.nGe1)} lose 1% or more, and ${fmtInt(S.nMax)} hit the 3% cap.` },
     figure({ title: 'How big are the cuts?', take: `Each bar counts hospitals by the size of their payment reduction. ${fmtInt(S.n - S.nPen)} hospitals have no reduction.`,
@@ -78,7 +78,7 @@ function mapPart(D) {
 
   const rows = [...D.stateSummary.entries()].map(([st, sm]) => ({ ...sm, label: D.meta.states[st], href: link('state', st) }));
   const stTable = greenbarTable({ rows, pageSize: 15, sort: { key: 'meanRed', dir: 'desc' }, csvName: 'states.csv', rowHref: (r) => r.href,
-    columns: summaryColumns('State') });
+    columns: summaryColumns('State'), csvColumns: summaryCsvColumns('State') });
 
   const regions = h('div', { class: 'regions' }, D.regions.map((r) => h('div', { class: 'region' },
     h('a', { class: 'region__name', href: link('region', r.slug) }, r.name),
