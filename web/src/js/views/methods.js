@@ -1,6 +1,6 @@
 import { h } from '../dom.js';
 import { part } from '../ui/figure.js';
-import { fmtInt, fmtMoney } from '../model.js';
+import { fmtInt, fmtMoney, noEstimate } from '../model.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
 import { FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
@@ -49,7 +49,7 @@ export function renderMethods(D) {
         h('pre', { class: 'formula' }, 'cases × case-mix index × (labor amount × wage index + non-labor amount × cost-of-living adjustment)'),
         h('p', {}, `Cases and case-mix index are each hospital's transfer-adjusted traditional-Medicare figures from the ${E.label} IPPS impact file, which uses claims from two years earlier. The standardized amounts come from ${E.label} Tables 1A and 1B (correction notice), choosing the column that matches each hospital's quality-reporting and EHR status as CMS flags it in the impact file.`),
         h('p', {}, `Across all hospitals this gives about ${fmtMoney(m.totals.modelBase)} in base payments and ${fmtMoney(m.totals.modelPen)} in penalties. CMS's own estimate in the ${E.label} final rule was ${fmtMoney(m.totals.cmsEst)}, made before the final factors from 2022–23 readmissions and FY2023 payments. It is a ballpark, not a check of these figures.`),
-        h('p', {}, `Limits: volume from two years earlier stands in for ${E.label}; for sole community hospitals the law applies the cut to the federal-rate amount, so they are estimated at the federal rate by design; for Medicare-dependent hospitals the cut also covers their hospital-specific add-on, which is left out here, so their estimates run low; new-technology add-ons are subject to the cut but left out (about 0.1% of payments nationally); ${fmtInt(D.hospitals.filter((x) => x.base == null).length)} hospitals missing from the impact file have no estimate. Teaching, low-income-patient, low-volume, and outlier add-ons are excluded because the cut does not apply to them.`),
+        h('p', {}, `Limits: volume from two years earlier stands in for ${E.label}; for sole community hospitals the law applies the cut to the federal-rate amount, so they are estimated at the federal rate by design; for Medicare-dependent hospitals the cut also covers their hospital-specific add-on, which is left out here, so their estimates run low; new-technology add-ons are subject to the cut but left out (about 0.1% of payments nationally); ${fmtInt(noEstimate(D.hospitals))} hospitals missing from the impact file have no estimate. Teaching, low-income-patient, low-volume, and outlier add-ons are excluded because the cut does not apply to them.`),
 
         h('h2', {}, 'How to read a penalty'),
         h('ul', {},

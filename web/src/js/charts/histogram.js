@@ -11,6 +11,9 @@ import { fmtInt, fmtPct, mean, CAP_PCT, binIndex } from '../model.js';
 const STEP = 0.05;
 const N_BINS = Math.round(CAP_PCT / STEP);
 
+// The last bin is closed: binCounts puts the hospitals at the cap in it.
+const binTitle = (i) => `${(i * STEP).toFixed(2)}% to ${i === N_BINS - 1 ? '' : 'under '}${((i + 1) * STEP).toFixed(2)}% reduction`;
+
 function binCounts(reds) {
   const zero = reds.filter((r) => r <= 0).length;
   const bins = new Array(N_BINS).fill(0);
@@ -51,7 +54,7 @@ export function penaltyHistogram(el, { reds, compare, compareLabel = 'All hospit
 
     const bars = [{ x0: 0, x1: zeroW, n: a.zero, red: 0, title: 'No penalty' },
       ...a.bins.map((n, i) => ({ x0: x(i * STEP), x1: x((i + 1) * STEP), n, red: (i + 0.5) * STEP,
-        title: `${(i * STEP).toFixed(2)}% to ${i === N_BINS - 1 ? '' : 'under '}${((i + 1) * STEP).toFixed(2)}% reduction` }))];
+        title: binTitle(i) }))];
     g.append('g').selectAll('rect').data(bars).join('rect')
       .attr('x', (d) => d.x0 + 0.5).attr('width', (d) => Math.max(1, d.x1 - d.x0 - 1))
       .attr('y', (d) => y(norm(d.n, reds.length))).attr('height', (d) => hgt - y(norm(d.n, reds.length)))

@@ -93,36 +93,36 @@ def load_content(name):
 STRAY_KM = 40  # a ZIP/county point farther than this outside the impact-file county is replaced by that county's centroid
 
 
-def locate(g, imp, st, zcta, county_fips, county_name, shapes=None, labels=None):
-    """(lat, lon, source, county label or None): ZIP centroid, else Care Compare county, else impact-file county FIPS.
+def locate(g, imp, st, zcta, counties):
+    """(lat, lon, source, county label or None): ZIP centroid, else Care Compare county, else impact-file county.
 
     A ZIP or Care Compare county point more than STRAY_KM outside the impact-file county falls back to that
-    county's centroid (and its atlas name, returned as the label). Counties absent from the atlas are not checked.
+    county's centroid, and its atlas name is returned as the label. Counties absent from the atlas are not checked.
     """
     fips = imp.get("fips")
     key = geo.county_key(st, g.get("county"))
     if g.get("zip") in zcta:
         pt, src = zcta[g["zip"]], "zip"
-    elif key in county_name:
-        pt, src = county_name[key], "county"
+    elif key in counties.by_name:
+        pt, src = counties.by_name[key], "county"
     else:
         pt, src = None, None
-    if pt and fips in county_fips and fips in (shapes or {}) and geo.km_outside(*pt, shapes[fips]) > STRAY_KM:
-        return (*county_fips[fips], "county", (labels or {}).get(fips))
+    if pt and fips in counties.shape and geo.km_outside(*pt, counties.shape[fips]) > STRAY_KM:
+        return (*counties.centroid[fips], "county", counties.name[fips])
     if pt:
         return (*pt, src, None)
-    if fips in county_fips:
-        return (*county_fips[fips], "county", None)
+    if fips in counties.centroid:
+        return (*counties.centroid[fips], "county", None)
     return None, None, None, None
 
 
-def hospital_record(ccn, s, imp, g, zcta, county_fips, county_name, cbsa_names, rates, shapes=None, labels=None,
-                    moved=None):
+def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates, moved):
+    """One hospital's data-contract record; appends to `moved` when its map point was pulled back into its county."""
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat, lon, gsrc, fips_county = locate(g, imp, st, zcta, county_fips, county_name, shapes, labels)
-    if fips_county and moved is not None:
+    lat, lon, gsrc, fips_county = locate(g, imp, st, zcta, counties)
+    if fips_county:
         moved.append(f"{ccn} {g.get('county')} -> {fips_county}")
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     base = model.est_base_payment(imp, rates)
@@ -160,8 +160,7 @@ def build():
     zcta = parse.read_zcta(path("zcta"))
     cbsa_names = parse.read_cbsa_names(path("cbsa"))
     rates = parse.read_rates(path("rates"))
-    county_fips, county_name = geo.county_centroids(path("counties"))
-    shapes, labels = geo.county_shapes(path("counties"))
+    counties = geo.read_counties(path("counties"))
 
     t15_mismatch = sorted(set(t15) ^ set(supp)) + [c for c in supp if c in t15 and t15[c] != supp[c]["paf"]]
     if t15_mismatch:
@@ -179,8 +178,8 @@ def build():
                             for k in parse.CONDITIONS}
 
     moved = []
-    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, county_fips,
-                                 county_name, cbsa_names, rates, shapes, labels, moved) for ccn in sorted(supp)]
+    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, counties,
+                                 cbsa_names, rates, moved) for ccn in sorted(supp)]
     if moved:
         print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(moved)}")
     status = {c: model.replication_status(supp[c]) for c in sorted(supp)}

@@ -7,15 +7,16 @@ import { showTip, hideTip } from '../ui/tooltip.js';
 import { rampVar, BINS } from './scale.js';
 import { fmtPct, fmtInt, fmtMoney } from '../model.js';
 
-// Bins use the value as displayed (rounded to `dp` places, in units of `unit`), so a color never disagrees with the label.
-const step = (cuts, labels, dp = 0, unit = 1) => ({ cls: (v) => { const shown = Number((v / unit).toFixed(dp)) * unit; return `p${1 + cuts.filter((c) => shown >= c).length}`; }, labels });
+// Colors bin on the value as each metric's fmt displays it, so a color never disagrees with its label.
+const rounded = (dp, unit = 1) => (v) => Number((v / unit).toFixed(dp)) * unit;
+const step = (cuts, labels, shown = rounded(0)) => ({ cls: (v) => `p${1 + cuts.filter((c) => shown(v) >= c).length}`, labels });
 export const METRICS = {
   avg: { label: 'Average cut', value: (sm) => sm.meanRed, fmt: (v) => fmtPct(v),
-    ...step([0.25, 0.35, 0.45, 0.6], ['under 0.25%', '0.25–0.34%', '0.35–0.44%', '0.45–0.59%', '0.60%+'], 2) },
+    ...step([0.25, 0.35, 0.45, 0.6], ['under 0.25%', '0.25–0.34%', '0.35–0.44%', '0.45–0.59%', '0.60%+'], rounded(2)) },
   pct: { label: 'Share penalized', value: (sm) => sm.pctPen, fmt: (v) => fmtPct(v, 0),
     ...step([70, 80, 85, 90], ['under 70%', '70–79%', '80–84%', '85–89%', '90%+']) },
   dollars: { label: 'Estimated dollars', value: (sm) => sm.penTotal, fmt: (v) => fmtMoney(v),
-    ...step([2e6, 5e6, 10e6, 20e6], ['under $2M', '$2–5M', '$5–10M', '$10–20M', '$20M+'], 1, 1e6) },
+    ...step([2e6, 5e6, 10e6, 20e6], ['under $2M', '$2–5M', '$5–10M', '$10–20M', '$20M+'], rounded(1, 1e6)) },
   ge1: { label: 'Hospitals cut 1%+', value: (sm) => (sm.n ? (100 * sm.nGe1) / sm.n : 0), fmt: (v) => fmtPct(v, 0),
     ...step([4, 8, 12, 16], ['under 4%', '4–7%', '8–11%', '12–15%', '16%+']) },
 };

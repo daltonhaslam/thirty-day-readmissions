@@ -16,6 +16,7 @@ import { SITE_NAME_TOP, SITE_NAME_RED } from '../site.js';
 
 function hero(D, index, S) {
   const bigMetro = [...D.byCbsa.entries()].reduce((a, b) => (b[1].length > a[1].length ? b : a));
+  const noEst = noEstimateNote(D.hospitals);
   return h('section', { class: 'hero wrap', 'aria-labelledby': 'hero-title' },
     h('div', {},
       h('div', { class: 'hero__kicker cap' }, `${D.edition.label} edition · Year ${D.edition.nYears} of Medicare readmission penalties`),
@@ -36,7 +37,7 @@ function hero(D, index, S) {
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
         field(4, 'Average cut, penalized only', fmtPct(S.meanRedPen)),
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
-        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: [`Modeled here. CMS's rule-time estimate, from preliminary data: ${fmtMoney(D.meta.totals.cmsEst)}.`, noEstimateNote(D.hospitals) && ` ${noEstimateNote(D.hospitals)}.`].filter(Boolean).join('') }),
+        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: `Modeled here. CMS's rule-time estimate, from preliminary data: ${fmtMoney(D.meta.totals.cmsEst)}.${noEst ? ` ${noEst}.` : ''}` }),
         field(7, 'Data window', `${fmtDate(D.meta.perf[0])} – ${fmtDate(D.meta.perf[1])}`),
         field(8, 'Payment year', D.edition.payShort)),
       h('div', { class: 'hero__stamp' }, h('span', { class: 'stamp' }, `Final · posted ${fmtDate(D.meta.fileDate)}`))));

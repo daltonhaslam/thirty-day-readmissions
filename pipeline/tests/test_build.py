@@ -44,9 +44,10 @@ class GeoTest(unittest.TestCase):
 
     @unittest.skipUnless((RAW / "us_atlas_counties" / "counties-10m.json").exists(), "raw data not fetched")
     def test_county_centroid_salt_lake(self):
-        by_fips, by_name = geo.county_centroids(RAW / "us_atlas_counties" / "counties-10m.json")
-        lat, lon = by_fips["49035"]
-        self.assertEqual(by_name[geo.county_key("UT", "SALT LAKE")], (lat, lon))
+        counties = geo.read_counties(RAW / "us_atlas_counties" / "counties-10m.json")
+        lat, lon = counties.centroid["49035"]
+        self.assertEqual(counties.by_name[geo.county_key("UT", "SALT LAKE")], (lat, lon))
+        self.assertEqual(counties.name["49035"], "Salt Lake")
         self.assertAlmostEqual(lat, 40.67, delta=0.3)
         self.assertAlmostEqual(lon, -111.92, delta=0.3)
 
@@ -56,16 +57,14 @@ SQUARE = [[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]  # ~111 
 
 class StrayPointTest(unittest.TestCase):
     """build_data.locate: a ZIP point far outside the impact-file county falls back to that county's centroid."""
-    FIPS = {"99001": (0.5, 0.5)}
-    SHAPES = {"99001": [SQUARE]}
-    LABELS = {"99001": "Squareville"}
+    COUNTIES = geo.Counties(centroid={"99001": (0.5, 0.5), "99002": (9.0, 9.0)}, by_name={},
+                            shape={"99001": [SQUARE]}, name={"99001": "Squareville"})
     HOSP = {"zip": "11111", "county": "Wrongshire"}
     IMP = {"fips": "99001"}
 
     def locate(self, zip_pt, imp=IMP):
         import build_data
-        return build_data.locate(self.HOSP, imp, "ZZ", {"11111": zip_pt}, {**self.FIPS, "99002": (9.0, 9.0)}, {},
-                                 self.SHAPES, self.LABELS)
+        return build_data.locate(self.HOSP, imp, "ZZ", {"11111": zip_pt}, self.COUNTIES)
 
     def test_km_outside(self):
         self.assertEqual(geo.km_outside(0.5, 0.5, [SQUARE]), 0.0)

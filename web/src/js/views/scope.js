@@ -31,8 +31,8 @@ export function resolveScope(D, route) {
     const any = list[0];
     const metros = [...new Set(list.map((x) => x.cbsa).filter(Boolean))];
     // A metro that crosses state lines shows only this state's hospitals, so say so (the linked page shows the whole metro).
-    const rows = metros.map((c) => ({ label: D.byCbsa.get(c).some((x) => x.st !== key) ? `${D.cbsaNames[c]} (${key} part)` : D.cbsaNames[c],
-      href: link('metro', c), list: list.filter((x) => x.cbsa === c) }));
+    const metroLabel = (c) => (D.byCbsa.get(c).some((x) => x.st !== key) ? `${D.cbsaNames[c]} (${key} part)` : D.cbsaNames[c]);
+    const rows = metros.map((c) => ({ label: metroLabel(c), href: link('metro', c), list: list.filter((x) => x.cbsa === c) }));
     const rural = list.filter((x) => !x.cbsa);
     if (rural.length) rows.push({ label: 'Outside metro areas', list: rural });
     return { kind: 'State', name: D.meta.states[key], list, crumbs: crumbsFor(D, { region: any.region, division: any.division }),

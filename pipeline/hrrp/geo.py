@@ -1,6 +1,7 @@
 """State → census region/division, and county centroids decoded from us-atlas TopoJSON."""
 import json
 import math
+from collections import namedtuple
 from pathlib import Path
 
 DIVISIONS = {
@@ -54,6 +55,11 @@ def _decode_arcs(topo):
     return arcs
 
 
+def _edges(ring):
+    """Consecutive point pairs of a ring, closing it back to the first point."""
+    return zip(ring, ring[1:] + ring[:1])
+
+
 def _ring(arcs, refs):
     pts = []
     for i in refs:
@@ -65,7 +71,7 @@ def _ring(arcs, refs):
 def _centroid(ring):
     """Area-weighted planar centroid (lon/lat) of a closed ring; returns (area, lon, lat)."""
     a = cx = cy = 0.0
-    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+    for (x0, y0), (x1, y1) in _edges(ring):
         f = x0 * y1 - x1 * y0
         a += f
         cx += (x0 + x1) * f
@@ -84,41 +90,37 @@ def county_key(st, name):
     return st, "".join(ch for ch in n if ch.isalnum())
 
 
-def county_centroids(path):
-    """({county FIPS: (lat, lon)}, {(state, normalized name): (lat, lon)}) from the largest polygon of each county."""
-    topo = json.loads(Path(path).read_text(encoding="utf-8"))
-    arcs = _decode_arcs(topo)
-    by_fips, by_name = {}, {}
-    for g in topo["objects"]["counties"]["geometries"]:
-        polys = [g["arcs"]] if g["type"] == "Polygon" else g.get("arcs", []) if g["type"] == "MultiPolygon" else []
-        best = max((_centroid(_ring(arcs, poly[0])) for poly in polys), default=None)
-        if best:
-            fips = str(g["id"]).zfill(5)
-            by_fips[fips] = (best[2], best[1])
-            st = STATE_FIPS.get(fips[:2])
-            if st:
-                by_name.setdefault(county_key(st, g.get("properties", {}).get("name")), (best[2], best[1]))
-    return by_fips, by_name
+Counties = namedtuple("Counties", "centroid by_name shape name")
 
 
-def county_shapes(path):
-    """({county FIPS: [polygon rings]}, {county FIPS: atlas name}); a polygon is [outer ring, *hole rings] in lon/lat."""
+def _polygons(g):
+    """A TopoJSON geometry's polygons, each a list of arc-reference rings (outer ring first)."""
+    return {"Polygon": [g.get("arcs", [])], "MultiPolygon": g.get("arcs", [])}.get(g["type"], [])
+
+
+def read_counties(path):
+    """Counties from us-atlas: centroid of each county's largest polygon by FIPS and by (state, normalized name),
+    and each county's polygons ([outer ring, *hole rings] in lon/lat) and atlas name by FIPS."""
     topo = json.loads(Path(path).read_text(encoding="utf-8"))
     arcs = _decode_arcs(topo)
-    shapes, labels = {}, {}
+    out = Counties({}, {}, {}, {})
     for g in topo["objects"]["counties"]["geometries"]:
-        polys = [g["arcs"]] if g["type"] == "Polygon" else g.get("arcs", []) if g["type"] == "MultiPolygon" else []
-        if polys:
-            fips = str(g["id"]).zfill(5)
-            shapes[fips] = [[_ring(arcs, r) for r in poly] for poly in polys]
-            labels[fips] = g.get("properties", {}).get("name")
-    return shapes, labels
+        polys = [[_ring(arcs, r) for r in poly] for poly in _polygons(g)]
+        if not polys:
+            continue
+        fips, name = str(g["id"]).zfill(5), g.get("properties", {}).get("name")
+        _, lon, lat = max(_centroid(p[0]) for p in polys)
+        out.centroid[fips], out.shape[fips], out.name[fips] = (lat, lon), polys, name
+        st = STATE_FIPS.get(fips[:2])
+        if st:
+            out.by_name.setdefault(county_key(st, name), (lat, lon))
+    return out
 
 
 def _in_ring(lat, lon, ring):
     """Ray-casting point-in-ring test (ring in lon/lat)."""
     inside = False
-    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+    for (x0, y0), (x1, y1) in _edges(ring):
         if (y0 > lat) != (y1 > lat) and lon < (x1 - x0) * (lat - y0) / (y1 - y0) + x0:
             inside = not inside
     return inside
@@ -128,7 +130,7 @@ def _edge_km(lat, lon, ring):
     """Distance in km from a point to the nearest edge of a ring (local equirectangular approximation)."""
     kx, ky = 111.32 * math.cos(math.radians(lat)), 110.57
     best = math.inf
-    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+    for (x0, y0), (x1, y1) in _edges(ring):
         ax, ay, bx, by = (x0 - lon) * kx, (y0 - lat) * ky, (x1 - lon) * kx, (y1 - lat) * ky
         dx, dy = bx - ax, by - ay
         t = 0.0 if dx == dy == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / (dx * dx + dy * dy)))
