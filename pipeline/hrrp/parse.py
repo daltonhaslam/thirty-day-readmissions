@@ -207,11 +207,12 @@ def read_impact(path, fy, grouper):
 
 def read_hgi(path):
     """CMS Provider Data Catalog Hospital General Information CSV -> {ccn: {...}}."""
-    columns = {"ccn": "Facility ID", "name": "Facility Name", "city": "City/Town", "st": "State", "zip": "ZIP Code",
-               "county": "County/Parish", "ownership": "Hospital Ownership", "star": "Hospital overall rating"}
+    columns = {"ccn": "Facility ID", "name": "Facility Name", "street": "Address", "city": "City/Town", "st": "State",
+               "zip": "ZIP Code", "county": "County/Parish", "ownership": "Hospital Ownership", "star": "Hospital overall rating"}
 
     def build(r):
-        return {"name": r["name"], "city": r["city"], "st": r["st"], "zip": r["zip"][:5].zfill(5),
+        return {"name": r["name"], "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"],
+                "zip": r["zip"][:5].zfill(5),
                 "county": r["county"], "ownership": r["ownership"],
                 "star": int(r["star"]) if r["star"].isdigit() else None}
     return _index_by_ccn(path, _read_table(path, "Facility ID", columns, ",", "utf-8-sig"), build)

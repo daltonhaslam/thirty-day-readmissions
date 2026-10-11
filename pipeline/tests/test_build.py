@@ -63,9 +63,26 @@ class StrayPointTest(unittest.TestCase):
     HOSP = {"zip": "11111", "county": "Wrongshire"}
     IMP = {"fips": "99001"}
 
-    def locate(self, zip_pt, imp=IMP):
+    def locate(self, zip_pt, imp=IMP, point=None, hosp=HOSP):
         import build_data
-        return build_data.locate(self.HOSP, imp, "ZZ", {"11111": zip_pt}, self.COUNTIES)
+        return build_data.locate(hosp, imp, "ZZ", {"11111": zip_pt}, self.COUNTIES, point)
+
+    def test_address_point_wins_and_corrects_a_care_compare_county_naming_elsewhere(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6)), (0.6, 0.6, "address", "Squareville"))
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6), hosp={**self.HOSP, "county": "SQUAREVILLE"}),
+                         (0.6, 0.6, "address", None))
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6), hosp={**self.HOSP, "county": "SQUAREVILLE CITY"}),
+                         (0.6, 0.6, "address", None))
+
+    def test_address_point_near_the_county_keeps_care_compare_county(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.5, 1.2)), (0.5, 1.2, "address", None))  # ~22 km out
+
+    def test_address_point_far_outside_falls_back_to_zip_logic(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.5, 2.0)), (0.2, 0.3, "zip", None))  # ~111 km out
+        self.assertEqual(self.locate((0.5, 2.0), point=(0.5, 2.0)), (0.5, 0.5, "county", "Squareville"))
+
+    def test_address_point_for_a_county_missing_from_the_atlas_is_used(self):
+        self.assertEqual(self.locate((0.2, 0.3), {"fips": "09110"}, point=(5.0, 5.0)), (5.0, 5.0, "address", None))
 
     def test_km_outside(self):
         self.assertEqual(geo.km_outside(0.5, 0.5, [SQUARE]), 0.0)
@@ -166,7 +183,7 @@ class ContractTest(unittest.TestCase):
                 self.assertIsNone(x["lat"])
                 self.assertIsNone(x["lon"])
             else:
-                self.assertIn(x["geo"], ("zip", "county"))
+                self.assertIn(x["geo"], ("address", "zip", "county"))
 
     def test_contract_keys(self):
         self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
@@ -247,15 +264,22 @@ class FreshBuildTest(unittest.TestCase):
     def test_mdh_hospitals_are_tagged(self):
         self.assertGreater(sum(1 for x in self.built["hospitals"] if "MDH" in x["types"]), 100)
 
-    def test_connecticut_po_box_hospitals_are_placed_in_their_care_compare_county(self):
-        x = self.by_id["070005"]  # Waterbury Hospital, New Haven County
-        self.assertEqual(x["geo"], "county")
-        self.assertAlmostEqual(x["lat"], 41.4, delta=0.3)
+    def test_connecticut_po_box_zip_hospital_is_placed_by_street_address(self):
+        x = self.by_id["070005"]  # Waterbury Hospital, New Haven County; its ZIP is a PO-box ZIP with no centroid
+        self.assertEqual((x["geo"], x["county"]), ("address", "New Haven"))
+        self.assertAlmostEqual(x["lat"], 41.56, delta=0.02)
         self.assertEqual(self.built["meta"]["geocode"]["none"], 0)
 
-    def test_stray_zip_points_are_moved_to_their_impact_file_county(self):
-        for ccn, county in [("020012", "Fairbanks North Star"), ("230216", "St. Clair"), ("140013", "Peoria")]:
-            self.assertEqual((self.by_id[ccn]["geo"], self.by_id[ccn]["county"]), ("county", county), ccn)
+    def test_street_addresses_fix_points_and_counties_the_zip_got_wrong(self):
+        for ccn, county, lat, lon in [("020012", "Fairbanks North Star", 64.83, -147.74),  # Fairbanks Memorial
+                                      ("230216", "St. Clair", 42.99, -82.43),  # McLaren Port Huron
+                                      ("140013", "Peoria", 40.75, -89.59),  # Carle Proctor
+                                      ("050030", "Butte", 39.50, -121.54)]:  # Oroville Hospital
+            x = self.by_id[ccn]
+            self.assertEqual((x["geo"], x["county"]), ("address", county), ccn)
+            self.assertAlmostEqual(x["lat"], lat, delta=0.01, msg=ccn)
+            self.assertAlmostEqual(x["lon"], lon, delta=0.01, msg=ccn)
+        self.assertGreater(self.built["meta"]["geocode"]["address"], 2400)
 
     def test_beds_come_from_certified_counts(self):
         for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:

@@ -5,6 +5,7 @@ Hard-fails on schema drift, duplicate CCNs, out-of-range PAFs, a Table 15 disagr
 value that does not round to the tab-delimited file's, or stored values that no longer reproduce every PAF;
 prints a coverage report.
 """
+import csv
 import json
 import sys
 from collections import namedtuple
@@ -18,6 +19,9 @@ from hrrp import geo, history, model, names, parse  # noqa: E402
 
 OUT = ROOT / "web" / "src" / "data" / "hrrp.json"
 CONTENT = PIPELINE / "content"
+GEOCODES = CONTENT / "geocodes.csv"  # written by pipeline/geocode.py (Census Geocoder); the build stays offline
+GEOCODER_SOURCE = {"name": "U.S. Census Bureau Geocoder, Public_AR_Current benchmark (hospital street addresses)",
+                   "url": "https://geocoding.geo.census.gov/geocoder/"}
 HIST = PIPELINE / "history"
 
 # Everything that changes when the next fiscal year's files arrive
@@ -187,14 +191,31 @@ def load_content(name):
 STRAY_KM = 40  # a ZIP/county point farther than this outside the impact-file county is replaced by that county's centroid
 
 
-def locate(g, imp, st, zcta, counties):
-    """(lat, lon, source, county label or None): ZIP centroid, else Care Compare county, else impact-file county.
+def load_geocodes(path=GEOCODES):
+    """{ccn: (lat, lon)} street-address points written by pipeline/geocode.py; {} before it has been run."""
+    if not path.exists():
+        return {}
+    with open(path, newline="", encoding="utf-8") as f:
+        return {r["ccn"]: (float(r["lat"]), float(r["lon"])) for r in csv.DictReader(f)}
 
-    A ZIP or Care Compare county point more than STRAY_KM outside the impact-file county falls back to that
-    county's centroid, and its atlas name is returned as the label. Counties absent from the atlas are not checked.
+
+def locate(g, imp, st, zcta, counties, point=None):
+    """(lat, lon, source, county label or None): geocoded street address, else ZIP centroid, else Care Compare
+    county, else impact-file county.
+
+    An address point more than STRAY_KM outside the impact-file county is set aside; one inside it overrides a
+    Care Compare county that names somewhere else (the label is then that county's atlas name; Virginia's
+    "Richmond City" and the atlas's "Richmond" count as the same). A ZIP or Care Compare county point more than
+    STRAY_KM outside falls back to the impact-file county's centroid and atlas name. Counties absent from the atlas
+    are not checked.
     """
     fips = imp.get("fips")
     key = geo.county_key(st, g.get("county"))
+    if point:
+        out = geo.km_outside(*point, counties.shape[fips]) if fips in counties.shape else None
+        if out is None or out <= STRAY_KM:
+            same = out != 0 or key[1].removesuffix("city") == geo.county_key(st, counties.name[fips])[1].removesuffix("city")
+            return (*point, "address", None if same else counties.name[fips])
     if g.get("zip") in zcta:
         pt, src = zcta[g["zip"]], "zip"
     elif key in counties.by_name:
@@ -210,9 +231,10 @@ def locate(g, imp, st, zcta, counties):
     return None, None, None, None
 
 
-# Lookups shared by every hospital record. Collected for the build report: `moved`, map points pulled back into
-# their county; `addons`, {ccn: (federal base, MDH add-on)}.
-Ref = namedtuple("Ref", "zcta counties cbsa_names rates mdh_share moved addons")
+# Lookups shared by every hospital record. Collected for the build report: `moved`, (ccn, Care Compare county,
+# impact-file county, geo source) where the impact-file county replaced Care Compare's; `addons`, {ccn: (federal
+# base, MDH add-on)}.
+Ref = namedtuple("Ref", "zcta counties points cbsa_names rates mdh_share moved addons")
 
 
 def hospital_record(ccn, s, imp, g, p, ref):
@@ -221,9 +243,9 @@ def hospital_record(ccn, s, imp, g, p, ref):
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties)
+    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, ref.points.get(ccn))
     if fips_county:
-        ref.moved.append(f"{ccn} {g.get('county')} -> {fips_county}")
+        ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
     types = sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
@@ -292,11 +314,16 @@ def build():
                             for k in parse.CONDITIONS}
 
     mdh_share = year_share(FY, MDH_END)
-    ref = Ref(zcta, counties, cbsa_names, rates, mdh_share, [], {})
+    ref = Ref(zcta, counties, load_geocodes(), cbsa_names, rates, mdh_share, [], {})
     hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
                  for ccn in sorted(supp)]
-    if ref.moved:
-        print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(ref.moved)}")
+    for src, what in (("county", f"moved to impact-file county centroid (point > {STRAY_KM} km outside it)"),
+                      ("address", "street address inside the impact-file county, not Care Compare's")):
+        hits = [f"{c} {old} -> {new}" for c, old, new, s in ref.moved if s == src]
+        if hits:
+            print(f"{what} ({len(hits)}): {'; '.join(hits)}")
+    set_aside = [x["id"] for x in hospitals if x["id"] in ref.points and x["geo"] != "address"]
+    print(f"geocoded addresses {len(ref.points)}; set aside (> {STRAY_KM} km outside the impact-file county): {set_aside}")
     report_pos(hospitals, impact)
     report_mdh(hospitals, ref.addons, mdh_share)
     unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
@@ -304,7 +331,7 @@ def build():
         print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
               "their map points are not checked")
     status = {c: model.replication_status(supp[c]) for c in sorted(supp)}
-    geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("zip", "county", "none")}
+    geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("address", "zip", "county", "none")}
 
     years, paf_hist = history.load_paf_history(HIST_FILE, set(supp), HIST_FIRST_FY, HIST_LAST_FY)
     national = history.load_national(HIST_SUMMARY)
@@ -332,7 +359,8 @@ def build():
             "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}
                           for d, (r, sts) in geo.DIVISIONS.items()],
-            "sources": [{"name": s["note"], "url": s["url"]} for s in json.loads(SOURCES.read_text(encoding="utf-8"))],
+            "sources": [{"name": s["note"], "url": s["url"]} for s in json.loads(SOURCES.read_text(encoding="utf-8"))]
+                       + [GEOCODER_SOURCE],
         },
         "conditions": [{"key": k, "short": short, "label": label} for k, (short, label) in CONDITION_INFO.items()],
         "hospitals": hospitals,
