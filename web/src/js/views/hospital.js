@@ -105,9 +105,9 @@ export function renderHospital(D, id) {
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
   const hist = historyChart(D, x);
-  const uncapped = contrib(x, D.meta).sum * 100;
-  const pts = uncapped.toFixed(uncapped < CAP_PCT + 0.005 ? 3 : 2);  // never print an excess as exactly the cap
-  const capNote = x.red >= CAP_PCT && uncapped > CAP_PCT + 1e-7 ? ` These add to ${pts} points before the ${CAP_PCT}% cap.` : '';
+  // Only when the excess shows at the rows' two decimals; a smaller excess already reads as the cap.
+  const pts = (contrib(x, D.meta).sum * 100).toFixed(2);
+  const capNote = x.red >= CAP_PCT && +pts > CAP_PCT ? ` These add to ${pts} points before the ${CAP_PCT}% cap.` : '';
 
   const el = h('div', { class: 'wrap hosp' },
     breadcrumb(crumbsFor(D, { region: x.region, division: x.division, st: x.st, cbsa: x.cbsa }), x.name),
