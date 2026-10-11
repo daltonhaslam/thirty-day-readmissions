@@ -53,18 +53,34 @@ test('summarize handles empty lists without NaN', () => {
   assert.equal(s.n, 0);
 });
 
+const MEASURED = { HF: { n: 40, err: 1.1 } };
 test('summarize counts penalties, cap, and dollars', () => {
   const list = [
-    { paf: 1, red: 0, pen: 0, base: 100 },
-    { paf: 0.99, red: 1, pen: 10, base: 1000 },
-    { paf: 0.97, red: 3, pen: 30, base: 1000 },
-    { paf: 0.998, red: 0.2, pen: null, base: null },
+    { paf: 1, red: 0, pen: 0, base: 100, c: MEASURED },
+    { paf: 0.99, red: 1, pen: 10, base: 1000, c: MEASURED },
+    { paf: 0.97, red: 3, pen: 30, base: 1000, c: MEASURED },
+    { paf: 0.998, red: 0.2, pen: null, base: null, c: MEASURED },
   ];
   const s = summarize(list);
-  assert.deepEqual([s.n, s.nPen, s.nMax, s.nGe1, s.penTotal, s.baseTotal], [4, 3, 1, 2, 40, 2100]);
+  assert.deepEqual([s.n, s.nPen, s.nMeasured, s.nMax, s.nGe1, s.penTotal, s.baseTotal], [4, 3, 4, 1, 2, 40, 2100]);
   assert.equal(s.pctPen, 75);
   assert.ok(Math.abs(s.meanRed - 1.05) < 1e-9);
   assert.ok(Math.abs(s.meanRedPen - 1.4) < 1e-9);
+});
+
+test('summarize: share penalized is of hospitals measured on at least one condition', () => {
+  const list = [
+    { red: 0.5, c: MEASURED },
+    { red: 0, c: { HF: { n: 40, err: 0.9 }, AMI: { n: 10, err: 1.2 } } },
+    { red: 0, c: { HF: { n: 24, err: 1.3 } } }, // under 25 cases: not measured
+    { red: 0, c: { PN: { n: 80, err: null } } }, // no published ratio: not measured
+    { red: 0 }, // no conditions at all
+  ];
+  const s = summarize(list);
+  assert.deepEqual([s.n, s.nPen, s.nMeasured], [5, 1, 2]);
+  assert.equal(s.pctPen, 50);
+  const none = summarize([{ red: 0, c: {} }]);
+  assert.deepEqual([none.nMeasured, none.pctPen], [0, 0]);
 });
 
 test('percentileRank is the share of values strictly below', () => {

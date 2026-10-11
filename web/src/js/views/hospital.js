@@ -18,7 +18,7 @@ function rankLine(D, x) {
   const peer = D.hospitals.filter((y) => y.peer === x.peer).map((y) => y.red).sort((a, b) => a - b);
   const p = (arr) => rankPct(arr, x.red);
   if (x.red <= 0) return 'No reduction, like ' + fmtInt(D.hospitals.filter((y) => y.red <= 0).length - 1) + ' other hospitals.';
-  return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
+  return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% of the ${fmtInt(st.length)} in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
 }
 
 function summarySentence(D, x, v) {

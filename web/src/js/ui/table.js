@@ -54,15 +54,17 @@ export function greenbarTable({ columns, rows = [], pageSize = 25, sort, caption
   }
 
   // Header is built once so a focused sort button survives re-sorting; aria-sort is updated in place.
+  // A column's `title` explains a terse header on hover and to screen readers.
   const ths = columns.map((c) => {
-    const th = h('th', { scope: 'col', class: c.num ? 'num' : null });
-    if (c.sortable === false) th.append(c.label);
+    const th = h('th', { scope: 'col', class: c.num ? 'num' : null, title: c.title });
+    const label = [c.label, c.title ? h('span', { class: 'visually-hidden' }, `, ${c.title}`) : null];
+    if (c.sortable === false) th.append(...label.filter(Boolean));
     else th.append(h('button', { type: 'button', onclick: () => {
       const active = sortState?.key === c.key;
       sortState = { key: c.key, dir: active ? (sortState.dir === 'asc' ? 'desc' : 'asc') : c.firstDir || 'desc' };
       page = 0;
       paint();
-    } }, c.label));
+    } }, label));
     return th;
   });
   thead.append(h('tr', {}, ths));

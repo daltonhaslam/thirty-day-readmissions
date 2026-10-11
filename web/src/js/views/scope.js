@@ -74,13 +74,15 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in ${D.edition.label}, averaging ${fmtPct(S.meanRed)} across all of them`
-    + `${rank ? `, ${rank.rank === 1 ? 'the largest average' : `the ${ordinal(rank.rank)}-largest average`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}${noEstNote ? ` (${noEstNote})` : ''}.`;
+  const hosp = (n) => `${fmtInt(n)} ${n === 1 ? 'hospital' : 'hospitals'}`;
+  const deck = `${fmtInt(S.nPen)} of ${hosp(S.n)} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
+    + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${hosp(S.n)}`}, is ${fmtPct(S.meanRed)}`
+    + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}${noEstNote ? ` (${noEstNote})` : ''}.`;
 
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
     field(1, 'Hospitals', fmtInt(S.n)),
-    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: vsLabel(S.pctPen, N.pctPen, 0, 'pts') }),
+    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: `of ${fmtInt(S.nMeasured)} measured · ${vsLabel(S.pctPen, N.pctPen, 0, 'pts')}` }),
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),

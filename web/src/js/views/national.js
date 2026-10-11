@@ -20,9 +20,11 @@ export function dollarsByCondition(list) {
 export function conditionFigure(D, list, { compare } = {}) {
   const dollars = dollarsByCondition(list);
   const totalD = Object.values(dollars).reduce((a, b) => a + b, 0) || 1;
+  // Penalized share among hospitals measured on condition k, with the counts it rests on.
   const rate = (pop, k) => {
     const measured = pop.filter((x) => isMeasured(x.c[k]));
-    return measured.length ? (100 * measured.filter((x) => x.c[k].flag === 1).length) / measured.length : null;
+    const nPen = measured.filter((x) => x.c[k].flag === 1).length;
+    return measured.length ? { pct: (100 * nPen) / measured.length, nPen, n: measured.length } : null;
   };
   const rows = CONDS.map((k) => ({ k, share: (100 * dollars[k]) / totalD }));
   const top = [...rows].sort((a, b) => b.share - a.share)[0];
@@ -34,7 +36,8 @@ export function conditionFigure(D, list, { compare } = {}) {
       source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; dollars modeled (see Methods).`, body: money });
   }
   const ratesEl = barRows(CONDS.map((k) => ({ k, v: rate(list, k), c: rate(compare, k) })).filter((r) => r.v != null)
-    .map((r) => ({ label: D.condByKey[r.k].short, value: r.v, display: fmtPct(r.v, 0), compare: r.c, compareDisplay: fmtPct(r.c, 0) })),
+    .map((r) => ({ label: D.condByKey[r.k].short, note: `${fmtInt(r.v.nPen)} of ${fmtInt(r.v.n)} measured`, value: r.v.pct, display: fmtPct(r.v.pct, 0),
+      compare: r.c?.pct, compareDisplay: fmtPct(r.c?.pct, 0) })),
   { max: 100, compareLabel: 'All hospitals' });
   return figure({ title: 'Which conditions drive the penalties here',
     take: 'Left: share of measured hospitals penalized on each condition (tick: all hospitals, about half). Right: share of the estimated dollars.',
@@ -48,7 +51,10 @@ export function measuredFigure(D, list) {
   const rows = [0, 1, 2, 3, 4, 5, 6].map((n) => {
     const grp = list.filter((x) => measured(x) === n);
     const sm = summarize(grp);
-    return { label: n === 1 ? '1 condition' : `${n} conditions`, value: sm.pctPen, display: fmtPct(sm.pctPen, 0), note: `${fmtInt(sm.n)} hospitals`, n: sm.n };
+    const label = n === 1 ? '1 condition' : `${n} conditions`;
+    // With no condition measured a hospital cannot be penalized, so the row has no rate to show.
+    if (n === 0) return { label, value: 0, display: 'n/a', note: `${fmtInt(sm.n)} hospitals · cannot be penalized`, n: sm.n };
+    return { label, value: sm.pctPen, display: fmtPct(sm.pctPen, 0), note: `${fmtInt(sm.n)} hospitals`, n: sm.n };
   }).filter((r) => r.n > 0);
   return figure({ title: 'More conditions measured, more ways to be penalized',
     take: 'Share of hospitals penalized, by how many of the six conditions had at least 25 cases. A hospital is penalized if any one condition lands above its peer median, so each added condition is another chance.',
@@ -66,7 +72,7 @@ export function peerFigure(D, list) {
   label: 'Payment reductions by peer group' });
   const sums = groups.map(summarize);
   return figure({ title: 'Penalties by peer group',
-    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. The thick tick in each row marks that group's median cut. Share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
+    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. The thick tick in each row marks that group's median cut. Among hospitals measured on at least one condition, the share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: el });
 }
 
@@ -82,11 +88,11 @@ export function typeFigure(D, list) {
     const rows = order.map((label) => {
       const grp = list.filter((x) => keyOf(x) === label);
       const sm = summarize(grp);
-      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: `${fmtInt(sm.n)} hospitals · ${fmtPct(sm.pctPen, 0)} penalized`, n: sm.n };
+      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: `${fmtInt(sm.n)} hospitals · ${fmtPct(sm.pctPen, 0)} of measured penalized`, n: sm.n };
     }).filter((r) => r.n > 0);
     return h('div', {}, h('div', { class: 'cap muted sub' }, title), barRows(rows, { max: 0.8 }));
   });
-  return figure({ title: 'Average cut by type of hospital', take: 'Bars show the average reduction; each label adds how many hospitals are in the group and the share penalized. Small and non-teaching hospitals are penalized less often, mostly because fewer of their conditions reach 25 cases.',
+  return figure({ title: 'Average cut by type of hospital', take: 'Bars show the average reduction; each label adds how many hospitals are in the group and the share penalized among those measured on at least one condition. Small and non-teaching hospitals are penalized less often, mostly because fewer of their conditions reach 25 cases.',
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File; hospital characteristics from the FY${D.meta.fy} IPPS impact file and Care Compare.`,
     body: h('div', { class: 'grid-4' }, blocks) });
 }

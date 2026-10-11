@@ -54,13 +54,19 @@ export function noEstimateNote(list) {
   return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} counted as $0` : '';
 }
 
+// Measured on at least one condition: only these hospitals can be penalized.
+export const measuredAny = (h) => CONDS.some((k) => isMeasured(h.c?.[k]));
+
 export function summarize(list) {
   const reds = list.map((h) => h.red);
   const pen = reds.filter((r) => r > 0);
+  const nMeasured = list.filter(measuredAny).length;
   return {
     n: list.length,
     nPen: pen.length,
-    pctPen: list.length ? (100 * pen.length) / list.length : 0,
+    nMeasured,
+    // Share of hospitals measured on at least one condition that take a cut.
+    pctPen: nMeasured ? (100 * pen.length) / nMeasured : 0,
     meanRed: mean(reds),
     get medianRed() { return median(reds); },
     meanRedPen: mean(pen),

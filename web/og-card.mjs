@@ -14,7 +14,7 @@ export function cardHtml(D) {
   const S = D.nation;
   const tokens = readFileSync(new URL('src/styles/tokens.css', import.meta.url), 'utf8');
   const rows = [
-    ['Hospitals penalized', fmtInt(S.nPen), `of ${fmtInt(S.n)} evaluated`],
+    ['Hospitals penalized', fmtInt(S.nPen), `${fmtPct(S.pctPen, 0)} of ${fmtInt(S.nMeasured)} measured`],
     ['Average cut, penalized', fmtPct(S.meanRedPen), 'of base Medicare payments'],
     ['At the 3% maximum', fmtInt(S.nMax), 'hospitals'],
   ];

@@ -21,7 +21,7 @@ export function summaryColumns(label) {
   return [
     { key: 'label', label, cls: 'name', firstDir: 'asc', render: (r) => (r.href ? h('a', { href: r.href }, r.label) : r.label) },
     { key: 'n', label: 'Hospitals', num: true, render: (r) => fmtInt(r.n) },
-    { key: 'pctPen', label: 'Penalized', num: true, render: (r) => fmtPct(r.pctPen, 0) },
+    { key: 'pctPen', label: 'Penalized', title: 'percent of hospitals measured on at least one condition', num: true, render: (r) => fmtPct(r.pctPen, 0) },
     { key: 'meanRed', label: 'Avg cut', num: true, render: (r) => fmtPct(r.meanRed) },
     { key: 'nGe1', label: 'Cut 1%+', num: true, render: (r) => fmtInt(r.nGe1) },
     { key: 'penTotal', label: 'Est. $', num: true, render: (r) => fmtMoney(r.penTotal) },

@@ -23,7 +23,8 @@ function hero(D, index, S) {
       h('h1', { class: 'hero__title', id: 'hero-title' }, h('span', {}, SITE_NAME_TOP), ' ', h('span', { class: 'hero__title-red' }, SITE_NAME_RED)),
       h('p', { class: 'hero__deck' },
         `When too many patients land back in the hospital within 30 days of going home, Medicare pays that hospital less for a full year. Starting ${D.edition.payStart}, `,
-        h('strong', {}, `${fmtInt(S.nPen)} of the ${fmtInt(S.n)} hospitals`), ' CMS evaluated take a cut.'),
+        h('strong', {}, `${fmtInt(S.nPen)} of the ${fmtInt(S.n)} hospitals`), ' CMS evaluated take a cut. ',
+        `That is ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} hospitals measured on at least one condition.`),
       h('div', { class: 'hero__search' }, omnibox(index, { big: true, placeholder: 'Look up a hospital, city, state, or metro area' })),
       h('p', { class: 'hero__hint' }, 'Try ',
         h('a', { href: link('state', 'TX') }, 'Texas'), ', ',
@@ -33,7 +34,7 @@ function hero(D, index, S) {
       h('div', { class: 'form summary' },
         h('div', { class: 'form__title' }, h('span', {}, `${D.edition.label} at a glance`), h('span', {}, 'All figures from CMS unless marked')),
         field(1, 'Hospitals evaluated', fmtInt(S.n)),
-        field(2, 'Hospitals penalized', fmtInt(S.nPen), { note: `${fmtPct(S.pctPen, 1)} of hospitals` }),
+        field(2, 'Hospitals penalized', fmtInt(S.nPen), { note: `${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition` }),
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
         field(4, 'Average cut, penalized only', fmtPct(S.meanRedPen)),
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
@@ -111,6 +112,10 @@ function historyPart(D) {
     series: [{ label: 'Estimated total', kind: 'bar', values: nat.map((r) => (r.totalEst ? r.totalEst / 1e6 : null)), fmt: (v) => `$${Math.round(v)}M`,
       tipExtra: (p) => [D.nationalByFy[p.fy].totalSrc?.label || ''] }] });
   const missing = nat.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(', ');
+  // The bars count every hospital in each year's file (comparable across years); the headline counts only measured ones.
+  const barNow = D.nationalByFy[D.meta.fy]?.pctPen;
+  const whyDiffers = barNow != null && fmtPct(barNow, 0) !== fmtPct(D.nation.pctPen, 0)
+    ? ` That is why ${D.edition.label} shows ${fmtPct(barNow, 0)} here, not the ${fmtPct(D.nation.pctPen, 0)} headline, which counts only hospitals measured on at least one condition.` : '';
 
   const timeline = h('ol', { class: 'ledger' }, D.timeline.map((t) => h('li', { class: t.fy && t.fy > D.meta.fy ? 'is-future' : null },
     h('span', { class: 'ledger__date' }, t.fy ? `FY${t.fy}` : t.date.slice(0, 4)),
@@ -119,7 +124,10 @@ function historyPart(D) {
 
   return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: 'The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much.' },
     h('div', { class: 'grid-2' },
-      figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
+      figure({ title: 'Share of hospitals penalized',
+        take: `Counts every hospital in each year's CMS file.${whyDiffers} Files for FY2013–FY2018 left out Maryland, Puerto Rico, and hospitals with no measured conditions.`
+          + ' KFF Health News reported somewhat lower counts for FY2015, FY2016 and FY2018 (2,610, 2,592 and 2,573); this chart counts every hospital with a cut in CMS\'s final file.',
+        source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
       figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
       figure({ title: 'Estimated total penalties', take: `Dark bars: CMS figures, mostly estimates made when each year's rule was published. Light bars: CMS estimates as reported by KFF Health News. Hover a bar for its exact source. We found no total for ${missing}.`,
