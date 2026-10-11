@@ -1,7 +1,8 @@
 // Bundle JS (d3 subset included), inline CSS + data, and write two outputs:
 //   ../docs/index.html   full document served by Vercel
 //   dist/artifact.html   body-only fragment for a claude.ai artifact preview
-// Env: FEEDBACK_URL overrides the feedback endpoint (tests); BUILD_OUT_DIR writes index.html elsewhere.
+// Env: FEEDBACK_URL overrides the feedback endpoint (tests); BUILD_OUT_DIR writes index.html elsewhere;
+// HRRP_DATA builds from another data file (previewing a pipeline change; use with BUILD_OUT_DIR).
 import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +24,7 @@ const bundle = async (endpoint) => (await build({ entryPoints: [fileURLToPath(he
 const js = await bundle(process.env.FEEDBACK_URL ?? FEEDBACK_URL);
 // The claude.ai preview can't reach Google's script host, so its copy has the form switched off.
 const previewJs = await bundle('');
-const rawData = read('src/data/hrrp.json');
+const rawData = process.env.HRRP_DATA ? readFileSync(process.env.HRRP_DATA, 'utf8') : read('src/data/hrrp.json');
 const { fy } = JSON.parse(rawData).meta;
 // Escape every '<' so no data string can close the script element.
 const data = rawData.replace(/</g, '\\u003c');
