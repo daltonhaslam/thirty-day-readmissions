@@ -46,21 +46,27 @@ export function median(a) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-// Hospitals with no dollar estimate (missing from the IPPS impact file); dollar totals count them as $0.
+// Hospitals with no dollar estimate (missing from the IPPS impact file); dollar totals leave them out.
 export const noEstimate = (list) => list.filter((h) => h.pen == null).length;
 // Short clause for a dollar total's note; empty when every hospital has an estimate.
 export function noEstimateNote(list) {
   const n = noEstimate(list);
-  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} counted as $0` : '';
+  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} left out of the total` : '';
 }
+
+// Measured on at least one condition: only these hospitals can be penalized.
+export const measuredAny = (h) => CONDS.some((k) => isMeasured(h.c?.[k]));
 
 export function summarize(list) {
   const reds = list.map((h) => h.red);
   const pen = reds.filter((r) => r > 0);
+  const nMeasured = list.filter(measuredAny).length;
   return {
     n: list.length,
     nPen: pen.length,
-    pctPen: list.length ? (100 * pen.length) / list.length : 0,
+    nMeasured,
+    // Share of hospitals measured on at least one condition that take a cut.
+    pctPen: nMeasured ? (100 * pen.length) / nMeasured : 0,
     meanRed: mean(reds),
     get medianRed() { return median(reds); },
     meanRedPen: mean(pen),
@@ -116,7 +122,7 @@ export function applyFilters(list, f = {}) {
     && (f.beds == null || bedBand(h.beds) === f.beds)
     && (f.urban == null || h.urban === f.urban)
     && (f.cond == null || h.c?.[f.cond]?.flag === 1)
-    && (!text || norm(`${h.name} ${h.city} ${h.st} ${h.id}`).includes(text)));
+    && (!text || norm(`${h.name} ${h.alias ?? ''} ${h.city} ${h.st} ${h.id}`).includes(text)));
 }
 
 export function fmtPct(v, dp = 2) {
@@ -138,16 +144,23 @@ export function fmtMoney(v) {
   return `$${Math.round(v)}`;
 }
 
-function csvCell(v) {
+// For export: v rounded to dp decimals, or null.
+export const roundTo = (v, dp) => (v == null || !Number.isFinite(v) ? null : Number(v.toFixed(dp)));
+
+// Excel drops a CCN's leading zero unless the cell is the formula ="010001". Only a strict six-character code in a
+// column marked `ccn` gets that; every other text cell starting with a formula character is neutralized.
+const CCN_CELL = /^[0-9A-Z]{6}$/;
+function csvCell(v, ccn = false) {
   if (v == null) return '';
   let s = String(v);
-  if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (ccn && CCN_CELL.test(s)) s = `="${s}"`;
+  else if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCSV(rows, columns) {
   const lines = [columns.map((c) => csvCell(c.label)).join(',')];
-  for (const r of rows) lines.push(columns.map((c) => csvCell(c.value ? c.value(r) : r[c.key])).join(','));
+  for (const r of rows) lines.push(columns.map((c) => csvCell(c.value ? c.value(r) : r[c.key], c.ccn)).join(','));
   return `${lines.join('\r\n')}\r\n`;
 }
 
@@ -197,7 +210,7 @@ export function verdict(h, meta) {
 }
 
 // What-if factor: CMS's published factor moved by the recomputed change. When no measured condition is
-// above its median any more the cut is zero by CMS's rule; this also absorbs the 0.0001 rounding gap and
+// above its median any more the cut is zero by CMS's rule; this also absorbs any gap left by rounded inputs and
 // any share CMS counted that cannot be recomputed (a flagged condition with no published payment weight).
 export function whatIfPaf(h, meta, over) {
   const anyAbove = CONDS.some((k) => {

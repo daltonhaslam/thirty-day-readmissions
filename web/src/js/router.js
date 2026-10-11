@@ -2,7 +2,7 @@
 // including viewers that only pass through simple #anchors.
 //   #                      home           #how #picture #map #history #explore #research  home sections
 //   #hospital-010001       hospital       #state-ut  #metro-41620  #division-south-atlantic  #region-west
-//   #methods               methods
+//   #methods               methods        #methods-dollars  a section of Methods (the hash is the element id)
 
 import { slug } from './model.js';
 
@@ -19,6 +19,8 @@ const KEYS = {
   region: (k) => (/^(northeast|midwest|south|west)$/.test(k) ? k : null),
 };
 
+// In-page sections of Methods that other pages link to: key -> element id (the same as its hash).
+export const METHODS_SECTIONS = { dollars: 'methods-dollars' };
 const route = (view, key = null, section = null) => ({ view, key, section });
 
 export function parseHash(hash) {
@@ -30,6 +32,7 @@ export function parseHash(hash) {
   }
   if (!s || s === 'top') return route('home');
   if (s === 'methods') return route('methods');
+  if (Object.values(METHODS_SECTIONS).includes(s)) return route('methods', null, s);
   if (SECTIONS.includes(s)) return route('home', null, s);
   const m = /^([a-z]+)-(.+)$/i.exec(s);
   const check = m && KEYS[m[1].toLowerCase()];
@@ -39,7 +42,8 @@ export function parseHash(hash) {
 
 export function link(view, key) {
   if (view === 'home' || !view) return '#';
-  if (view === 'methods' || SECTIONS.includes(view)) return `#${view}`;
+  if (view === 'methods') return `#${METHODS_SECTIONS[key] ?? 'methods'}`;
+  if (SECTIONS.includes(view)) return `#${view}`;
   return `#${view}-${String(key).toLowerCase()}`;
 }
 

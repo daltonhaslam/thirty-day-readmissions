@@ -6,8 +6,18 @@ import { dualBands } from '../charts/dualBands.js';
 import { CONDS, PEERS, contrib, peerMedian, condState, isMeasured, weightPublished, niceDomain, WEIGHT_MISSING, MIN_DISCHARGES, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { link, partNo } from '../router.js';
 import { omnibox } from '../ui/omnibox.js';
+import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
+
+// The worksheet's last check: does line 9 match CMS's factor, and if not, why.
+export function factorCheck(hosp, recomputed) {
+  const gap = Math.abs(recomputed - hosp.paf);
+  if (gap < 1e-9) return '· matches';
+  const noWeight = CONDS.some((k) => hosp.c[k]?.flag === 1 && !weightPublished(hosp.c[k]));
+  return `· differs by ${gap.toFixed(4)} (${noWeight ? 'CMS counted a condition whose payment weight it did not publish'
+    : 'CMS used unrounded ratios and weights; this copy of its file rounds them to four decimals'})`;
+}
 
 // Pick a typical, readable example: median-sized penalty, several conditions counted.
 export function exampleHospital(D) {
@@ -39,7 +49,6 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('td', { class: 'num strong' }, counted ? `${(r.byCond[k] * 100).toFixed(3)}%` : '0'));
   });
   const recomputed = r.paf;
-  const match = Math.abs(recomputed - hosp.paf) < 1e-9;
   return h('div', { class: 'worksheet' },
     h('div', { class: 'worksheet__title' },
       h('span', {}, 'Worksheet R · Readmissions payment adjustment'),
@@ -59,8 +68,8 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('li', {}, h('span', {}, 'Line 7 · Sum of line 6'), h('b', {}, `${(r.sum * 100).toFixed(3)}%`)),
       h('li', {}, h('span', {}, 'Line 8 · Line 7, capped at 3%, rounded'), h('b', {}, fmtPct(Math.round(r.reduction * 1e4) / 100))),
       h('li', {}, h('span', {}, 'Line 9 · Payment adjustment factor (1 − line 8)'), h('b', {}, recomputed.toFixed(4))),
-      h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${match ? '· matches' : '· differs by 0.0001 (CMS used unrounded values; this file rounds them to four decimals)'}`)),
-      compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, `≈ ${fmtMoney(hosp.pen)} estimated`))));
+      h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${factorCheck(hosp, recomputed)}`)),
+      compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, hosp.pen != null ? [`≈ ${fmtMoney(hosp.pen)}`, estTag()] : 'no estimate'))));
 }
 
 export function explainerPart(D, index) {

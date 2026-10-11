@@ -4,6 +4,7 @@ import { themeButton } from '../ui/theme.js';
 import { link, SECTION_LIST } from '../router.js';
 import { SITE_NAME, LINKEDIN_URL } from '../site.js';
 import { feedbackSection } from '../ui/feedbackForm.js';
+import { DOLLARS_HREF } from './util.js';
 
 export function renderShell(D, index) {
   const nav = [...SECTION_LIST.map(([id, label]) => [id, id === 'picture' ? D.edition.label : label]), ['methods', 'Methods']];
@@ -23,8 +24,8 @@ export function renderShell(D, index) {
       h('p', { class: 'byline' }, 'Built by Dalton Haslam, MD, MBA, using ',
         h('a', { href: 'https://claude.com/claude-code', rel: 'noopener', target: '_blank' }, 'Claude Code'), ' · ',
         h('a', { href: LINKEDIN_URL, rel: 'noopener', target: '_blank' }, 'LinkedIn')),
-      h('p', {}, `Data: CMS ${D.edition.label} Hospital Readmissions Reduction Program Supplemental Data File (posted ${D.meta.fileDate}), ${D.edition.label} IPPS final rule files, CMS Care Compare, and US Census geography. Figures marked "estimated" are modeled here; see `,
-        h('a', { href: '#methods' }, 'Methods'), '.')),
+      h('p', {}, `Data: CMS ${D.edition.label} Hospital Readmissions Reduction Program Supplemental Data File (posted ${D.meta.fileDate}), ${D.edition.label} IPPS final rule files, CMS Care Compare, and US Census geography. Dollar figures tagged "estimate" are modeled on this site; see `,
+        h('a', { href: DOLLARS_HREF }, 'the assumptions'), '.')),
     h('div', {},
       h('p', {}, 'An independent project. Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.'),
       h('p', { class: 'small' }, 'Code MIT-licensed. Federal source data is public domain.'))));

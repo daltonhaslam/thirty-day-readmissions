@@ -13,7 +13,7 @@ const step = (cuts, labels, shown = rounded(0)) => ({ cls: (v) => `p${1 + cuts.f
 export const METRICS = {
   avg: { label: 'Average cut', value: (sm) => sm.meanRed, fmt: (v) => fmtPct(v),
     ...step([0.25, 0.35, 0.45, 0.6], ['under 0.25%', '0.25–0.34%', '0.35–0.44%', '0.45–0.59%', '0.60%+'], rounded(2)) },
-  pct: { label: 'Share penalized', value: (sm) => sm.pctPen, fmt: (v) => fmtPct(v, 0),
+  pct: { label: 'Share penalized', value: (sm) => sm.pctPen, fmt: (v) => fmtPct(v, 0), note: 'of hospitals measured on at least one condition',
     ...step([70, 80, 85, 90], ['under 70%', '70–79%', '80–84%', '85–89%', '90%+']) },
   dollars: { label: 'Estimated dollars', value: (sm) => sm.penTotal, fmt: (v) => fmtMoney(v),
     ...step([2e6, 5e6, 10e6, 20e6], ['under $2M', '$2–5M', '$5–10M', '$10–20M', '$20M+'], rounded(1, 1e6)) },
@@ -36,7 +36,8 @@ export function mapLegend(metricKey) {
   const m = METRICS[metricKey];
   return h('div', { class: 'legend' },
     m.labels.map((l, i) => h('span', {}, h('span', { class: 'sw', style: { background: `var(--p${i + 1})` } }), l)),
-    h('span', {}, h('span', { class: 'sw sw--hatch' }), 'not in program'));
+    h('span', {}, h('span', { class: 'sw sw--hatch' }), 'not in program'),
+    m.note ? h('span', { class: 'muted' }, `Share penalized is ${m.note}.`) : null);
 }
 
 const mapLabel = (metricKey) => `Map of ${METRICS[metricKey || 'avg'].label.toLowerCase()} by state`;
@@ -95,7 +96,7 @@ export function usMap(el, D, opts) {
       .on('mousemove', (e, f) => {
         const sm = f.abbr && stateSummary.get(f.abbr);
         if (!sm) return showTip(e, f.properties.name, [f.properties.name === 'Maryland' ? 'Exempt: Maryland\'s own payment model' : 'No hospitals in the program']);
-        return showTip(e, f.properties.name, [['Hospitals', fmtInt(sm.n)], ['Penalized', fmtPct(sm.pctPen, 0)], ['Average cut', fmtPct(sm.meanRed)], ['Estimated', fmtMoney(sm.penTotal)]]);
+        return showTip(e, f.properties.name, [['Hospitals', fmtInt(sm.n)], ['Penalized', `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`], ['Average cut', fmtPct(sm.meanRed)], ['Estimated', fmtMoney(sm.penTotal)]]);
       })
       .on('mouseleave', hideTip)
       .on('click', (e, f) => f.abbr && o.onState?.(f.abbr));

@@ -6,11 +6,13 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, vsLabel, noEstimateNote, PEERS } from '../model.js';
-import { summaryColumns } from './columns.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, PEERS } from '../model.js';
+import { summaryColumns, summaryCsvColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
+import { estTag, placesSource } from './util.js';
+import { meanCutByYear, COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
 export function resolveScope(D, route) {
@@ -53,15 +55,12 @@ const rankOf = (D, kind, value) => {
 
 function scopeTrend(D, list) {
   const { years } = D;
-  const per = years.map((fy, i) => {
-    const vals = list.map((x) => (fy === D.meta.fy ? x.paf : D.history.paf[x.id]?.[i])).filter((v) => v != null);
-    return vals.length ? mean(vals.map(cutPct)) : null;
-  });
   const el = h('div');
-  trendChart(el, { years, label: 'Average cut by year, this area vs the nation', yFormat: (d) => `${d}%`,
+  trendChart(el, { years, label: `Average cut by year, this area vs all hospitals in the ${D.edition.label} program`, yFormat: (d) => `${d}%`,
+    annotations: D.capMarks, bands: [COVID_GAP],
     series: [
-      { label: 'This area', kind: 'line', values: per, fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
-      { label: 'Nation', kind: 'line', values: years.map((fy) => D.nationalByFy[fy]?.meanRed ?? null), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
+      { label: 'This area', kind: 'line', values: meanCutByYear(list, { years, history: D.history, fy: D.meta.fy }), fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
+      { label: `All hospitals in the ${D.edition.label} program`, kind: 'line', values: D.programTrend, fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   return el;
 }
 
@@ -74,17 +73,20 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in ${D.edition.label}, averaging ${fmtPct(S.meanRed)} across all of them`
-    + `${rank ? `, ${rank.rank === 1 ? 'the largest average' : `the ${ordinal(rank.rank)}-largest average`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}${noEstNote ? ` (${noEstNote})` : ''}.`;
+  const hosp = (n) => `${fmtInt(n)} ${n === 1 ? 'hospital' : 'hospitals'}`;
+  const deck = `${fmtInt(S.nPen)} of ${hosp(S.n)} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
+    + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${hosp(S.n)}`}, is ${fmtPct(S.meanRed)}`
+    + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
+  const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];
 
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
     field(1, 'Hospitals', fmtInt(S.n)),
-    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: vsLabel(S.pctPen, N.pctPen, 0, 'pts') }),
+    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: `of ${fmtInt(S.nMeasured)} measured · ${vsLabel(S.pctPen, N.pctPen, 0, 'pts')}` }),
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),
-    field(6, 'Estimated dollars', fmtMoney(S.penTotal), { note: noEstNote ? `modeled; see Methods. ${noEstNote}` : 'modeled; see Methods' }));
+    field(6, 'Estimated dollars', [fmtMoney(S.penTotal), estTag()], { note: noEstNote ? `${noEstNote[0].toUpperCase()}${noEstNote.slice(1)}.` : null }));
 
   const mapEl = h('div', { class: 'map map--scope' });
   const scopeStates = [...new Set(list.map((x) => x.st))];
@@ -103,9 +105,10 @@ export function renderScope(D, route, state = {}) {
   let childTable = null;
   if (sc.children?.rows.length) {
     const rows = sc.children.rows.map((c) => ({ ...c, ...summarize(c.list) })).filter((r) => r.n);
+    const rowLabel = sc.children.title.replace(/s$/, '');
     childTable = figure({ title: sc.children.title, take: 'Select a row to drill down.', source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`,
       body: greenbarTable({ rows, pageSize: 25, sort: { key: 'n', dir: 'desc' }, csvName: `${slugify(sc.name)}-${slugify(sc.children.title)}.csv`,
-        rowHref: (r) => r.href, columns: summaryColumns(sc.children.title.replace(/s$/, '')) }).el });
+        rowHref: (r) => r.href, columns: summaryColumns(rowLabel), csvColumns: summaryCsvColumns(rowLabel) }).el });
   }
 
   const el = h('div', { class: 'wrap scope' },
@@ -113,18 +116,18 @@ export function renderScope(D, route, state = {}) {
       breadcrumb(sc.crumbs, sc.name),
       h('div', { class: 'cap hero__kicker' }, sc.kind + (sc.multiState ? ` · spans ${sc.states.join(', ')}` : '')),
       h('h1', { class: 'scope__title' }, sc.name),
-      h('p', { class: 'scope__deck' }, deck)),
+      h('p', { class: 'scope__deck' }, deck, total)),
     kpis,
     h('div', { class: 'grid-2 grid-2--wide-left scope__row' },
       figure({ title: 'Hospitals on the map', take: route.view === 'metro' ? 'Hospitals in this metro area are sized by Medicare volume and shaded by cut; gray dots are other hospitals in the state. Select one to open it.' : 'Dots are sized by Medicare volume and shaded by cut. Select one to open it.',
-        source: 'Locations from Care Compare addresses and Census ZIP centroids.', body: h('div', {}, mapEl, dotLegend()) }),
+        source: `${placesSource(D.meta).replace(/^./, (c) => c.toUpperCase())}.`, body: h('div', {}, mapEl, dotLegend()) }),
       figure({ title: 'Size of the cuts', take: `Bars: ${sc.name}. Outline: all hospitals. Both as shares, so areas of any size compare.`,
         source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: histEl })),
     conditionFigure(D, list, { compare: D.hospitals }),
     h('div', { class: 'grid-2' },
       figure({ title: 'Peer groups', take: 'How many hospitals here fall in each dual-eligible peer group. Group 5 serves the most low-income patients.',
         source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: barRows(peerRows, { ink: true }) }),
-      figure({ title: 'Average cut over time', take: `Red: hospitals in ${sc.name} that are in this year's program. Dashed: all hospitals nationally.`,
+      figure({ title: 'Average cut over time', take: `Red: hospitals in ${sc.name} that are in the ${D.edition.label} program. Dashed: every hospital in the ${D.edition.label} program, nationwide. Each year averages those in that year's file. ${COVID_GAP_NOTE}`,
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: scopeTrend(D, list) })),
     childTable,
     part({ no: null, id: 'scope-hospitals', title: `Hospitals in ${sc.name}` },

@@ -4,10 +4,12 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
-import { hospitalColumns } from './columns.js';
+import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
+import { hospitalColumns, CSV_COLUMNS } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
+import { estTag } from './util.js';
+import { COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 import { openFeedback, FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 
 let bandsCache = null;
@@ -18,7 +20,17 @@ function rankLine(D, x) {
   const peer = D.hospitals.filter((y) => y.peer === x.peer).map((y) => y.red).sort((a, b) => a - b);
   const p = (arr) => rankPct(arr, x.red);
   if (x.red <= 0) return 'No reduction, like ' + fmtInt(D.hospitals.filter((y) => y.red <= 0).length - 1) + ' other hospitals.';
-  return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
+  return `Larger cut than ${p(D.sortedRed)}% of hospitals nationally, ${p(st)}% of the ${fmtInt(st.length)} in ${D.meta.states[x.st]}, and ${p(peer)}% in peer group ${x.peer}.`;
+}
+
+// Bed counts are CMS certified beds; the few from the cost report instead are marked.
+export const bedsLabel = (x) => (x.beds ? `${fmtInt(x.beds)} beds${x.bedsSrc === 'cr' ? ' (cost report)' : ''}` : null);
+
+// For a hospital whose Medicare agreement CMS lists as ended. It stays in every ranking and total.
+export function inactiveSentence(D, x) {
+  const { date, reason } = x.inactive;
+  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended on ${fmtDate(date, 'long')}${reason ? ` (${reason})` : ''}. `
+    + `It will not be paid under this ID in ${D.edition.label}, so its cut is unlikely to be collected.`;
 }
 
 function summarySentence(D, x, v) {
@@ -30,7 +42,10 @@ function summarySentence(D, x, v) {
     return `${name} has no ${D.edition.label} cut. ${names[0].toUpperCase()}${names.slice(1)} came in above the peer-group median, but `
       + `${v.above.length > 1 ? 'their share' : 'its share'} of the hospital's Medicare payments is small enough that the reduction rounded to zero.`;
   }
-  return `Medicare will pay ${name} ${fmtPct(x.red)} less on the base payment for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
+  // An inactive hospital will not be paid under this CCN, so its cut is stated without promising a year of payments.
+  const lead = x.inactive ? `CMS set the ${D.edition.label} cut for ${name} at ${fmtPct(x.red)}. `
+    : `Medicare will pay ${name} ${fmtPct(x.red)} less on the base payment for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `;
+  return lead
     + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${inSentence(D.condByKey[v.top].short)} added the most.`;
 }
 
@@ -58,7 +73,7 @@ function whatIf(D, x, measured) {
     clear(out).append(
       field('W1', 'Hypothetical cut', fmtPct(red), { big: true, note: `Actual: ${fmtPct(x.red)}` }),
       field('W2', 'Payment adjustment factor', paf.toFixed(4), { note: `Actual: ${x.paf.toFixed(4)}` }),
-      field('W3', 'Estimated dollars', fmtMoney(dollars), { note: x.pen != null ? `Current estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
+      field('W3', 'Estimated dollars', dollars != null ? [fmtMoney(dollars), estTag()] : '—', { note: x.pen != null ? `Current estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
   };
   const sliders = measured.map((k) => {
     const id = `wi-${k}`;
@@ -87,11 +102,12 @@ function historyChart(D, x) {
   const vals = years.map((fy, i) => (fy === D.meta.fy ? x.red : hist[i] != null ? cutPct(hist[i]) : null));
   const el = h('div');
   trendChart(el, { years, label: `Payment cut by year for ${x.name}`, yFormat: (d) => `${d}%`, yMax: Math.max(1, ...vals.filter((v) => v != null)) * 1.1,
+    annotations: D.capMarks, bands: [COVID_GAP],
     series: [{ label: x.name, kind: 'bar', values: vals, fmt: (v) => fmtPct(v), style: { fill: 'var(--p4)' } },
-      { label: 'National average', kind: 'line', values: years.map((fy) => D.nationalByFy[fy]?.meanRed ?? null), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
+      { label: `All hospitals in the ${D.edition.label} program`, kind: 'line', values: D.programTrend, fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   const n = vals.filter((v) => v != null).length;
   const pen = vals.filter((v) => v > 0).length;
-  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: national average. "n/a" means the hospital was not in that year's file, or had no condition with enough cases.` };
+  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: average across every hospital in the ${D.edition.label} program. "n/a" means the hospital was not in that year's file, or had no condition with enough cases. ${COVID_GAP_NOTE}` };
 }
 
 // Returns [element, title] or null for an unknown CCN.
@@ -100,7 +116,7 @@ export function renderHospital(D, id) {
   if (!x) return null;
   bandsCache ??= peerBands(D.hospitals);
   const v = verdict(x, D.meta);
-  const types = [TEACH_LABEL[x.teach], x.beds ? `${fmtInt(x.beds)} beds` : null, x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
+  const types = [TEACH_LABEL[x.teach], bedsLabel(x), x.own, x.urban == null ? null : x.urban ? 'Urban' : 'Rural', ...x.types.map((t) => TYPES[t])].filter(Boolean);
   const neighbors = (x.cbsa ? D.byCbsa.get(x.cbsa) : D.byState.get(x.st).filter((y) => !y.cbsa)).filter(Boolean);
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
@@ -115,7 +131,8 @@ export function renderHospital(D, id) {
       h('div', { class: 'form hosp__id' },
         h('div', { class: 'form__title' }, h('span', {}, `Hospital record · ${D.edition.label}`), h('span', {}, `CCN ${x.id}`)),
         h('div', { class: 'field field--wide' }, h('div', { class: 'field__label' }, h('span', { class: 'field__no' }, '1'), 'Hospital'),
-          h('h1', { class: 'hosp__name' }, x.name)),
+          h('h1', { class: 'hosp__name' }, x.name),
+          x.alias ? h('p', { class: 'hosp__alias' }, `Also listed by CMS as ${x.alias}`) : null),
         field(2, 'Location', [x.place, x.zip ? ` ${x.zip}` : ''].join(''), { note: x.county ? `${x.county} County` : null }),
         field(3, 'Metro area', x.cbsaName || 'Outside metro areas', { note: x.cbsa ? h('a', { href: link('metro', x.cbsa) }, 'See this metro') : h('a', { href: link('state', x.st) }, `See ${D.meta.states[x.st]}`) }),
         field(4, 'Type', types.join(' · ') || '—', { small: true }),
@@ -123,11 +140,14 @@ export function renderHospital(D, id) {
         field(6, 'Care Compare stars', x.star ? `${'★'.repeat(x.star)}${'☆'.repeat(5 - x.star)}` : 'Not rated',
           { note: h('a', { href: `https://www.medicare.gov/care-compare/details/hospital/${x.id}`, target: '_blank', rel: 'noopener' }, 'Open on Medicare.gov') })),
       h('div', { class: 'hosp__verdict' },
-        h('span', { class: `stamp ${x.red > 0 ? '' : 'stamp--ink'}` }, x.red > 0 ? `Cut ${fmtPct(x.red)}` : 'No cut'),
+        h('div', { class: 'hosp__stamps' },
+          h('span', { class: `stamp ${x.red > 0 ? '' : 'stamp--ink'}` }, x.red > 0 ? `Cut ${fmtPct(x.red)}` : 'No cut'),
+          x.inactive ? h('span', { class: 'stamp stamp--ink' }, 'Inactive') : null),
         h('p', { class: 'hosp__summary' }, summarySentence(D, x, v)),
+        x.inactive ? h('p', { class: 'hosp__inactive' }, inactiveSentence(D, x)) : null,
         h('div', { class: 'form hosp__nums' },
           field('A', 'Payment adjustment factor', x.paf.toFixed(4), { note: 'CMS, final' }),
-          field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
+          field('B', 'Estimated dollars', x.pen != null ? [fmtMoney(x.pen), estTag()] : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
         h('p', { class: 'small muted' }, rankLine(D, x)),
         FEEDBACK_ENABLED ? h('button', { class: 'btn hosp__report', type: 'button', onclick: () => openFeedback({ kind: 'data' }) }, 'Report a problem with this hospital\'s data') : null)),
     figure({ title: 'Where the penalty came from', take: `Each row is one condition. Dot: this hospital's ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals with enough cases to be measured on that condition.${capNote}`,
@@ -139,6 +159,6 @@ export function renderHospital(D, id) {
     neighbors.length > 1 ? figure({ title: x.cbsa ? `Other hospitals in ${x.cbsaName}` : `Other hospitals outside metro areas in ${D.meta.states[x.st]}`,
       take: 'This hospital is highlighted.', source: `CMS ${D.edition.label} HRRP Supplemental Data File.`,
       body: greenbarTable({ columns: hospitalColumns(D, { compact: true }), rows: neighbors, pageSize: 12, sort: { key: 'red', dir: 'desc' },
-        rowHref: (y) => link('hospital', y.id), rowClass: (y) => (y.id === x.id ? 'is-current' : null), csvName: 'nearby.csv' }).el }) : null);
+        rowHref: (y) => link('hospital', y.id), rowClass: (y) => (y.id === x.id ? 'is-current' : null), csvName: 'nearby.csv', csvColumns: CSV_COLUMNS }).el }) : null);
   return [el, x.name];
 }

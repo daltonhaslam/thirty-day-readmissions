@@ -24,7 +24,8 @@ export function buildIndex({ hospitals, states, metros }) {
   for (const [code, name] of Object.entries(metros)) out.push(entry('metro', String(code), name, 'Metro area'));
   for (const h of hospitals) {
     const where = [h.city, h.st].filter(Boolean).join(', ');
-    out.push(entry('hospital', h.id, h.name, where, `${h.city ?? ''} ${h.st ?? ''} ${h.zip ?? ''} ${h.id}`));
+    out.push(entry('hospital', h.id, h.name, h.alias ? `${where} · also listed as ${h.alias}` : where,
+      `${h.alias ?? ''} ${h.city ?? ''} ${h.st ?? ''} ${h.zip ?? ''} ${h.id}`));
   }
   return out;
 }

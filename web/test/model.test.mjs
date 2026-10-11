@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONDS, contrib, summarize, percentileRank, scopeFilter, applyFilters, bedBand,
-  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote,
+  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo,
 } from '../src/js/model.js';
 
 // CMS methodology infographic, Hospital A (peer group 4, NM 0.9458)
@@ -53,18 +53,34 @@ test('summarize handles empty lists without NaN', () => {
   assert.equal(s.n, 0);
 });
 
+const MEASURED = { HF: { n: 40, err: 1.1 } };
 test('summarize counts penalties, cap, and dollars', () => {
   const list = [
-    { paf: 1, red: 0, pen: 0, base: 100 },
-    { paf: 0.99, red: 1, pen: 10, base: 1000 },
-    { paf: 0.97, red: 3, pen: 30, base: 1000 },
-    { paf: 0.998, red: 0.2, pen: null, base: null },
+    { paf: 1, red: 0, pen: 0, base: 100, c: MEASURED },
+    { paf: 0.99, red: 1, pen: 10, base: 1000, c: MEASURED },
+    { paf: 0.97, red: 3, pen: 30, base: 1000, c: MEASURED },
+    { paf: 0.998, red: 0.2, pen: null, base: null, c: MEASURED },
   ];
   const s = summarize(list);
-  assert.deepEqual([s.n, s.nPen, s.nMax, s.nGe1, s.penTotal, s.baseTotal], [4, 3, 1, 2, 40, 2100]);
+  assert.deepEqual([s.n, s.nPen, s.nMeasured, s.nMax, s.nGe1, s.penTotal, s.baseTotal], [4, 3, 4, 1, 2, 40, 2100]);
   assert.equal(s.pctPen, 75);
   assert.ok(Math.abs(s.meanRed - 1.05) < 1e-9);
   assert.ok(Math.abs(s.meanRedPen - 1.4) < 1e-9);
+});
+
+test('summarize: share penalized is of hospitals measured on at least one condition', () => {
+  const list = [
+    { red: 0.5, c: MEASURED },
+    { red: 0, c: { HF: { n: 40, err: 0.9 }, AMI: { n: 10, err: 1.2 } } },
+    { red: 0, c: { HF: { n: 24, err: 1.3 } } }, // under 25 cases: not measured
+    { red: 0, c: { PN: { n: 80, err: null } } }, // no published ratio: not measured
+    { red: 0 }, // no conditions at all
+  ];
+  const s = summarize(list);
+  assert.deepEqual([s.n, s.nPen, s.nMeasured], [5, 1, 2]);
+  assert.equal(s.pctPen, 50);
+  const none = summarize([{ red: 0, c: {} }]);
+  assert.deepEqual([none.nMeasured, none.pctPen], [0, 0]);
 });
 
 test('percentileRank is the share of values strictly below', () => {
@@ -121,8 +137,17 @@ test('CSV quotes specials and neutralizes spreadsheet formulas in text', () => {
   assert.equal(csv, 'Name,Note,V\r\n"He said ""hi"", ok",\'=SUM(A1),-1.5\r\n');
 });
 
+test('CSV writes a CCN column as ="010001" so Excel keeps the zero; the formula guard still covers everything else', () => {
+  const cols = [{ key: 'id', label: 'CCN', ccn: true }, { key: 'note', label: 'Note' }];
+  const csv = toCSV([{ id: '010001', note: '="010001"' }, { id: '=1+1', note: 'ok' }, { id: '05012F', note: '+x' }], cols);
+  assert.deepEqual(csv.split('\r\n'), ['CCN,Note', '"=""010001""","\'=""010001"""', '\'=1+1,ok', '"=""05012F""",\'+x', '']);
+  assert.equal(roundTo(91.66666666666667, 1), 91.7);
+  assert.equal(roundTo(null, 2), null);
+  assert.equal(roundTo(19712.4, 0), 19712);
+});
+
 test('noEstimateNote counts hospitals with no dollar estimate, and is empty when none', () => {
   assert.equal(noEstimateNote([{ pen: 5 }, { pen: 0 }]), '');
-  assert.equal(noEstimateNote([{ pen: null }, { pen: 5 }]), '1 hospital has no estimate and is counted as $0');
-  assert.equal(noEstimateNote([{ pen: null }, { pen: undefined }]), '2 hospitals have no estimate and are counted as $0');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: 5 }]), '1 hospital has no estimate and is left out of the total');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: undefined }]), '2 hospitals have no estimate and are left out of the total');
 });
