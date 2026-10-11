@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { layoutLabels } from '../src/js/charts/trend.js';
 
-const mark = (ax, text) => ({ ax, start: ax + 3, end: ax + 3, text });
+const mark = (ax, text) => ({ ax, x: ax + 3, text });
 const overlaps = (placed, gap) => placed.some((a) => placed.some((b) => a !== b && a.row === b.row && a.x0 < b.x0 && b.x0 < a.x1 + gap));
 
 test('labels that would collide go to the next row; ones that fit share a row', () => {

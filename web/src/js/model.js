@@ -51,7 +51,7 @@ export const noEstimate = (list) => list.filter((h) => h.pen == null).length;
 // Short clause for a dollar total's note; empty when every hospital has an estimate.
 export function noEstimateNote(list) {
   const n = noEstimate(list);
-  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} left out of the total` : '';
+  return n ? `${plural(n, 'hospital has', 'hospitals have')} no estimate and ${n === 1 ? 'is' : 'are'} left out of the total` : '';
 }
 
 // Measured on at least one condition: only these hospitals can be penalized.
@@ -133,6 +133,12 @@ export function fmtInt(v) {
   return v == null || !Number.isFinite(v) ? '—' : Math.round(v).toLocaleString('en-US');
 }
 
+// "1 hospital", "2,912 hospitals".
+export const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
+export const upFirst = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// "83% of 2,798 measured", from a summarize() result.
+export const penalizedOfMeasured = (sm) => `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`;
+
 export function fmtMoney(v) {
   if (v == null || !Number.isFinite(v)) return '—';
   const a = Math.abs(v);
@@ -145,7 +151,7 @@ export function fmtMoney(v) {
 }
 
 // For export: v rounded to dp decimals, or null.
-export const roundTo = (v, dp) => (v == null || !Number.isFinite(v) ? null : Number(v.toFixed(dp)));
+export const roundTo = (v, dp) => (Number.isFinite(v) ? Number(v.toFixed(dp)) : null);
 
 // Excel drops a CCN's leading zero unless the cell is the formula ="010001". Only a strict six-character code in a
 // column marked `ccn` gets that; every other text cell starting with a formula character is neutralized.

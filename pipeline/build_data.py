@@ -91,17 +91,12 @@ def ownership(detail, own_code):
     return OWN.get(own_code)
 
 
-def r4(v):
-    return None if v is None else round(v, 4)
-
-
-def rd(v):
-    return None if v is None else round(v, DECIMALS)
-
-
-def cms_round(v, places=4):
-    """Round half up, as CMS's published 4-decimal values are (Python's round() would give 0.15625 -> 0.1562)."""
-    return None if v is None else float(Decimal(repr(v)).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP))
+def rnd(v, places, half_up=False):
+    """v rounded to `places` decimals; None stays None. half_up rounds ties up, as CMS's published values are
+    (Python's round() would give 0.15625 -> 0.1562)."""
+    if v is None:
+        return None
+    return float(Decimal(repr(v)).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)) if half_up else round(v, places)
 
 
 def _values(s):
@@ -115,13 +110,13 @@ def precision_mismatches(full, published):
     if set(full) != set(published):
         return sorted((c, "missing") for c in set(full) ^ set(published))
     return [(c, f) for c in sorted(full) for (f, a), (_, b) in zip(_values(full[c]), _values(published[c]))
-            if cms_round(a) != b]
+            if rnd(a, 4, half_up=True) != b]
 
 
 def as_stored(s):
     """A supplemental record with its formula inputs rounded as hrrp.json stores them."""
-    return {**s, "nm": rd(s["nm"]),
-            "c": {k: {**c, "err": rd(c["err"]), "med": rd(c["med"]), "ratio": rd(c["ratio"])} for k, c in s["c"].items()}}
+    return {**s, "nm": rnd(s["nm"], DECIMALS),
+            "c": {k: {**c, **{f: rnd(c[f], DECIMALS) for f in ("err", "med", "ratio")}} for k, c in s["c"].items()}}
 
 
 def beds(cr, pos):
@@ -133,29 +128,22 @@ def beds(cr, pos):
 
 
 def inactive(p):
-    """{date, code, reason} when the Provider of Services file shows the hospital's Medicare participation ended."""
+    """{date, reason} when the Provider of Services file shows the hospital's Medicare participation ended."""
     reason = parse.POS_TERMINATION.get(p.get("term"))
-    return {"date": p["termDate"], "code": p["term"], "reason": reason} if reason else None
+    return {"date": p["termDate"], "reason": reason} if reason else None
 
 
-def bed_band(b):
-    """The site's bed-size bands (web/src/js/model.js BED_BANDS)."""
-    return None if b is None else "<100" if b < 100 else "100-299" if b < 300 else "300-499" if b < 500 else "500+"
-
-
-def report_pos(hospitals, impact):
-    """Print where bed counts came from, how many hospitals changed bed band, and the hospitals POS shows inactive."""
-    src = {k: sum(1 for x in hospitals if x["bedsSrc"] == k) for k in ("pos", "cr", None)}
+def report_pos(hospitals, impact, pos):
+    """Print where bed counts came from and the hospitals POS shows inactive, with their termination codes."""
+    n_cr, n_none = sum(1 for x in hospitals if "bedsSrc" in x), sum(1 for x in hospitals if x["beds"] is None)
+    print(f"beds: certified (POS) {len(hospitals) - n_cr - n_none}, cost report {n_cr}, none {n_none}")
     cr = {x["id"]: (impact.get(x["id"]) or {}).get("beds") or None for x in hospitals}
-    moved = sum(1 for x in hospitals if bed_band(x["beds"]) != bed_band(cr[x["id"]]))
-    print(f"beds: certified (POS) {src['pos']}, cost report {src['cr']}, none {src[None]}; "
-          f"{moved} hospitals in a different bed band than with cost-report beds")
     tiny = [x for x in hospitals if (cr[x["id"]] or 0) < 5]
     big = sorted(hospitals, key=lambda x: -abs((x["beds"] or 0) - (cr[x["id"]] or 0)))[:3]
     print("  cost-report beds -> certified: " + "; ".join(f"{x['id']} {cr[x['id']]}->{x['beds']}" for x in tiny + big))
-    off = [x for x in hospitals if x["inactive"]]
+    off = [x for x in hospitals if "inactive" in x]
     print(f"inactive in POS ({len(off)}, still ranked and totaled): " + "; ".join(
-        f"{x['id']} {x['name']} {x['inactive']['code']} {x['inactive']['date']}" for x in off))
+        f"{x['id']} {x['name']} {pos[x['id']]['term']} {x['inactive']['date']}" for x in off))
 
 
 def year_share(fy, end):
@@ -165,15 +153,18 @@ def year_share(fy, end):
     return ((last - start).days + 1) / ((stop - start).days + 1)
 
 
-def report_mdh(hospitals, addons, share):
+def report_mdh(hospitals, addons, share, shortfall):
     """Print how the Medicare-dependent hospital add-on changed the base and the estimated penalty."""
     paf = {x["id"]: x["paf"] for x in hospitals}
-    got = {c: (fed, a, a * (1 - paf[c])) for c, (fed, a) in addons.items() if a > 0}
+    got = {c: (fed, a, a * (1 - paf[c])) for c, (fed, a, _) in addons.items() if a > 0}
     print(f"MDH add-on ({share:.4f} of the year): {len(got)} of {len(addons)} MDHs, base +${sum(v[1] for v in got.values()) / 1e6:.1f}M, "
           f"estimated penalty +${sum(v[2] for v in got.values()) / 1e6:.2f}M")
     if got:
         rel, usd = max(got, key=lambda c: got[c][1] / got[c][0]), max(got, key=lambda c: got[c][2])
         print(f"  largest: {rel} base +{100 * got[rel][1] / got[rel][0]:.1f}%; {usd} penalty +${got[usd][2]:,.0f}")
+    if shortfall:
+        c = max(shortfall, key=shortfall.get)
+        print(f"  a full year of MDH status would leave estimates up to {shortfall[c]:.1f}% short ({c})")
 
 
 def group_constant(rows, value, label):
@@ -234,8 +225,13 @@ def locate(g, imp, st, zcta, counties, point=None):
 
 # Lookups shared by every hospital record. Collected for the build report: `moved`, (ccn, Care Compare county,
 # impact-file county, geo source) where the impact-file county replaced Care Compare's; `addons`, {ccn: (federal
-# base, MDH add-on)}.
+# base, MDH add-on, add-on had MDH status lasted the whole year)}.
 Ref = namedtuple("Ref", "zcta counties points cbsa_names rates mdh_share moved addons")
+
+
+# Left out of a hospital record when None: most hospitals have no alias, certified beds ("cr" marks the cost-report
+# fallback), and an active Medicare agreement.
+OPTIONAL = ("alias", "bedsSrc", "inactive")
 
 
 def hospital_record(ccn, s, imp, g, p, ref):
@@ -253,35 +249,35 @@ def hospital_record(ccn, s, imp, g, p, ref):
     types = sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
     base = model.est_base_payment(imp, ref.rates)
     if "MDH" in types and base is not None:
-        addon = model.est_mdh_addon(imp, base, ref.mdh_share)
-        ref.addons[ccn] = (base, addon)
-        base += addon
+        ref.addons[ccn] = (base, model.est_mdh_addon(imp, base, ref.mdh_share), model.est_mdh_addon(imp, base, 1))
+        base += ref.addons[ccn][1]
     pen = model.est_penalty(base, s["paf"])
-    return {
+    rec = {
         "id": ccn,
         "name": shown or f"Hospital {ccn} (name not in CMS files)",
-        "alias": names.alias(shown, imp.get("name")) if g.get("name") else None,
+        "alias": names.alias(shown, imp.get("name")),
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
         "county": fips_county or names.smart_title(g.get("county")) or None,
         "zip": g.get("zip"),
-        "lat": r4(lat), "lon": r4(lon), "geo": gsrc,
+        "lat": rnd(lat, 4), "lon": rnd(lon, 4), "geo": gsrc,
         "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),
         "urban": imp["urgeo"] in ("LURBAN", "OURBAN") if imp else None,
         "region": region, "division": division,
-        "beds": nbeds, "bedsSrc": beds_src,
+        "beds": nbeds, "bedsSrc": "cr" if beds_src == "cr" else None,
         "teach": teach_level(imp["irb"]) if imp else None,
         "own": ownership(g.get("ownership"), imp.get("own")),
         "ownDetail": g.get("ownership"),
         "star": g.get("star"),
         "types": types,
         "inactive": inactive(p),
-        "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": cms_round(s["dual"]), "peer": s["peer"],
+        "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": rnd(s["dual"], 4, half_up=True), "peer": s["peer"],
         "base": round(base) if base is not None else None,
         "pen": round(pen) if pen is not None else None,
-        "c": {k: {"n": c["n"], "err": rd(c["err"]), "flag": c["flag"], "ratio": rd(c["ratio"])}
+        "c": {k: {"n": c["n"], "err": rnd(c["err"], DECIMALS), "flag": c["flag"], "ratio": rnd(c["ratio"], DECIMALS)}
               for k, c in s["c"].items() if not (c["n"] is None and c["err"] is None)},
     }
+    return {k: v for k, v in rec.items() if v is not None or k not in OPTIONAL}
 
 
 def build():
@@ -289,7 +285,7 @@ def build():
     t15 = parse.read_table15(path("t15"), FY)
     impact = parse.read_impact(path("impact"), FY, GROUPER)
     hgi = parse.read_hgi(path("hgi"))
-    pos = parse.read_pos(path("pos"))
+    pos = parse.read_pos(path("pos"), set(supp))
     zcta = parse.read_zcta(path("zcta"))
     cbsa_names = parse.read_cbsa_names(path("cbsa"))
     rates = parse.read_rates(path("rates"))
@@ -312,8 +308,8 @@ def build():
     peer_cut, peer_med = [], {}
     for p in range(1, 6):
         grp = [s for s in supp.values() if s["peer"] == p]
-        peer_cut.append([cms_round(min(s["dual"] for s in grp)), cms_round(max(s["dual"] for s in grp))])
-        peer_med[str(p)] = {k: rd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"))
+        peer_cut.append([rnd(f(s["dual"] for s in grp), 4, half_up=True) for f in (min, max)])
+        peer_med[str(p)] = {k: rnd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"), DECIMALS)
                             for k in parse.CONDITIONS}
 
     mdh_share = year_share(FY, MDH_END)
@@ -327,13 +323,14 @@ def build():
             print(f"{what} ({len(hits)}): {'; '.join(hits)}")
     set_aside = [x["id"] for x in hospitals if x["id"] in ref.points and x["geo"] != "address"]
     print(f"geocoded addresses {len(ref.points)}; set aside (> {STRAY_KM} km outside the impact-file county): {set_aside}")
-    report_pos(hospitals, impact)
-    report_mdh(hospitals, ref.addons, mdh_share)
+    report_pos(hospitals, impact, pos)
+    # % by which each MDH's estimate would fall short if its status lasted the whole year
+    shortfall = {c: 100 * (1 - (fed + a) / (fed + full)) for c, (fed, a, full) in ref.addons.items()}
+    report_mdh(hospitals, ref.addons, mdh_share, shortfall)
     unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
     if unchecked:
         print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
               "their map points are not checked")
-    status = {c: model.replication_status(supp[c]) for c in sorted(supp)}
     geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("address", "zip", "county", "none")}
 
     years, paf_hist = history.load_paf_history(HIST_FILE, set(supp), HIST_FIRST_FY, HIST_LAST_FY)
@@ -349,15 +346,14 @@ def build():
     whats_new = load_content("whats_new.json") or {}
     return {
         "meta": {
-            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": rd(nm),
+            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": rnd(nm, DECIMALS),
             "peerCutoffs": peer_cut, "peerMedians": peer_med, "rates": rates,
             "totals": {"modelBase": sum(x["base"] or 0 for x in hospitals),
                        "modelPen": sum(x["pen"] or 0 for x in hospitals),
                        "cmsEst": national[-1]["totalEst"], "cmsSrc": national[-1]["totalSrc"]},
-            "replication": {"exact": sum(1 for v in status.values() if v == "exact"),
-                            "rounding": sum(1 for v in status.values() if v == "rounding"), "total": len(supp),
-                            "mismatches": [c for c, v in status.items() if v == "mismatch"]},
-            "mdh": {"endDate": MDH_END, "share": mdh_share},
+            "replication": {"exact": sum(1 for s in supp.values() if model.replication_status(s) == "exact"),
+                            "total": len(supp)},
+            "mdh": {"endDate": MDH_END, "maxShortfall": round(max(shortfall.values(), default=0))},
             "dollarCheck": load_content("dollar_check.json") or None,
             "geocode": geocode, "states": states,
             "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
@@ -382,7 +378,7 @@ def main():
     m, h = data["meta"], data["hospitals"]
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e6:.2f} MB)")
     rep = m["replication"]
-    print(f"hospitals {len(h)} | penalized {sum(1 for x in h if x['paf'] < 1)} | PAF replication: {rep['exact']} exact, {rep['rounding']} within rounding, {len(rep['mismatches'])} mismatched")
+    print(f"hospitals {len(h)} | penalized {sum(1 for x in h if x['paf'] < 1)} | PAF replication: {rep['exact']} of {rep['total']} exact")
     print(f"geocode {m['geocode']} | no state {sum(1 for x in h if not x['st'])} | no impact match {sum(1 for x in h if x['base'] is None)}"
           f" | no name {sum(1 for x in h if x['name'].endswith('(name not in CMS files)'))}")
     print(f"history hospitals {len(data['history']['paf'])} | modeled penalty ${m['totals']['modelPen'] / 1e6:.1f}M on base ${m['totals']['modelBase'] / 1e9:.2f}B")

@@ -34,8 +34,18 @@ def _int(s):
     return None if v is None else int(round(v))
 
 
+def squash(s):
+    """Runs of whitespace collapsed to one space, ends trimmed."""
+    return " ".join(s.split())
+
+
+def zip5(s):
+    """The 5-digit ZIP of a ZIP or ZIP+4, leading zeros restored; '' when missing."""
+    return s[:5].zfill(5) if s else ""
+
+
 def _norm(h):
-    return " ".join(str(h).replace("﻿", "").split()).lower()
+    return squash(str(h).replace("﻿", "")).lower()
 
 
 def _rows(path, delimiter="\t", encoding="latin1"):
@@ -211,8 +221,8 @@ def read_hgi(path):
                "zip": "ZIP Code", "county": "County/Parish", "ownership": "Hospital Ownership", "star": "Hospital overall rating"}
 
     def build(r):
-        return {"name": r["name"], "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"],
-                "zip": r["zip"][:5].zfill(5), "county": r["county"], "ownership": r["ownership"],
+        return {"name": r["name"], "street": squash(r["street"]), "city": r["city"], "st": r["st"],
+                "zip": zip5(r["zip"]), "county": r["county"], "ownership": r["ownership"],
                 "star": int(r["star"]) if r["star"].isdigit() else None}
     return _index_by_ccn(path, _read_table(path, "Facility ID", columns, ",", "utf-8-sig"), build)
 
@@ -232,9 +242,10 @@ POS_TERMINATION = {
 }
 
 
-def read_pos(path):
+def read_pos(path, keep):
     """CMS Provider of Services file (hospital & non-hospital facilities) -> {ccn: {beds, term, termDate, street, city,
-    st, zip}}. `beds` is the certified bed count; `term` the termination code (see POS_TERMINATION)."""
+    st, zip}} for the CCNs in `keep`. `beds` is the certified bed count; `term` the termination code (see
+    POS_TERMINATION). Other facilities' rows are skipped unchecked, so an odd code on one cannot fail the build."""
     columns = {"ccn": "PRVDR_NUM", "beds": "CRTFD_BED_CNT", "term": "PGM_TRMNTN_CD", "date": "TRMNTN_EXPRTN_DT",
                "street": "ST_ADR", "city": "CITY_NAME", "st": "STATE_CD", "zip": "ZIP_CD"}
 
@@ -245,10 +256,10 @@ def read_pos(path):
         if d and not (len(d) == 8 and d.isdigit()):
             raise SchemaError(f"{path}: malformed termination date {d!r} for {r['ccn']}")
         return {"beds": _int(r["beds"]) or None, "term": r["term"], "termDate": f"{d[:4]}-{d[4:6]}-{d[6:]}" if d else None,
-                "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"],
-                "zip": r["zip"][:5].zfill(5) if r["zip"] else ""}
+                "street": squash(r["street"]), "city": r["city"], "st": r["st"], "zip": zip5(r["zip"])}
     try:  # Windows-1252 (en dashes and curly quotes as 0x96/0x92); an undefined byte means the encoding changed
-        return _index_by_ccn(path, _read_table(path, "PRVDR_CTGRY_SBTYP_CD", columns, ",", "cp1252"), build)
+        rows = _read_table(path, "PRVDR_CTGRY_SBTYP_CD", columns, ",", "cp1252")
+        return _index_by_ccn(path, [r for r in rows if r["ccn"] in keep], build)
     except UnicodeDecodeError as e:
         raise SchemaError(f"{path}: not Windows-1252 text ({e})") from None
 

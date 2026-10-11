@@ -9,21 +9,23 @@ import { styleAxis } from './scale.js';
 // Labels are Courier Prime at 10.5px, which advances 0.6em per character.
 const LABEL_PX = 10.5;
 const CHAR_W = LABEL_PX * 0.6;
+const LABEL_GAP = 4; // least space between two labels in one row
 const ROW_H = 14;
+const LEFT = 46; // left margin, for the y-axis labels
 export const NARROW = 520;
 
-// Lay out marker labels in rows above the plot. items: [{start, end, text}], where a label begins at `start`, or ends
-// at `end` when beginning at `start` would run past `hi`. Each label takes the first row it clears by `gap`.
+// Lay out marker labels in rows above the plot. items: [{x, text}], where a label begins at `x`, or ends there when
+// beginning there would run past `hi`. Each label takes the first row it clears by LABEL_GAP.
 // Returns the labels with x0/x1/row, and the number of rows.
-export function layoutLabels(items, { lo, hi, charW = CHAR_W, gap = 4 }) {
+export function layoutLabels(items, { lo, hi }) {
   const placed = items.map((it) => {
-    const w = it.text.length * charW;
-    const x0 = Math.max(lo, it.start + w > hi ? Math.min(it.end, hi) - w : it.start);
+    const w = it.text.length * CHAR_W;
+    const x0 = Math.max(lo, it.x + w > hi ? Math.min(it.x, hi) - w : it.x);
     return { ...it, x0, x1: x0 + w };
   }).sort((a, b) => a.x0 - b.x0);
   const ends = [];
   for (const p of placed) {
-    let row = ends.findIndex((e) => p.x0 >= e + gap);
+    let row = ends.findIndex((e) => p.x0 >= e + LABEL_GAP);
     if (row < 0) row = ends.length;
     ends[row] = p.x1;
     p.row = row;
@@ -37,15 +39,15 @@ export function layoutLabels(items, { lo, hi, charW = CHAR_W, gap = 4 }) {
 export function trendChart(el, { years, series, yMax, yFormat, annotations = [], bands = [], height = 260, label, barStyle }) {
   responsive(el, (W) => {
     el.replaceChildren();
-    const x = scaleBand().domain(years).range([46, W - 12]).padding(0.22);
+    const x = scaleBand().domain(years).range([LEFT, W - 12]).padding(0.22);
     const half = (x.step() * x.padding()) / 2;
     const text = (a) => (W < NARROW && a.short ? a.short : a.label);
     const shown = bands.filter((b) => x(b.from) != null && x(b.to) != null);
     const { placed, rows } = layoutLabels(annotations.filter((a) => x(a.fy) != null).map((a) => {
       const ax = x(a.fy) + x.bandwidth() / 2;
-      return { ax, start: ax + 3, end: ax + 3, text: text(a) };
-    }), { lo: 46, hi: W - 2 });
-    const m = { t: rows ? 8 + rows * ROW_H + 6 : 16, r: 12, b: shown.length ? 46 : 30, l: 46 };
+      return { ax, x: ax + 3, text: text(a) };
+    }), { lo: LEFT, hi: W - 2 });
+    const m = { t: rows ? 8 + rows * ROW_H + 6 : 16, r: 12, b: shown.length ? 46 : 30, l: LEFT };
     // Label rows and band labels add height rather than squeezing the plot.
     const H = height + Math.max(0, m.t - 46) + m.b - 30;
     const top = yMax ?? Math.max(...series.flatMap((sr) => sr.values.filter((v) => v != null)), 1e-9) * 1.1;

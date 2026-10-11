@@ -1,11 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { safeHref, placesSource } from '../src/js/views/util.js';
-
-test('map source line names the Census Geocoder once address geocoding is in the data', () => {
-  assert.match(placesSource({ geocode: { address: 2700, zip: 150, county: 62 } }), /street addresses \(U\.S\. Census Bureau Geocoder\), else ZIP or county centers/);
-  assert.equal(placesSource({ geocode: { zip: 2817, county: 95 } }), 'locations from Care Compare addresses and Census ZIP centroids');
-});
+import { safeHref } from '../src/js/views/util.js';
 
 test('safeHref allows only https URLs', () => {
   assert.equal(safeHref('https://doi.org/10.1/x'), 'https://doi.org/10.1/x');

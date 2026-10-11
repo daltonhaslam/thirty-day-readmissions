@@ -31,9 +31,9 @@ export function capMarks(national) {
 
 // Mean cut (%) per year across `list`, each year over those of them in that year's file. Over every hospital this is
 // the national line for area and hospital charts: the same hospitals as the area line, unlike CMS's yearly totals.
-export function meanCutByYear(list, { years, history, fy }) {
+export function meanCutByYear(list, { years, history, meta }) {
   return years.map((y, i) => {
-    const vals = list.map((x) => (y === fy ? x.paf : history.paf[x.id]?.[i])).filter((v) => v != null);
+    const vals = list.map((x) => (y === meta.fy ? x.paf : history.paf[x.id]?.[i])).filter((v) => v != null);
     return vals.length ? mean(vals.map(cutPct)) : null;
   });
 }
@@ -67,11 +67,13 @@ export function loadData(raw) {
   const stateSummary = new Map([...byState.entries()].map(([st, list]) => [st, summarize(list)]));
   const condByKey = Object.fromEntries(conditions.map((c) => [c.key, c]));
   const nationalByFy = Object.fromEntries(history.national.map((r) => [r.fy, r]));
-  const years = [...history.years, meta.fy];
-  return {
+  let programTrend;
+  const D = {
     meta, conditions, condByKey, hospitals, byId, byState, byCbsa, cbsaNames, sortedRed, stateSummary,
-    nation: summarize(hospitals), edition: edition(meta, history), years,
-    divisions, regions, history, nationalByFy, timeline, research, geo,
-    programTrend: meanCutByYear(hospitals, { years, history, fy: meta.fy }), capMarks: capMarks(history.national),
+    nation: summarize(hospitals), edition: edition(meta, history), years: [...history.years, meta.fy],
+    divisions, regions, history, nationalByFy, timeline, research, geo, capMarks: capMarks(history.national),
+    // Only area and hospital pages chart it, so it is computed on first use.
+    get programTrend() { return (programTrend ??= meanCutByYear(hospitals, D)); },
   };
+  return D;
 }

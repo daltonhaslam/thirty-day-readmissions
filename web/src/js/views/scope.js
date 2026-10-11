@@ -6,12 +6,12 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, PEERS } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, plural, upFirst, PEERS } from '../model.js';
 import { summaryColumns, summaryCsvColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
-import { estTag, placesSource } from './util.js';
+import { estTag, PLACES_SOURCE } from './util.js';
 import { meanCutByYear, COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
@@ -59,7 +59,7 @@ function scopeTrend(D, list) {
   trendChart(el, { years, label: `Average cut by year, this area vs all hospitals in the ${D.edition.label} program`, yFormat: (d) => `${d}%`,
     annotations: D.capMarks, bands: [COVID_GAP],
     series: [
-      { label: 'This area', kind: 'line', values: meanCutByYear(list, { years, history: D.history, fy: D.meta.fy }), fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
+      { label: 'This area', kind: 'line', values: meanCutByYear(list, D), fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
       { label: `All hospitals in the ${D.edition.label} program`, kind: 'line', values: D.programTrend, fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   return el;
 }
@@ -73,9 +73,8 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const hosp = (n) => `${fmtInt(n)} ${n === 1 ? 'hospital' : 'hospitals'}`;
-  const deck = `${fmtInt(S.nPen)} of ${hosp(S.n)} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
-    + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${hosp(S.n)}`}, is ${fmtPct(S.meanRed)}`
+  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
+    + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${plural(S.n, 'hospital')}`}, is ${fmtPct(S.meanRed)}`
     + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
   const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];
 
@@ -86,7 +85,7 @@ export function renderScope(D, route, state = {}) {
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),
-    field(6, 'Estimated dollars', [fmtMoney(S.penTotal), estTag()], { note: noEstNote ? `${noEstNote[0].toUpperCase()}${noEstNote.slice(1)}.` : null }));
+    field(6, 'Estimated dollars', [fmtMoney(S.penTotal), estTag()], { note: noEstNote ? `${upFirst(noEstNote)}.` : null }));
 
   const mapEl = h('div', { class: 'map map--scope' });
   const scopeStates = [...new Set(list.map((x) => x.st))];
@@ -120,7 +119,7 @@ export function renderScope(D, route, state = {}) {
     kpis,
     h('div', { class: 'grid-2 grid-2--wide-left scope__row' },
       figure({ title: 'Hospitals on the map', take: route.view === 'metro' ? 'Hospitals in this metro area are sized by Medicare volume and shaded by cut; gray dots are other hospitals in the state. Select one to open it.' : 'Dots are sized by Medicare volume and shaded by cut. Select one to open it.',
-        source: `${placesSource(D.meta).replace(/^./, (c) => c.toUpperCase())}.`, body: h('div', {}, mapEl, dotLegend()) }),
+        source: `${upFirst(PLACES_SOURCE)}.`, body: h('div', {}, mapEl, dotLegend()) }),
       figure({ title: 'Size of the cuts', take: `Bars: ${sc.name}. Outline: all hospitals. Both as shares, so areas of any size compare.`,
         source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: histEl })),
     conditionFigure(D, list, { compare: D.hospitals }),

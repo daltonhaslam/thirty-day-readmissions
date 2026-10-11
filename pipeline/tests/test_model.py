@@ -37,7 +37,10 @@ class ContributionTest(unittest.TestCase):
 
     def test_reduction_matches_cms_example(self):
         self.assertAlmostEqual(round(model.reduction(HOSPITAL_A), 4), 0.0034)
-        self.assertNotEqual(model.replication_status(HOSPITAL_A), "mismatch")
+        self.assertEqual(model.replication_status(HOSPITAL_A), "exact")
+
+    def test_a_factor_off_in_the_fourth_decimal_is_a_mismatch(self):
+        self.assertEqual(model.replication_status({**HOSPITAL_A, "paf": 0.9965}), "mismatch")
 
     def test_reduction_is_capped_at_three_percent(self):
         h = {"nm": 1.0, "paf": 0.97, "c": {k: cond(500, 1.5, 1.0, 0.1) for k in parse.CONDITIONS}}
@@ -50,7 +53,7 @@ class ContributionTest(unittest.TestCase):
     def test_real_hospital_replicates(self):
         rows = parse.read_supplemental(FIX / "supp.txt")
         for ccn, h in rows.items():
-            self.assertNotEqual(model.replication_status(h), "mismatch", ccn)
+            self.assertEqual(model.replication_status(h), "exact", ccn)
 
 
 class DollarTest(unittest.TestCase):

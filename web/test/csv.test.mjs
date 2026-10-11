@@ -5,10 +5,10 @@ import { CSV_COLUMNS, summaryCsvColumns } from '../src/js/views/columns.js';
 
 const HOSP = {
   id: '010001', name: 'Southeast Health Medical Center', city: 'Dothan', st: 'AL', cbsaName: 'Dothan, AL',
-  beds: 334, bedsSrc: 'cr', inactive: { date: '2025-03-31', code: '01', reason: 'voluntary' },
-  paf: 0.99960000001, red: 0.04, pen: 19712.4, peer: 2, dual: 0.18243333,
+  beds: 334, bedsSrc: 'cr', inactive: { date: '2025-03-31', reason: 'voluntary' },
+  paf: 0.9996, red: 0.04, pen: 19712, peer: 2, dual: 0.1824,
   c: {
-    AMI: { n: 398, err: 0.98993333, flag: 0, ratio: 0.0254 },
+    AMI: { n: 398, err: 0.989933, flag: 0, ratio: 0.0254 },
     COPD: { n: 232, err: 1.0277, flag: 1, ratio: 0.0079 },
     HF: { n: 12, err: null, flag: 0, ratio: 0.0407 },
   },
@@ -22,7 +22,7 @@ const rowOf = (csv) => {
   return Object.fromEntries(cells(head).map((k, i) => [unquote(k), vals[i]]));
 };
 
-test('hospital CSV: units in headers, rounded values, CCN kept as text, new bed and inactive columns', () => {
+test('hospital CSV: units in headers, values as stored, CCN kept as text, bed and inactive columns', () => {
   const r = rowOf(toCSV([HOSP], CSV_COLUMNS));
   assert.equal(r.CCN, '"=""010001"""');
   assert.equal(r['Payment adjustment factor'], '0.9996');
@@ -41,10 +41,12 @@ test('hospital CSV: a condition\'s penalized column is Y/N only when measured, b
   assert.equal(r['PN penalized (Y/N)'], '', 'no cases');
 });
 
-test('hospital CSV works on data without the new fields', () => {
-  const { bedsSrc, inactive, ...old } = HOSP;
-  const r = rowOf(toCSV([old], CSV_COLUMNS));
-  assert.deepEqual([r.Beds, r['Beds source'], r['Inactive (date)']], ['334', '', '']);
+test('hospital CSV: beds are certified unless marked as the cost-report fallback; blank with no count', () => {
+  const { bedsSrc, inactive, ...active } = HOSP;
+  const r = rowOf(toCSV([active], CSV_COLUMNS));
+  assert.deepEqual([r.Beds, r['Beds source'], r['Inactive (date)']], ['334', 'certified (Provider of Services file)', '']);
+  const none = rowOf(toCSV([{ ...active, beds: null }], CSV_COLUMNS));
+  assert.deepEqual([none.Beds, none['Beds source']], ['', '']);
 });
 
 test('area CSV: share penalized of measured, rounded, with the counts behind it', () => {

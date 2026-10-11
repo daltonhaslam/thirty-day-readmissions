@@ -10,13 +10,10 @@ import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
 
-// The worksheet's last check: does line 9 match CMS's factor, and if not, why.
+// The worksheet's last check: does line 9 match CMS's factor.
 export function factorCheck(hosp, recomputed) {
   const gap = Math.abs(recomputed - hosp.paf);
-  if (gap < 1e-9) return '· matches';
-  const noWeight = CONDS.some((k) => hosp.c[k]?.flag === 1 && !weightPublished(hosp.c[k]));
-  return `· differs by ${gap.toFixed(4)} (${noWeight ? 'CMS counted a condition whose payment weight it did not publish'
-    : 'CMS used unrounded ratios and weights; this copy of its file rounds them to four decimals'})`;
+  return gap < 1e-9 ? '· matches' : `· differs by ${gap.toFixed(4)}`;
 }
 
 // Pick a typical, readable example: median-sized penalty, several conditions counted.

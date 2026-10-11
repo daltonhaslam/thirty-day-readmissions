@@ -59,18 +59,19 @@ export const summaryCsvColumns = (label) => [
   { label: 'Estimated penalties ($, modeled)', value: (r) => roundTo(r.penTotal, 0) },
 ];
 
-const BEDS_SRC = { pos: 'certified (Provider of Services file)', cr: 'cost report' };
-
 // Hospital CSV. The CCN is written so spreadsheets keep its leading zero; a condition's penalized column is blank
 // when the hospital had too few cases to be measured on it.
 export const CSV_COLUMNS = [
   { label: 'CCN', value: (x) => x.id, ccn: true }, { label: 'Hospital', value: (x) => x.name }, { label: 'City', value: (x) => x.city },
   { label: 'State', value: (x) => x.st }, { label: 'Metro area', value: (x) => x.cbsaName },
-  { label: 'Beds', value: (x) => x.beds }, { label: 'Beds source', value: (x) => BEDS_SRC[x.bedsSrc] }, { label: 'Inactive (date)', value: (x) => x.inactive?.date },
-  { label: 'Payment adjustment factor', value: (x) => roundTo(x.paf, 4) }, { label: 'Payment reduction (%)', value: (x) => roundTo(x.red, 2) },
-  { label: 'Estimated penalty ($, modeled)', value: (x) => roundTo(x.pen, 0) },
-  { label: 'Peer group', value: (x) => x.peer }, { label: 'Dual proportion', value: (x) => roundTo(x.dual, 4) },
+  { label: 'Beds', value: (x) => x.beds },
+  { label: 'Beds source', value: (x) => (x.beds == null ? null : x.bedsSrc === 'cr' ? 'cost report' : 'certified (Provider of Services file)') },
+  { label: 'Inactive (date)', value: (x) => x.inactive?.date },
+  // Stored values are already rounded by the pipeline: factor and dual share 4 dp, cut 2 dp, dollars whole, ERR 6 dp.
+  { label: 'Payment adjustment factor', value: (x) => x.paf }, { label: 'Payment reduction (%)', value: (x) => x.red },
+  { label: 'Estimated penalty ($, modeled)', value: (x) => x.pen },
+  { label: 'Peer group', value: (x) => x.peer }, { label: 'Dual proportion', value: (x) => x.dual },
   ...CONDS.flatMap((k) => [
-    { label: `${k} discharges`, value: (x) => x.c[k]?.n }, { label: `${k} ERR`, value: (x) => roundTo(x.c[k]?.err, 6) },
+    { label: `${k} discharges`, value: (x) => x.c[k]?.n }, { label: `${k} ERR`, value: (x) => x.c[k]?.err },
     { label: `${k} penalized (Y/N)`, value: (x) => (isMeasured(x.c[k]) ? (x.c[k].flag === 1 ? 'Y' : 'N') : null) }]),
 ];

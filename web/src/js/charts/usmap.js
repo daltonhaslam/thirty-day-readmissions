@@ -5,7 +5,7 @@ import { feature, mesh } from 'topojson-client';
 import { s, h, responsive } from '../dom.js';
 import { showTip, hideTip } from '../ui/tooltip.js';
 import { rampVar, BINS } from './scale.js';
-import { fmtPct, fmtInt, fmtMoney } from '../model.js';
+import { fmtPct, fmtInt, fmtMoney, penalizedOfMeasured } from '../model.js';
 
 // Colors bin on the value as each metric's fmt displays it, so a color never disagrees with its label.
 const rounded = (dp, unit = 1) => (v) => Number((v / unit).toFixed(dp)) * unit;
@@ -96,7 +96,7 @@ export function usMap(el, D, opts) {
       .on('mousemove', (e, f) => {
         const sm = f.abbr && stateSummary.get(f.abbr);
         if (!sm) return showTip(e, f.properties.name, [f.properties.name === 'Maryland' ? 'Exempt: Maryland\'s own payment model' : 'No hospitals in the program']);
-        return showTip(e, f.properties.name, [['Hospitals', fmtInt(sm.n)], ['Penalized', `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`], ['Average cut', fmtPct(sm.meanRed)], ['Estimated', fmtMoney(sm.penTotal)]]);
+        return showTip(e, f.properties.name, [['Hospitals', fmtInt(sm.n)], ['Penalized', penalizedOfMeasured(sm)], ['Average cut', fmtPct(sm.meanRed)], ['Estimated', fmtMoney(sm.penTotal)]]);
       })
       .on('mouseleave', hideTip)
       .on('click', (e, f) => f.abbr && o.onState?.(f.abbr));

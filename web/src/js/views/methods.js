@@ -1,13 +1,13 @@
 import { h } from '../dom.js';
 import { part } from '../ui/figure.js';
-import { fmtInt, fmtMoney, fmtPct, fmtDate, noEstimate } from '../model.js';
-import { METHODS_SECTIONS } from '../router.js';
+import { fmtInt, fmtMoney, fmtPct, fmtDate, noEstimate, plural } from '../model.js';
+import { DOLLARS_ID } from '../router.js';
 import { safeHref } from './util.js';
 import { omnibox } from '../ui/omnibox.js';
 import { FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 import { SITE_NAME, LINKEDIN_URL } from '../site.js';
 
-const glossary = (D) => [
+const GLOSSARY = [
   ['Readmission', 'An unplanned return to any acute-care hospital within 30 days of discharge, for any reason. Planned returns, such as a scheduled chemotherapy stay, do not count.'],
   ['Excess readmission ratio (ERR)', 'Predicted readmissions for this hospital divided by expected readmissions for an average hospital with the same patients. Above 1.0 means more than expected.'],
   ['Peer group', 'One of five equal-sized groups of hospitals, sorted by the share of their Medicare stays from patients who also have full Medicaid.'],
@@ -20,23 +20,14 @@ const glossary = (D) => [
   ['IPPS', 'The Inpatient Prospective Payment System, which sets Medicare payments to general acute-care hospitals each fiscal year.'],
   ['CCN', 'CMS Certification Number, the six-digit ID CMS assigns each hospital.'],
   ['Teaching level', 'Major teaching means a resident-to-bed ratio of 0.25 or more; minor teaching is any lower ratio above zero. The ratio comes from the IPPS impact file, which draws on Medicare cost reports.'],
-  // bedsSrc arrives with certified beds; before that, every count came from the cost report.
-  ['Beds', D.hospitals.some((x) => x.bedsSrc)
-    ? 'Certified beds from CMS\'s Provider of Services file; for the few hospitals without one, the bed count from the Medicare cost report (IPPS impact file), marked "cost report". Either can differ from licensed beds.'
-    : 'The hospital\'s bed count from its Medicare cost report, as listed in the IPPS impact file. It can differ from licensed or certified beds.'],
+  ['Beds', 'Certified beds from CMS\'s Provider of Services file; for the few hospitals without one, the bed count from the Medicare cost report (IPPS impact file), marked "cost report". Either can differ from licensed beds.'],
   ['Metro area (CBSA)', 'A Core-Based Statistical Area defined by the Office of Management and Budget: a city and the counties tied to it by commuting.'],
 ];
 
 // How well recomputing CMS's factors works, worded from the pipeline's replication check.
 export function replicationText(rep) {
-  if (rep.exact === rep.total) {
-    return `Recomputing every hospital from the values CMS publishes, read at full precision from the Excel version of its file, reproduces its factor exactly for all ${fmtInt(rep.total)} hospitals. The worksheets on this site show ratios and weights to four decimals.`;
-  }
-  return `Recomputing every hospital from the values CMS publishes reproduces its factor exactly for ${fmtInt(rep.exact)} hospitals and within 0.0001 for the other ${fmtInt(rep.rounding)}. `
-    + 'CMS computes from unrounded ratios and weights. The text version of its file, which this site reads, rounds them to four decimals; the Excel version carries the unrounded values.';
+  return `Recomputing every hospital from the values CMS publishes, read at full precision from the Excel version of its file, reproduces its factor exactly for ${rep.exact === rep.total ? 'all' : `${fmtInt(rep.exact)} of`} ${fmtInt(rep.total)} hospitals. The worksheets on this site show ratios and weights to four decimals.`;
 }
-
-const count = (n, one, many) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 
 // "Oct–Dec 2026": the part of the payment year before an end date.
 function monthsBefore(fy, endIso) {
@@ -60,32 +51,27 @@ export function assumptionRows(D) {
   const nMdh = D.hospitals.filter((x) => x.types?.includes('MDH')).length;
   const nInactive = D.hospitals.filter((x) => x.inactive).length;
   const nNoEst = noEstimate(D.hospitals);
-  const costFy = /FY ?(\d{4})/.exec(dc?.source ?? '')?.[1];
   return [
     [`Penalty = the ${E.label} cut (1 − adjustment factor) × the hospital's base DRG payments`, 'Mirrors how CMS applies the cut; the cut factor itself is CMS\'s exact value'],
-    [`Payments priced at ${E.label} rates`, dc?.rateDrift
-      ? `Runs about ${fmtPct((dc.rateDrift - 1) * 100, 1)} above ${costFy ? `FY${costFy} ` : ''}cost reports, by design`
-      : 'Runs above earlier years\' cost reports, by design'],
+    [`Payments priced at ${E.label} rates`, `Runs about ${fmtPct((dc.rateDrift - 1) * 100, 1)} above FY${dc.costFy} cost reports, by design`],
     [`Medicare volume taken from FY${E.fy - 2}`, `Off in proportion if a hospital's ${E.label} volume differs`],
     ['Traditional Medicare only', 'Medicare Advantage enters the ratios but is not cut'],
     ['Sole community hospitals priced at the federal rate', 'What the law requires'],
-    m.mdh?.endDate
-      ? [`Medicare-dependent add-on included for ${monthsBefore(E.fy, m.mdh.endDate)} only, assuming MDH status ends ${fmtDate(m.mdh.endDate, 'long')}, as current law says (${count(nMdh, 'hospital', 'hospitals')})`,
-        'If Congress extends MDH status, estimates for these hospitals run low, up to about 45% for some']
-      : [`Medicare-dependent hospitals' own add-on left out (${count(nMdh, 'hospital', 'hospitals')})`, 'The cut covers it, so estimates for these hospitals run low'],
+    [`Medicare-dependent add-on included for ${monthsBefore(E.fy, m.mdh.endDate)} only, assuming MDH status ends ${fmtDate(m.mdh.endDate, 'long')}, as current law says (${plural(nMdh, 'hospital')})`,
+      `If Congress extends MDH status, estimates for these hospitals run low, up to about ${m.mdh.maxShortfall}% for some`],
     ['New-technology add-on payments left out', 'The cut covers them; about 0.1% of payments nationally'],
     ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent', 'They were paid on global budgets; low-medium confidence'],
     ['New hospitals use partial-year volume', 'Likely understated'],
-    nInactive ? [`${count(nInactive, 'hospital', 'hospitals')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
+    nInactive ? [`${plural(nInactive, 'hospital')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
       'CMS will not pay them under this ID, so their cut is unlikely to be collected'] : null,
-    nNoEst ? [`${count(nNoEst, 'hospital', 'hospitals')} missing from the impact file ${nNoEst === 1 ? 'gets' : 'get'} no estimate`,
+    nNoEst ? [`${plural(nNoEst, 'hospital')} missing from the impact file ${nNoEst === 1 ? 'gets' : 'get'} no estimate`,
       'Totals note the count instead of adding $0'] : null,
   ].filter(Boolean);
 }
 
 // The section every "estimate" tag links to: what the dollar figures assume, and how well they hold up.
 function dollarAssumptions(D) {
-  const id = METHODS_SECTIONS.dollars;
+  const id = DOLLARS_ID;
   const accuracy = accuracyLine(D.meta.dollarCheck);
   return h('section', { id, class: 'methods__sec', 'aria-labelledby': `${id}-h` },
     h('h2', { id: `${id}-h` }, 'Assumptions behind the dollar estimates'),
@@ -135,9 +121,7 @@ export function renderMethods(D) {
           h('li', {}, 'Not included: Maryland (its own all-payer model), critical access, children\'s, cancer, psychiatric, rehabilitation, and long-term care hospitals. Puerto Rico hospitals are not subject to the cut.')),
 
         h('h2', {}, 'Places'),
-        h('p', {}, m.geocode.address
-          ? `Map dots come from each hospital's street address, geocoded with the U.S. Census Bureau Geocoder (${fmtInt(m.geocode.address)} hospitals). When an address does not match, or its point falls far outside the hospital's county, the dot goes to the center of its ZIP code (${fmtInt(m.geocode.zip)}) or, failing that, its county (${fmtInt(m.geocode.county)}).`
-          : `Map dots are approximate: each hospital is placed at the center of its ZIP code (${fmtInt(m.geocode.zip)} hospitals) or, when the ZIP is not in the Census file or its center falls far outside the hospital's county, the center of that county (${fmtInt(m.geocode.county)}).`,
+        h('p', {}, `Map dots come from each hospital's street address, geocoded with the U.S. Census Bureau Geocoder (${fmtInt(m.geocode.address)} hospitals). When an address does not match, or its point falls far outside the hospital's county, the dot goes to the center of its ZIP code (${fmtInt(m.geocode.zip)}) or, failing that, its county (${fmtInt(m.geocode.county)}).`,
         ' Metro areas are the CBSA where each hospital sits, from the IPPS impact file. Regions and divisions follow the Census Bureau.'),
 
         h('h2', {}, 'History'),
@@ -152,13 +136,11 @@ export function renderMethods(D) {
       h('aside', {},
         h('h2', {}, 'Sources'),
         h('ul', { class: 'sources' }, src,
-          m.geocode.address && !m.sources.some((s) => /geocoder/i.test(s.name))
-            ? h('li', {}, h('a', { href: 'https://geocoding.geo.census.gov/geocoder/', target: '_blank', rel: 'noopener' }, 'U.S. Census Bureau Geocoder')) : null,
           h('li', {}, `CMS archived HRRP supplemental data files, FY${E.firstFy}–FY${E.fy - 1}`),
           h('li', {}, `Federal Register IPPS final rules, ${E.span}`),
           h('li', {}, 'KFF Health News annual readmission-penalty reporting')),
         h('h2', {}, 'Glossary'),
-        h('dl', { class: 'glossary' }, glossary(D).map(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
+        h('dl', { class: 'glossary' }, GLOSSARY.map(([t, d]) => [h('dt', {}, t), h('dd', {}, d)])),
         h('h2', {}, 'Reuse'),
         h('p', {}, 'Code is MIT-licensed. Federal source data are public domain. Every table on the site can be copied or downloaded as CSV.'
           + ' In those files the CCN is written as ="010001" so spreadsheets keep its leading zero, headers name their units, and a condition\'s "penalized" column is blank when the hospital had fewer than 25 cases of it.'))));

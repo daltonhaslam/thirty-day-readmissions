@@ -11,7 +11,7 @@ import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, go, partNo } from '../router.js';
-import { safeHref, estTag, dollarsNote, placesSource } from './util.js';
+import { safeHref, estTag, dollarsNote, PLACES_SOURCE } from './util.js';
 import { SITE_NAME_TOP, SITE_NAME_RED } from '../site.js';
 import { COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
@@ -87,7 +87,7 @@ function mapPart(D) {
 
   return part({ no: partNo('map'), id: 'map', title: 'Where the penalties land', lede: 'Select a state to drill down to its regions, metro areas, and hospitals. Maryland is hatched: it runs its own all-payer model and is exempt.' },
     figure({ title: 'Penalties by state', take: 'Switch the measure, or turn on hospital dots (sized by Medicare volume, shaded by cut).',
-      source: [`CMS ${D.edition.label} HRRP Supplemental Data File; ${placesSource(D.meta)}; `, dollarsNote(), '.'],
+      source: [`CMS ${D.edition.label} HRRP Supplemental Data File; ${PLACES_SOURCE}; `, dollarsNote(), '.'],
       body: h('div', {}, h('div', { class: 'controls' }, h('div', { class: 'seg', role: 'group', 'aria-label': 'Map measure' }, btns),
         h('label', { class: 'check', for: 'map-dots' }, dots, 'Show hospitals')), mapEl, legendHolder) }),
     h('div', { class: 'grid-2 grid-2--wide-left' },

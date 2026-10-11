@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
+import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, upFirst, fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
 import { hospitalColumns, CSV_COLUMNS } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -29,7 +29,7 @@ export const bedsLabel = (x) => (x.beds ? `${fmtInt(x.beds)} beds${x.bedsSrc ===
 // For a hospital whose Medicare agreement CMS lists as ended. It stays in every ranking and total.
 export function inactiveSentence(D, x) {
   const { date, reason } = x.inactive;
-  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended on ${fmtDate(date, 'long')}${reason ? ` (${reason})` : ''}. `
+  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended on ${fmtDate(date, 'long')} (${reason}). `
     + `It will not be paid under this ID in ${D.edition.label}, so its cut is unlikely to be collected.`;
 }
 
@@ -39,7 +39,7 @@ function summarySentence(D, x, v) {
   if (v.status === 'none-below') return `${name} has no ${D.edition.label} cut. All ${v.nMeasured} of its measured conditions came in at or below its peer group's median.`;
   if (v.status === 'none-rounded') {
     const names = v.above.map((k) => inSentence(D.condByKey[k].short)).join(' and ');
-    return `${name} has no ${D.edition.label} cut. ${names[0].toUpperCase()}${names.slice(1)} came in above the peer-group median, but `
+    return `${name} has no ${D.edition.label} cut. ${upFirst(names)} came in above the peer-group median, but `
       + `${v.above.length > 1 ? 'their share' : 'its share'} of the hospital's Medicare payments is small enough that the reduction rounded to zero.`;
   }
   // An inactive hospital will not be paid under this CCN, so its cut is stated without promising a year of payments.

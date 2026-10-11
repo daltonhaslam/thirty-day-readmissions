@@ -122,7 +122,7 @@ def write(found, attempted, path=OUT):
 
 def main():
     ccns = sorted(parse.read_supplemental(build_data.path("supp")))
-    cands = candidates(ccns, parse.read_hgi(build_data.path("hgi")), parse.read_pos(build_data.path("pos")))
+    cands = candidates(ccns, parse.read_hgi(build_data.path("hgi")), parse.read_pos(build_data.path("pos"), set(ccns)))
     found = geocode(cands)
     write(found, len(cands))
     kinds = {k: sum(1 for v in found.values() if v[2] == k) for k in ("Exact", "Non_Exact")}

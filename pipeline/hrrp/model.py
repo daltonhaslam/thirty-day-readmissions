@@ -27,14 +27,10 @@ def reduction(h):
 
 
 def replication_status(h):
-    """'exact' when 1 - (reduction rounded to 4 decimals) equals CMS's PAF; 'rounding' when it is one unit off in
-    the 4th decimal, which only happens when the inputs were themselves rounded too coarsely; else 'mismatch'.
+    """'exact' when 1 - (reduction rounded to 4 decimals) equals CMS's PAF, else 'mismatch'.
 
     From the Excel workbook's full-precision values every FY2027 hospital is 'exact'."""
-    diff = abs((1 - round(reduction(h), 4)) - h["paf"])
-    if diff < 1e-9:
-        return "exact"
-    return "rounding" if diff <= 0.0001 + 1e-9 else "mismatch"
+    return "exact" if abs((1 - round(reduction(h), 4)) - h["paf"]) < 1e-9 else "mismatch"
 
 
 def est_base_payment(imp, rates):

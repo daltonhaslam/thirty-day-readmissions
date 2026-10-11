@@ -1,7 +1,7 @@
 // The social preview card: its HTML (pure, so a test can hash it) and its published, versioned URL.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { fmtInt, fmtPct } from './src/js/model.js';
+import { fmtInt, fmtPct, penalizedOfMeasured } from './src/js/model.js';
 import { SITE_NAME_TOP, SITE_NAME_RED, SITE_URL, FONTS_HREF } from './src/js/site.js';
 
 // Every face the card uses; og.mjs refuses to render if any of them fails to load.
@@ -14,7 +14,7 @@ export function cardHtml(D) {
   const S = D.nation;
   const tokens = readFileSync(new URL('src/styles/tokens.css', import.meta.url), 'utf8');
   const rows = [
-    ['Hospitals penalized', fmtInt(S.nPen), `${fmtPct(S.pctPen, 0)} of ${fmtInt(S.nMeasured)} measured`],
+    ['Hospitals penalized', fmtInt(S.nPen), penalizedOfMeasured(S)],
     ['Average cut, penalized', fmtPct(S.meanRedPen), 'of base Medicare payments'],
     ['At the 3% maximum', fmtInt(S.nMax), 'hospitals'],
   ];

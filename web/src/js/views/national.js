@@ -3,7 +3,7 @@ import { figure } from '../ui/figure.js';
 import { barRows } from '../charts/bars.js';
 import { stripPlot } from '../charts/strip.js';
 import { rampVar } from '../charts/scale.js';
-import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, bedBand, BED_BANDS } from '../model.js';
+import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, plural, bedBand, BED_BANDS } from '../model.js';
 import { link } from '../router.js';
 import { dollarsNote } from './util.js';
 
@@ -50,12 +50,10 @@ export function conditionFigure(D, list, { compare } = {}) {
 export function measuredFigure(D, list) {
   const measured = (x) => CONDS.filter((k) => isMeasured(x.c[k])).length;
   const rows = [0, 1, 2, 3, 4, 5, 6].map((n) => {
-    const grp = list.filter((x) => measured(x) === n);
-    const sm = summarize(grp);
-    const label = n === 1 ? '1 condition' : `${n} conditions`;
-    // With no condition measured a hospital cannot be penalized, so the row has no rate to show.
-    if (n === 0) return { label, value: 0, display: 'n/a', note: `${fmtInt(sm.n)} hospitals · cannot be penalized`, n: sm.n };
-    return { label, value: sm.pctPen, display: fmtPct(sm.pctPen, 0), note: `${fmtInt(sm.n)} hospitals`, n: sm.n };
+    const sm = summarize(list.filter((x) => measured(x) === n));
+    const row = { label: plural(n, 'condition'), value: sm.pctPen, display: fmtPct(sm.pctPen, 0), note: `${fmtInt(sm.n)} hospitals`, n: sm.n };
+    // With no condition measured a hospital cannot be penalized (pctPen is 0), so the row has no rate to show.
+    return n === 0 ? { ...row, display: 'n/a', note: `${row.note} · cannot be penalized` } : row;
   }).filter((r) => r.n > 0);
   return figure({ title: 'More conditions measured, more ways to be penalized',
     take: 'Share of hospitals penalized, by how many of the six conditions had at least 25 cases. A hospital is penalized if any one condition lands above its peer median, so each added condition is another chance.',

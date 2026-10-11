@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONDS, contrib, summarize, percentileRank, scopeFilter, applyFilters, bedBand,
-  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo,
+  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo, plural, upFirst, penalizedOfMeasured,
 } from '../src/js/model.js';
 
 // CMS methodology infographic, Hospital A (peer group 4, NM 0.9458)
@@ -144,6 +144,13 @@ test('CSV writes a CCN column as ="010001" so Excel keeps the zero; the formula 
   assert.equal(roundTo(91.66666666666667, 1), 91.7);
   assert.equal(roundTo(null, 2), null);
   assert.equal(roundTo(19712.4, 0), 19712);
+});
+
+test('plural, upFirst, and the penalized-of-measured phrase', () => {
+  assert.deepEqual([plural(1, 'hospital'), plural(2912, 'hospital'), plural(2, 'hospital has', 'hospitals have')],
+    ['1 hospital', '2,912 hospitals', '2 hospitals have']);
+  assert.deepEqual([upFirst('locations'), upFirst('')], ['Locations', '']);
+  assert.equal(penalizedOfMeasured({ pctPen: 83.4, nMeasured: 2798 }), '83% of 2,798 measured');
 });
 
 test('noEstimateNote counts hospitals with no dollar estimate, and is empty when none', () => {

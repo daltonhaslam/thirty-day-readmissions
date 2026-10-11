@@ -168,8 +168,10 @@ class HgiTest(unittest.TestCase):
 
 
 class PosTest(unittest.TestCase):
+    KEEP = {"010001", "010062", "011001", "030149", "220017", "670128"}  # every CCN in the fixture
+
     def setUp(self):
-        self.rows = parse.read_pos(FIX / "pos.csv")
+        self.rows = parse.read_pos(FIX / "pos.csv", self.KEEP)
 
     def test_active_hospital(self):
         self.assertEqual(self.rows["010001"], {"beds": 420, "term": "00", "termDate": None, "street": "1108 ROSS CLARK CIRCLE",
@@ -193,15 +195,19 @@ class PosTest(unittest.TestCase):
 
     def test_duplicate_ccn_raises(self):
         with self.assertRaises(parse.SchemaError):
-            parse.read_pos(self._variant(b"01,01,010062,", b"01,01,010001,"))
+            parse.read_pos(self._variant(b"01,01,010062,", b"01,01,010001,"), self.KEEP)
 
     def test_unknown_termination_code_raises(self):
         with self.assertRaises(parse.SchemaError):
-            parse.read_pos(self._variant(b",67,07,", b",67,42,"))
+            parse.read_pos(self._variant(b",67,07,", b",67,42,"), self.KEEP)
+
+    def test_rows_outside_keep_are_skipped_unchecked(self):
+        rows = parse.read_pos(self._variant(b",67,07,", b",67,42,"), {"010001"})  # 010062's odd code is not ours
+        self.assertEqual(list(rows), ["010001"])
 
     def test_bytes_undefined_in_windows_1252_raise(self):
         with self.assertRaises(parse.SchemaError):
-            parse.read_pos(self._variant(b"CARNEY", b"CARN\x81Y"))
+            parse.read_pos(self._variant(b"CARNEY", b"CARN\x81Y"), self.KEEP)
 
 
 class GeoFilesTest(unittest.TestCase):

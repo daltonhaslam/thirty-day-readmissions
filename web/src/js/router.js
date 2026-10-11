@@ -19,8 +19,8 @@ const KEYS = {
   region: (k) => (/^(northeast|midwest|south|west)$/.test(k) ? k : null),
 };
 
-// In-page sections of Methods that other pages link to: key -> element id (the same as its hash).
-export const METHODS_SECTIONS = { dollars: 'methods-dollars' };
+// The Methods section on the dollar estimates, which other pages link to (its element id is also its hash).
+export const DOLLARS_ID = 'methods-dollars';
 const route = (view, key = null, section = null) => ({ view, key, section });
 
 export function parseHash(hash) {
@@ -32,7 +32,7 @@ export function parseHash(hash) {
   }
   if (!s || s === 'top') return route('home');
   if (s === 'methods') return route('methods');
-  if (Object.values(METHODS_SECTIONS).includes(s)) return route('methods', null, s);
+  if (s === DOLLARS_ID) return route('methods', null, s);
   if (SECTIONS.includes(s)) return route('home', null, s);
   const m = /^([a-z]+)-(.+)$/i.exec(s);
   const check = m && KEYS[m[1].toLowerCase()];
@@ -42,8 +42,7 @@ export function parseHash(hash) {
 
 export function link(view, key) {
   if (view === 'home' || !view) return '#';
-  if (view === 'methods') return `#${METHODS_SECTIONS[key] ?? 'methods'}`;
-  if (SECTIONS.includes(view)) return `#${view}`;
+  if (view === 'methods' || SECTIONS.includes(view)) return `#${view}`;
   return `#${view}-${String(key).toLowerCase()}`;
 }
 

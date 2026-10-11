@@ -148,8 +148,7 @@ class ContractTest(unittest.TestCase):
             self.assertAlmostEqual(x["red"], round((1 - x["paf"]) * 100, 2), places=6, msg=x["id"])
 
     def test_replication_and_geocode_coverage(self):
-        rep = self.d["meta"]["replication"]
-        self.assertEqual((rep["exact"], rep["rounding"], rep["mismatches"]), (rep["total"], 0, []))
+        self.assertEqual(self.d["meta"]["replication"], {"exact": len(self.h), "total": len(self.h)})
         with_geo = sum(1 for x in self.h if x["lat"] is not None)
         self.assertGreaterEqual(with_geo / len(self.h), 0.97)
 
@@ -193,8 +192,9 @@ class ContractTest(unittest.TestCase):
     def test_dollar_check_is_copied_from_content(self):
         dc = self.d["meta"]["dollarCheck"]
         self.assertEqual(dc, json.loads((ROOT / "pipeline" / "content" / "dollar_check.json").read_text(encoding="utf-8")))
-        self.assertEqual(set(dc), {"asOf", "source", "n", "rateDrift", "within10", "within15", "within15Small",
+        self.assertEqual(set(dc), {"asOf", "source", "costFy", "n", "rateDrift", "within10", "within15", "within15Small",
                                    "within15Large", "note"})
+        self.assertIn(f"FY{dc['costFy']}", dc["source"])
         self.assertTrue(all(0 < dc[k] <= 100 for k in ("within10", "within15", "within15Small", "within15Large")))
 
     def test_whats_new_is_for_this_fiscal_year(self):
@@ -227,10 +227,13 @@ class ContractTest(unittest.TestCase):
     def test_contract_keys(self):
         self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
         self.assertEqual([c["key"] for c in self.d["conditions"]], ["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"])
-        keys = {"id", "name", "alias", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
-                "division", "beds", "bedsSrc", "teach", "own", "ownDetail", "star", "types", "inactive", "paf", "red",
-                "dual", "peer", "base", "pen", "c"}
-        self.assertEqual(set(self.h[0]), keys)
+        keys = {"id", "name", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
+                "division", "beds", "teach", "own", "ownDetail", "star", "types", "paf", "red", "dual", "peer", "base", "pen", "c"}
+        for x in self.h:  # alias, bedsSrc, and inactive are left out rather than null
+            self.assertTrue(keys <= set(x) <= keys | {"alias", "bedsSrc", "inactive"}, x["id"])
+            self.assertNotIn(None, (x.get("alias", ""), x.get("bedsSrc", ""), x.get("inactive", {})), x["id"])
+        self.assertEqual({x["bedsSrc"] for x in self.h if "bedsSrc" in x}, {"cr"})  # only the cost-report fallback
+        self.assertEqual({tuple(x["inactive"]) for x in self.h if "inactive" in x}, {("date", "reason")})
         self.assertEqual(set(self.h[0]["c"]["HF"]), {"n", "err", "flag", "ratio"})
         self.assertEqual(len(self.d["meta"]["peerCutoffs"]), 5)
 
@@ -322,20 +325,19 @@ class FreshBuildTest(unittest.TestCase):
 
     def test_beds_come_from_certified_counts(self):
         for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:
-            self.assertEqual((self.by_id[ccn]["beds"], self.by_id[ccn]["bedsSrc"]), (n, "pos"), ccn)
-        self.assertGreater(sum(1 for x in self.built["hospitals"] if x["bedsSrc"] == "pos"), 2900)
+            self.assertEqual((self.by_id[ccn]["beds"], self.by_id[ccn].get("bedsSrc")), (n, None), ccn)
+        self.assertGreater(sum(1 for x in self.built["hospitals"] if x["beds"] and "bedsSrc" not in x), 2900)
 
     def test_inactive_hospitals_stay_in_the_data(self):
-        off = {x["id"]: x["inactive"] for x in self.built["hospitals"] if x["inactive"]}
+        off = {x["id"]: x["inactive"] for x in self.built["hospitals"] if "inactive" in x}
         self.assertEqual(len(off), 21)
-        self.assertEqual(off["140082"], {"date": "2025-08-09", "code": "05",
-                                         "reason": "terminated for failing health and safety requirements"})
+        self.assertEqual(off["140082"], {"date": "2025-08-09", "reason": "terminated for failing health and safety requirements"})
         self.assertEqual(self.built["meta"]["replication"]["total"], len(self.built["hospitals"]))
 
     def test_mdh_base_adds_the_hospital_specific_add_on_for_oct_to_dec(self):
         import build_data
         from hrrp import model, parse
-        self.assertEqual(self.built["meta"]["mdh"], {"endDate": "2026-12-31", "share": 92 / 365})
+        self.assertEqual(self.built["meta"]["mdh"], {"endDate": "2026-12-31", "maxShortfall": 33})
         imp = parse.read_impact(build_data.path("impact"), build_data.FY, build_data.GROUPER)["360123"]  # UH St John
         federal = model.est_base_payment(imp, self.built["meta"]["rates"])
         self.assertIn("MDH", self.by_id["360123"]["types"])
@@ -344,12 +346,8 @@ class FreshBuildTest(unittest.TestCase):
 
     def test_aliases_only_for_care_compare_names(self):
         self.assertEqual(self.by_id["230038"]["alias"], "Corewell Health Grand Rapids Hospitals Butterworth")
-        self.assertIsNone(self.by_id["420117"]["alias"])  # no Care Compare name: nothing to alias
-        self.assertTrue(50 <= sum(1 for x in self.built["hospitals"] if x["alias"]) <= 120)
-
-    def test_replication_counts_add_up(self):
-        rep = self.built["meta"]["replication"]
-        self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
+        self.assertNotIn("alias", self.by_id["420117"])  # no Care Compare name: nothing to alias
+        self.assertTrue(50 <= sum(1 for x in self.built["hospitals"] if "alias" in x) <= 120)
 
 
 class ProviderOfServicesTest(unittest.TestCase):
@@ -365,12 +363,7 @@ class ProviderOfServicesTest(unittest.TestCase):
         self.assertIsNone(build_data.inactive({"term": "00", "termDate": None}))
         self.assertIsNone(build_data.inactive({}))
         self.assertEqual(build_data.inactive({"term": "01", "termDate": "2024-08-31"}),
-                         {"date": "2024-08-31", "code": "01", "reason": "merger or closure"})
-
-    def test_bed_bands_match_the_site(self):
-        import build_data
-        self.assertEqual([build_data.bed_band(b) for b in (None, 99, 100, 299, 300, 499, 500)],
-                         [None, "<100", "100-299", "100-299", "300-499", "300-499", "500+"])
+                         {"date": "2024-08-31", "reason": "merger or closure"})
 
 
 class MdhShareTest(unittest.TestCase):
@@ -392,8 +385,8 @@ class PrecisionTest(unittest.TestCase):
 
     def test_cms_rounds_half_up(self):
         import build_data
-        self.assertEqual((build_data.cms_round(0.15625), build_data.cms_round(0.98625), build_data.cms_round(None)),
-                         (0.1563, 0.9863, None))
+        self.assertEqual([build_data.rnd(v, 4, half_up=True) for v in (0.15625, 0.98625, None)], [0.1563, 0.9863, None])
+        self.assertEqual([build_data.rnd(v, 4) for v in (0.15625, None)], [0.1562, None])
 
     def test_matching_tables_pass(self):
         import build_data

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHash, link } from '../src/js/router.js';
+import { DOLLARS_HREF } from '../src/js/views/util.js';
 
 test('empty hash is home', () => {
   assert.deepEqual(parseHash(''), { view: 'home', key: null, section: null });
@@ -27,8 +28,8 @@ test('home sections route to home with a section', () => {
 });
 
 test('a Methods section is the methods view with a scroll target; unknown ones are not found', () => {
-  assert.deepEqual(parseHash('#methods-dollars'), { view: 'methods', key: null, section: 'methods-dollars' });
-  assert.equal(link('methods', 'dollars'), '#methods-dollars');
+  assert.equal(DOLLARS_HREF, '#methods-dollars');
+  assert.deepEqual(parseHash(DOLLARS_HREF), { view: 'methods', key: null, section: 'methods-dollars' });
   assert.equal(link('methods'), '#methods');
 });
 

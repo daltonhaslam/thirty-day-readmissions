@@ -1,6 +1,7 @@
 {
   "asOf": "2026-10-11",
   "source": "Medicare cost reports (HCRIS) for cost-reporting periods beginning in FY2024, worksheet E part A lines 101-102",
+  "costFy": 2024,
   "n": 2845,
   "rateDrift": 1.066,
   "within10": 73.4,
