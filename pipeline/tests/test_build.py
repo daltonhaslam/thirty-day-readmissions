@@ -1,4 +1,6 @@
 import json
+import math
+import re
 import unittest
 from pathlib import Path
 
@@ -31,9 +33,30 @@ class NamesTest(unittest.TestCase):
 
     def test_mc_prefix(self):
         self.assertEqual(names.smart_title("MCALLEN MEDICAL CENTER"), "McAllen Medical Center")
+        self.assertEqual(names.smart_title("LOUIS A WEISS MEMORIAL HOSPITAL"), "Louis A Weiss Memorial Hospital")
+        self.assertEqual(names.smart_title("LAS PALMAS MEDICAL CENTER A CAMPUS OF LPDS"), "Las Palmas Medical Center a Campus of LPDS")
 
     def test_falls_back_to_impact_name_when_hgi_missing(self):
         self.assertEqual(names.display_name(None, "Some Hospital"), "Some Hospital")
+
+
+class AliasTest(unittest.TestCase):
+    def test_materially_different_impact_name_becomes_the_alias(self):
+        self.assertEqual(names.alias("Spectrum Health", "Corewell Health Grand Rapids Hospitals Butterworth"),
+                         "Corewell Health Grand Rapids Hospitals Butterworth")
+        self.assertEqual(names.alias("Marion Communtiy Hospital", "Hca Florida Ocala Hospital"), "HCA Florida Ocala Hospital")
+        self.assertEqual(names.alias("Ascension Providence Rochester Hospital", "Henry Ford Rochester Hospital"),
+                         "Henry Ford Rochester Hospital")  # only 1 of 3 distinctive words shared
+
+    def test_same_name_in_other_spelling_has_no_alias(self):
+        for shown, impact in [("AdventHealthManchester", "AdventHealth Manchester"), ("TJ Health Columbia", "T J Health Columbia"),
+                              ("Baptist Hlth Med Ctr", "Baptist Health Medical Center"), ("St. Mary's Hospital", "Saint Marys Hosp"),
+                              ("Kershawhealth", "Kershaw Medical Center"), ("Memorial Hospital", "Memorial Hospital Inc")]:
+            self.assertIsNone(names.alias(shown, impact), (shown, impact))
+
+    def test_missing_names_have_no_alias(self):
+        self.assertIsNone(names.alias("Some Hospital", None))
+        self.assertIsNone(names.alias(None, "Some Hospital"))
 
 
 class GeoTest(unittest.TestCase):
@@ -62,9 +85,26 @@ class StrayPointTest(unittest.TestCase):
     HOSP = {"zip": "11111", "county": "Wrongshire"}
     IMP = {"fips": "99001"}
 
-    def locate(self, zip_pt, imp=IMP):
+    def locate(self, zip_pt, imp=IMP, point=None, hosp=HOSP):
         import build_data
-        return build_data.locate(self.HOSP, imp, "ZZ", {"11111": zip_pt}, self.COUNTIES)
+        return build_data.locate(hosp, imp, "ZZ", {"11111": zip_pt}, self.COUNTIES, point)
+
+    def test_address_point_wins_and_corrects_a_care_compare_county_naming_elsewhere(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6)), (0.6, 0.6, "address", "Squareville"))
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6), hosp={**self.HOSP, "county": "SQUAREVILLE"}),
+                         (0.6, 0.6, "address", None))
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.6, 0.6), hosp={**self.HOSP, "county": "SQUAREVILLE CITY"}),
+                         (0.6, 0.6, "address", None))
+
+    def test_address_point_near_the_county_keeps_care_compare_county(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.5, 1.2)), (0.5, 1.2, "address", None))  # ~22 km out
+
+    def test_address_point_far_outside_falls_back_to_zip_logic(self):
+        self.assertEqual(self.locate((0.2, 0.3), point=(0.5, 2.0)), (0.2, 0.3, "zip", None))  # ~111 km out
+        self.assertEqual(self.locate((0.5, 2.0), point=(0.5, 2.0)), (0.5, 0.5, "county", "Squareville"))
+
+    def test_address_point_for_a_county_missing_from_the_atlas_is_used(self):
+        self.assertEqual(self.locate((0.2, 0.3), {"fips": "09110"}, point=(5.0, 5.0)), (5.0, 5.0, "address", None))
 
     def test_km_outside(self):
         self.assertEqual(geo.km_outside(0.5, 0.5, [SQUARE]), 0.0)
@@ -109,10 +149,25 @@ class ContractTest(unittest.TestCase):
 
     def test_replication_and_geocode_coverage(self):
         rep = self.d["meta"]["replication"]
-        self.assertEqual(rep["mismatches"], [])
-        self.assertGreaterEqual(rep["exact"] / rep["total"], 0.95)
+        self.assertEqual((rep["exact"], rep["rounding"], rep["mismatches"]), (rep["total"], 0, []))
         with_geo = sum(1 for x in self.h if x["lat"] is not None)
         self.assertGreaterEqual(with_geo / len(self.h), 0.97)
+
+    def test_site_arithmetic_reproduces_every_paf_from_the_json(self):
+        """web/src/js/model.js contrib(): float sum in condition order, paf = round4(1 - round4(min(sum, cap)))."""
+        def round4(v):  # JavaScript Math.round(v * 1e4) / 1e4: nearest, ties toward +infinity
+            x = v * 1e4
+            return (math.floor(x) + (x - math.floor(x) >= 0.5)) / 1e4
+        meta, off = self.d["meta"], []
+        for x in self.h:
+            total = 0
+            for k in ("AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"):
+                c, med = x["c"].get(k), meta["peerMedians"][str(x["peer"])][k]
+                if c and (c["n"] or 0) >= 25 and c["err"] is not None and c["ratio"] is not None:
+                    total += meta["nm"] * c["ratio"] * max(c["err"] - med, 0)
+            if abs(round4(1 - round4(min(total, 0.03))) - x["paf"]) > 1e-9:
+                off.append(x["id"])
+        self.assertEqual(off, [])
 
     def test_hospital_with_no_flags_has_no_penalty(self):
         zero = [x for x in self.h if all(c["flag"] == 0 for c in x["c"].values())]
@@ -124,6 +179,23 @@ class ContractTest(unittest.TestCase):
         for x in self.h:
             for k, c in x["c"].items():
                 self.assertFalse(c["n"] is None and c["err"] is None, (x["id"], k))
+
+    def test_readme_headline_numbers_match_the_data(self):
+        text = (ROOT / "README.md").read_text(encoding="utf-8")
+        count = lambda pattern: [int(g.replace(",", "")) for g in re.search(pattern, text).groups()]  # noqa: E731
+        fy, n_pen, n = count(r"For fiscal year (\d{4}) .*?cut payments at ([\d,]+) of the\s+([\d,]+) hospitals it evaluated")
+        self.assertEqual((fy, n_pen, n), (self.d["meta"]["fy"], sum(1 for x in self.h if x["paf"] < 1), len(self.h)))
+        self.assertIn(f"FY{fy} edition", text)
+        (exact,) = count(r"reproduces it exactly for all\s+([\d,]+) hospitals")
+        self.assertEqual(exact, self.d["meta"]["replication"]["exact"])
+        self.assertEqual(exact, len(self.h))
+
+    def test_dollar_check_is_copied_from_content(self):
+        dc = self.d["meta"]["dollarCheck"]
+        self.assertEqual(dc, json.loads((ROOT / "pipeline" / "content" / "dollar_check.json").read_text(encoding="utf-8")))
+        self.assertEqual(set(dc), {"asOf", "source", "n", "rateDrift", "within10", "within15", "within15Small",
+                                   "within15Large", "note"})
+        self.assertTrue(all(0 < dc[k] <= 100 for k in ("within10", "within15", "within15Small", "within15Large")))
 
     def test_whats_new_is_for_this_fiscal_year(self):
         items = self.d["meta"]["whatsNew"]
@@ -150,14 +222,14 @@ class ContractTest(unittest.TestCase):
                 self.assertIsNone(x["lat"])
                 self.assertIsNone(x["lon"])
             else:
-                self.assertIn(x["geo"], ("zip", "county"))
+                self.assertIn(x["geo"], ("address", "zip", "county"))
 
     def test_contract_keys(self):
         self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
         self.assertEqual([c["key"] for c in self.d["conditions"]], ["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"])
-        keys = {"id", "name", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
-                "division", "beds", "teach", "own", "ownDetail", "star", "types", "paf", "red", "dual", "peer", "base",
-                "pen", "c"}
+        keys = {"id", "name", "alias", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
+                "division", "beds", "bedsSrc", "teach", "own", "ownDetail", "star", "types", "inactive", "paf", "red",
+                "dual", "peer", "base", "pen", "c"}
         self.assertEqual(set(self.h[0]), keys)
         self.assertEqual(set(self.h[0]["c"]["HF"]), {"n", "err", "flag", "ratio"})
         self.assertEqual(len(self.d["meta"]["peerCutoffs"]), 5)
@@ -231,17 +303,111 @@ class FreshBuildTest(unittest.TestCase):
     def test_mdh_hospitals_are_tagged(self):
         self.assertGreater(sum(1 for x in self.built["hospitals"] if "MDH" in x["types"]), 100)
 
-    def test_connecticut_po_box_hospitals_are_placed_in_their_care_compare_county(self):
-        x = self.by_id["070005"]  # Waterbury Hospital, New Haven County
-        self.assertEqual(x["geo"], "county")
-        self.assertAlmostEqual(x["lat"], 41.4, delta=0.3)
+    def test_connecticut_po_box_zip_hospital_is_placed_by_street_address(self):
+        x = self.by_id["070005"]  # Waterbury Hospital, New Haven County; its ZIP is a PO-box ZIP with no centroid
+        self.assertEqual((x["geo"], x["county"]), ("address", "New Haven"))
+        self.assertAlmostEqual(x["lat"], 41.56, delta=0.02)
         self.assertEqual(self.built["meta"]["geocode"]["none"], 0)
 
-    def test_stray_zip_points_are_moved_to_their_impact_file_county(self):
-        for ccn, county in [("020012", "Fairbanks North Star"), ("230216", "St. Clair"), ("140013", "Peoria")]:
-            self.assertEqual((self.by_id[ccn]["geo"], self.by_id[ccn]["county"]), ("county", county), ccn)
+    def test_street_addresses_fix_points_and_counties_the_zip_got_wrong(self):
+        for ccn, county, lat, lon in [("020012", "Fairbanks North Star", 64.83, -147.74),  # Fairbanks Memorial
+                                      ("230216", "St. Clair", 42.99, -82.43),  # McLaren Port Huron
+                                      ("140013", "Peoria", 40.75, -89.59),  # Carle Proctor
+                                      ("050030", "Butte", 39.50, -121.54)]:  # Oroville Hospital
+            x = self.by_id[ccn]
+            self.assertEqual((x["geo"], x["county"]), ("address", county), ccn)
+            self.assertAlmostEqual(x["lat"], lat, delta=0.01, msg=ccn)
+            self.assertAlmostEqual(x["lon"], lon, delta=0.01, msg=ccn)
+        self.assertGreater(self.built["meta"]["geocode"]["address"], 2400)
 
-    def test_replication_reports_exact_and_rounding_matches_separately(self):
+    def test_beds_come_from_certified_counts(self):
+        for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:
+            self.assertEqual((self.by_id[ccn]["beds"], self.by_id[ccn]["bedsSrc"]), (n, "pos"), ccn)
+        self.assertGreater(sum(1 for x in self.built["hospitals"] if x["bedsSrc"] == "pos"), 2900)
+
+    def test_inactive_hospitals_stay_in_the_data(self):
+        off = {x["id"]: x["inactive"] for x in self.built["hospitals"] if x["inactive"]}
+        self.assertEqual(len(off), 21)
+        self.assertEqual(off["140082"], {"date": "2025-08-09", "code": "05",
+                                         "reason": "terminated for failing health and safety requirements"})
+        self.assertEqual(self.built["meta"]["replication"]["total"], len(self.built["hospitals"]))
+
+    def test_mdh_base_adds_the_hospital_specific_add_on_for_oct_to_dec(self):
+        import build_data
+        from hrrp import model, parse
+        self.assertEqual(self.built["meta"]["mdh"], {"endDate": "2026-12-31", "share": 92 / 365})
+        imp = parse.read_impact(build_data.path("impact"), build_data.FY, build_data.GROUPER)["360123"]  # UH St John
+        federal = model.est_base_payment(imp, self.built["meta"]["rates"])
+        self.assertIn("MDH", self.by_id["360123"]["types"])
+        self.assertEqual(self.by_id["360123"]["base"], round(federal + model.est_mdh_addon(imp, federal, 92 / 365)))
+        self.assertGreater(self.by_id["360123"]["base"], federal * 1.15)
+
+    def test_aliases_only_for_care_compare_names(self):
+        self.assertEqual(self.by_id["230038"]["alias"], "Corewell Health Grand Rapids Hospitals Butterworth")
+        self.assertIsNone(self.by_id["420117"]["alias"])  # no Care Compare name: nothing to alias
+        self.assertTrue(50 <= sum(1 for x in self.built["hospitals"] if x["alias"]) <= 120)
+
+    def test_replication_counts_add_up(self):
         rep = self.built["meta"]["replication"]
         self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
-        self.assertGreater(rep["rounding"], 0)
+
+
+class ProviderOfServicesTest(unittest.TestCase):
+    def test_certified_beds_win_whenever_present(self):
+        import build_data
+        self.assertEqual(build_data.beds(155, 240), (240, "pos"))
+        self.assertEqual(build_data.beds(1, 30), (30, "pos"))
+        self.assertEqual(build_data.beds(120, None), (120, "cr"))
+        self.assertEqual(build_data.beds(None, None), (None, None))
+
+    def test_inactive_uses_the_official_code_meaning(self):
+        import build_data
+        self.assertIsNone(build_data.inactive({"term": "00", "termDate": None}))
+        self.assertIsNone(build_data.inactive({}))
+        self.assertEqual(build_data.inactive({"term": "01", "termDate": "2024-08-31"}),
+                         {"date": "2024-08-31", "code": "01", "reason": "merger or closure"})
+
+    def test_bed_bands_match_the_site(self):
+        import build_data
+        self.assertEqual([build_data.bed_band(b) for b in (None, 99, 100, 299, 300, 499, 500)],
+                         [None, "<100", "100-299", "100-299", "300-499", "300-499", "500+"])
+
+
+class MdhShareTest(unittest.TestCase):
+    def test_share_of_fiscal_year_before_mdh_status_ends(self):
+        import build_data
+        self.assertEqual(build_data.year_share(2027, "2026-12-31"), 92 / 365)  # Oct 1 - Dec 31, 2026
+        self.assertEqual(build_data.year_share(2027, "2026-06-30"), 0)
+        self.assertEqual(build_data.year_share(2027, "2028-09-30"), 1)
+        self.assertEqual(build_data.year_share(2028, "2028-09-30"), 1)  # leap-year FY: 366 of 366
+
+
+class PrecisionTest(unittest.TestCase):
+    """build_data's checks that the Excel workbook and the tab-delimited export hold the same table."""
+    FULL = {"010001": {"paf": 0.9863, "dual": 0.15625, "peer": 1, "nm": 0.96284743999129252,
+                       "c": {"HF": {"n": 601, "err": 1.08989959713565, "med": 0.99283380046303704, "flag": 1,
+                                    "ratio": 0.032458421638130501}}}}
+    PUBLISHED = {"010001": {"paf": 0.9863, "dual": 0.1563, "peer": 1, "nm": 0.9628,
+                            "c": {"HF": {"n": 601, "err": 1.0899, "med": 0.9928, "flag": 1, "ratio": 0.0325}}}}
+
+    def test_cms_rounds_half_up(self):
+        import build_data
+        self.assertEqual((build_data.cms_round(0.15625), build_data.cms_round(0.98625), build_data.cms_round(None)),
+                         (0.1563, 0.9863, None))
+
+    def test_matching_tables_pass(self):
+        import build_data
+        self.assertEqual(build_data.precision_mismatches(self.FULL, self.PUBLISHED), [])
+
+    def test_mis_mapped_column_is_caught(self):
+        import build_data
+        hf = self.PUBLISHED["010001"]["c"]["HF"]
+        swapped = {"010001": {**self.PUBLISHED["010001"], "c": {"HF": {**hf, "err": hf["med"], "med": hf["err"]}}}}
+        self.assertEqual(build_data.precision_mismatches(self.FULL, swapped), [("010001", "HF.err"), ("010001", "HF.med")])
+        self.assertEqual(build_data.precision_mismatches(self.FULL, {}), [("010001", "missing")])
+
+    def test_stored_values_are_rounded_to_decimals(self):
+        import build_data
+        s = build_data.as_stored(self.FULL["010001"])
+        self.assertEqual((s["nm"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]), (round(0.96284743999129252, build_data.DECIMALS),
+                                                                             round(1.08989959713565, build_data.DECIMALS), 601))

@@ -27,8 +27,10 @@ def reduction(h):
 
 
 def replication_status(h):
-    """'exact' when the recomputed PAF equals CMS's 4-decimal PAF; 'rounding' when it is off by one unit in the
-    4th decimal (CMS computes from unrounded ERRs and ratios; the file publishes them rounded); else 'mismatch'."""
+    """'exact' when 1 - (reduction rounded to 4 decimals) equals CMS's PAF; 'rounding' when it is one unit off in
+    the 4th decimal, which only happens when the inputs were themselves rounded too coarsely; else 'mismatch'.
+
+    From the Excel workbook's full-precision values every FY2027 hospital is 'exact'."""
     diff = abs((1 - round(reduction(h), 4)) - h["paf"])
     if diff < 1e-9:
         return "exact"
@@ -48,6 +50,18 @@ def est_base_payment(imp, rates):
     col = ("n" if imp.get("qual_red") else "q") + ("n" if imp.get("ehr_red") else "e")
     labor, nonlabor = rates[table][col]
     return imp["cases"] * imp["cmi"] * (labor * imp["wi"] + nonlabor * (imp.get("cola") or 1.0))
+
+
+MDH_EXCESS_SHARE = 0.75
+
+
+def est_mdh_addon(imp, federal, share):
+    """Medicare-dependent hospital add-on to the base (42 CFR 412.152, 412.108): 75% of the amount by which the
+    hospital-specific-rate payment (HSP rate x CMI x cases, the federal estimate's cases and CMI) exceeds the federal
+    payment, times `share`, the fraction of the fiscal year the hospital keeps MDH status. 0 without an HSP rate."""
+    if federal is None or not imp.get("hsp"):
+        return 0.0
+    return MDH_EXCESS_SHARE * max(0.0, imp["hsp"] * imp["cmi"] * imp["cases"] - federal) * share
 
 
 def est_penalty(base, paf):

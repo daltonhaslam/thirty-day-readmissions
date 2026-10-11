@@ -36,15 +36,19 @@ Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.
 | CMS FY2027 HRRP Supplemental Data File (posted Oct 7, 2026) | Every hospital's payment adjustment factor, peer group, and per-condition ratios, cases, medians, weights |
 | CMS FY2027 HRRP Table 15 | Cross-check of the adjustment factors |
 | FY2027 IPPS final rule + correction notice: impact file, Tables 1A–1E, county–CBSA crosswalk | Hospital characteristics, metro areas, and the dollar estimate |
-| CMS Care Compare, Hospital General Information | Names, addresses, counties, star ratings |
-| US Census 2024 ZCTA Gazetteer; us-atlas 3.0.1 | Hospital locations and map geometry |
+| CMS Care Compare, Hospital General Information | Names, street addresses, counties, star ratings |
+| CMS Provider of Services file, hospital and non-hospital facilities (Q2 2026) | Certified bed counts, closures and terminations, fallback street addresses |
+| US Census Bureau Geocoder (Public_AR_Current) | Map points from street addresses (`pipeline/content/geocodes.csv`) |
+| US Census 2024 ZCTA Gazetteer; us-atlas 3.0.1 | ZIP-centroid fallback locations and map geometry |
 | CMS archived HRRP supplemental files FY2013–FY2026 | Penalty history (see `pipeline/history/PROVENANCE.md`) |
 | Federal Register IPPS rules, KFF Health News, peer-reviewed studies | Annual totals, timeline, research digest (`pipeline/content/`) |
 
-Recomputing every hospital from the values in CMS's tab-delimited supplemental file (rounded to four decimals)
-reproduces its adjustment factor exactly for 2,835 hospitals and within 0.0001 for the other 77; CMS's Excel
-version carries unrounded values, and an independent recomputation from it (Oct 2026) matched all 2,912. Dollar figures are **estimates** modeled from the
-IPPS impact file; CMS publishes percentages only. See the Methods page for the formula and caveats.
+Recomputing each hospital's adjustment factor from the full-precision values in CMS's Excel supplemental file
+reproduces it exactly for all 2,912 hospitals (every build also checks the workbook against CMS's
+four-decimal tab-delimited copy and Table 15). Bed counts are CMS-certified beds from the Provider of Services
+file. Dollar figures are **estimates** modeled from the IPPS impact file, including the Medicare-dependent
+hospital add-on through December 31, 2026; CMS publishes percentages only. See the Methods page for the
+formula and caveats.
 
 ## Rebuilding
 
@@ -52,7 +56,9 @@ Requirements: Python 3.9+ (standard library only) and Node 20+.
 
 ```bash
 python3 -I pipeline/fetch.py          # download sources into data/raw/ and verify SHA-256 pins
-python3 -I pipeline/build_data.py     # join and validate → web/src/data/hrrp.json
+python3 -I pipeline/geocode.py        # optional, needs the network: refresh street-address map points
+                                      #   (Census Geocoder → pipeline/content/geocodes.csv, committed)
+python3 -I pipeline/build_data.py     # join and validate → web/src/data/hrrp.json (offline)
 python3 -I pipeline/run_tests.py      # pipeline tests (includes "committed JSON equals a fresh build")
 
 cd web
@@ -70,12 +76,14 @@ The site deploys on Vercel from this repository. `vercel.json` serves `docs/` as
 step on Vercel) and sets security headers. Every push to `main` redeploys; other branches get preview URLs.
 
 When CMS posts the next fiscal year: add the new files to `pipeline/sources.json`, update the constants
-block at the top of `pipeline/build_data.py`, and append the prior year's factors to the history CSV.
+block at the top of `pipeline/build_data.py` (including `MDH_END` if Congress extends the Medicare-dependent
+hospital program), append the prior year's factors to the history CSV, re-run `pipeline/geocode.py`, and update
+this README's counts (a pipeline test checks them against the built data).
 
 ## Layout
 
 ```
-pipeline/   fetch.py, build_data.py, hrrp/ (parsers, formula, geography, names), history/, content/, tests/
+pipeline/   fetch.py, build_data.py, geocode.py, hrrp/ (parsers, formula, geography, names), history/, content/, tests/
 web/        build.mjs, src/ (index shell, styles, js: model, router, charts, views), test/, e2e/
 docs/       index.html, the built site (served by Vercel; see vercel.json)
 planning-docs/  design spec and implementation plan

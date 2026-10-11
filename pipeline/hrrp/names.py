@@ -23,6 +23,8 @@ TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "RGNL", "BLVD", "M
 # Words kept lower case wherever they appear ("dba" = doing business as)
 LOWER = {"DBA"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
+# A lone "A" is an initial ("Louis A Weiss") unless an article noun follows ("a Part of HCA", "a Campus of ...")
+ARTICLE_NOUNS = {"part", "campus", "division", "member", "department", "facility", "subsidiary", "unit"}
 VOWELS = set("AEIOUY")
 
 
@@ -75,8 +77,45 @@ def smart_title(name):
     out = []
     for i, t in enumerate(tokens):
         after_sep = i > 0 and tokens[i - 1].endswith(SEPARATORS)
-        out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep))
+        initial = t.upper() == "A" and 0 < i < len(tokens) - 1 and tokens[i + 1].lower() not in ARTICLE_NOUNS
+        out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep and not initial))
     return " ".join(out)
+
+
+# Comparing two names for `alias`: abbreviations expanded, filler dropped, and words that say what kind of place a
+# hospital is (rather than which one) ignored.
+EXPAND = {"st": "saint", "ste": "sainte", "mt": "mount", "ft": "fort", "ctr": "center", "cntr": "center",
+          "centre": "center", "med": "medical", "mdl": "medical", "hosp": "hospital", "hosps": "hospitals",
+          "mem": "memorial", "meml": "memorial", "reg": "regional", "rgnl": "regional", "regl": "regional",
+          "hlth": "health", "hlthcr": "healthcare", "univ": "university", "comm": "community", "cmty": "community",
+          "sys": "system", "svcs": "services", "gen": "general", "co": "county", "cnty": "county"}
+FILLER = {"and", "the", "of", "at", "in", "for", "a", "an", "inc", "llc", "lp", "corp", "corporation", "dba", "campus"}
+GENERIC = {"hospital", "hospitals", "medical", "center", "centers", "health", "healthcare", "system", "regional",
+           "community", "memorial", "general", "county", "services", "university", "clinic", "clinics"}
+
+
+def _words(name):
+    words = (EXPAND.get(w, w) for w in re.findall(r"[a-z0-9]+", (name or "").lower().replace("'s", "s")))
+    return [w for w in words if w not in FILLER]
+
+
+def alias(shown, impact_name):
+    """The impact file's name (title-cased) when it tells a reader something the shown name does not, else None.
+
+    Material means fewer than half of the impact name's distinctive words appear in the shown name, as a word or
+    inside a run-together word for words of 4+ letters ('AdventHealthManchester'), and the two names are not the
+    same letters ('TJ Health' / 'T J Health'). E.g. Care Compare's 'Spectrum Health' gets 'Corewell Health Grand
+    Rapids Hospitals Butterworth'.
+    """
+    if not shown or not impact_name:
+        return None
+    mine, theirs = _words(shown), _words(impact_name)
+    distinct = [w for w in dict.fromkeys(theirs) if w not in GENERIC]
+    compact = "".join(mine)
+    found = sum(1 for w in distinct if w in mine or (len(w) >= 4 and w in compact))
+    if compact == "".join(theirs) or found >= len(distinct) / 2:
+        return None
+    return smart_title(" ".join(impact_name.split()))
 
 
 def display_name(hgi_name, impact_name):
