@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONDS, contrib, summarize, percentileRank, scopeFilter, applyFilters, bedBand,
-  fmtPct, fmtMoney, fmtInt, toCSV,
+  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote,
 } from '../src/js/model.js';
 
 // CMS methodology infographic, Hospital A (peer group 4, NM 0.9458)
@@ -105,6 +105,10 @@ test('formatters', () => {
   assert.equal(fmtMoney(341_500_000), '$342M');
   assert.equal(fmtMoney(48210), '$48K');
   assert.equal(fmtMoney(950), '$950');
+  assert.equal(fmtMoney(999_949), '$1.0M');
+  assert.equal(fmtMoney(999_400), '$999K');
+  assert.equal(fmtMoney(99_960_000), '$100M');
+  assert.equal(fmtMoney(999_600_000), '$1.0B');
   assert.equal(fmtInt(2912), '2,912');
 });
 
@@ -114,4 +118,10 @@ test('CSV quotes specials and neutralizes spreadsheet formulas in text', () => {
     [{ key: 'name', label: 'Name' }, { key: 'note', label: 'Note' }, { key: 'v', label: 'V' }],
   );
   assert.equal(csv, 'Name,Note,V\r\n"He said ""hi"", ok",\'=SUM(A1),-1.5\r\n');
+});
+
+test('noEstimateNote counts hospitals with no dollar estimate, and is empty when none', () => {
+  assert.equal(noEstimateNote([{ pen: 5 }, { pen: 0 }]), '');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: 5 }]), '1 hospital has no estimate and is counted as $0');
+  assert.equal(noEstimateNote([{ pen: null }, { pen: undefined }]), '2 hospitals have no estimate and are counted as $0');
 });

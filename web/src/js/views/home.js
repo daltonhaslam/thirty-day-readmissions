@@ -5,7 +5,7 @@ import { penaltyHistogram } from '../charts/histogram.js';
 import { greenbarTable } from '../ui/table.js';
 import { usMap, mapLegend, dotLegend, METRICS } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
-import { fmtInt, fmtPct, fmtMoney, fmtDate } from '../model.js';
+import { fmtInt, fmtPct, fmtMoney, fmtDate, noEstimateNote } from '../model.js';
 import { hospitalColumns, summaryColumns } from './columns.js';
 import { explainerPart } from './explainer.js';
 import { conditionFigure, peerFigure, typeFigure, measuredFigure } from './national.js';
@@ -36,7 +36,7 @@ function hero(D, index, S) {
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
         field(4, 'Average cut, penalized only', fmtPct(S.meanRedPen)),
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
-        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: `Modeled here. CMS's rule-time estimate: ${fmtMoney(D.meta.totals.cmsEst)}` }),
+        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: [`Modeled here. CMS's rule-time estimate: ${fmtMoney(D.meta.totals.cmsEst)}.`, noEstimateNote(D.hospitals) && ` ${noEstimateNote(D.hospitals)}.`].filter(Boolean).join('') }),
         field(7, 'Data window', `${fmtDate(D.meta.perf[0])} – ${fmtDate(D.meta.perf[1])}`),
         field(8, 'Payment year', D.edition.payShort)),
       h('div', { class: 'hero__stamp' }, h('span', { class: 'stamp' }, `Final · posted ${fmtDate(D.meta.fileDate)}`))));
@@ -121,7 +121,7 @@ function historyPart(D) {
       figure({ title: 'Share of hospitals penalized', take: 'Counts hospitals in each year\'s CMS file; early years exclude Maryland, Puerto Rico, and hospitals with no measured conditions.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
       figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
-      figure({ title: 'Estimated total penalties', take: `Dark bars: CMS estimates from each year's payment rule. Light bars: totals reported by KFF Health News. We found no total for ${missing}.`,
+      figure({ title: 'Estimated total penalties', take: `Dark bars: CMS figures, mostly estimates made when each year's rule was published. Light bars: CMS estimates as reported by KFF Health News. Hover a bar for its exact source. We found no total for ${missing}.`,
         source: `Federal Register IPPS final rules; KFF Health News. ${D.edition.label} is CMS's rule-time estimate made with preliminary data.`, body: dolEl }),
       figure({ title: 'Timeline', body: timeline })));
 }

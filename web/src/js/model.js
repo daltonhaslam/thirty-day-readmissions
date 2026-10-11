@@ -46,6 +46,14 @@ export function median(a) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+// Hospitals with no dollar estimate (missing from the IPPS impact file); dollar totals count them as $0.
+export const noEstimate = (list) => list.filter((h) => h.pen == null).length;
+// Short clause for a dollar total's note; empty when every hospital has an estimate.
+export function noEstimateNote(list) {
+  const n = noEstimate(list);
+  return n ? `${fmtInt(n)} ${n === 1 ? 'hospital has' : 'hospitals have'} no estimate and ${n === 1 ? 'is' : 'are'} counted as $0` : '';
+}
+
 export function summarize(list) {
   const reds = list.map((h) => h.red);
   const pen = reds.filter((r) => r > 0);
@@ -122,9 +130,10 @@ export function fmtInt(v) {
 export function fmtMoney(v) {
   if (v == null || !Number.isFinite(v)) return '—';
   const a = Math.abs(v);
-  if (a >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (a >= 1e8) return `$${Math.round(v / 1e6)}M`;
-  if (a >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  // Thresholds sit at the rounding points so a value never prints as "$1000K" or "$1000M".
+  if (a >= 999.5e6) return `$${(v / 1e9).toFixed(1)}B`;
+  if (a >= 99.95e6) return `$${Math.round(v / 1e6)}M`;
+  if (a >= 999.5e3) return `$${(v / 1e6).toFixed(1)}M`;
   if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
   return `$${Math.round(v)}`;
 }

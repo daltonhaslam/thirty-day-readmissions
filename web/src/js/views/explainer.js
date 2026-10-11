@@ -28,7 +28,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
     const state = condState(hosp, k, D.meta, r.byCond);
     const counted = state === 'counted' && r.byCond[k] > 0;
     const why = { none: 'no cases', few: `under ${MIN_DISCHARGES} cases`, below: 'at or below median',
-      counted: weightPublished(c) ? 'ties the median at 4 decimals; CMS counted it' : WEIGHT_MISSING }[state];
+      counted: weightPublished(c) ? 'rounds to the median; CMS counted it' : WEIGHT_MISSING }[state];
     return h('tr', { class: counted ? 'is-on' : 'is-off' },
       h('th', { scope: 'row' }, D.condByKey[k].short),
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
@@ -59,7 +59,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('li', {}, h('span', {}, 'Line 7 · Sum of line 6'), h('b', {}, `${(r.sum * 100).toFixed(3)}%`)),
       h('li', {}, h('span', {}, 'Line 8 · Line 7, capped at 3%, rounded'), h('b', {}, fmtPct(Math.round(r.reduction * 1e4) / 100))),
       h('li', {}, h('span', {}, 'Line 9 · Payment adjustment factor (1 − line 8)'), h('b', {}, recomputed.toFixed(4))),
-      h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${match ? '· matches' : '· differs by 0.0001 (CMS rounds after computing with unrounded inputs)'}`)),
+      h('li', { class: 'ws__check' }, h('span', {}, `CMS published factor`), h('b', {}, `${hosp.paf.toFixed(4)} ${match ? '· matches' : '· differs by 0.0001 (CMS used unrounded values; this file rounds them to four decimals)'}`)),
       compact ? null : h('li', {}, h('span', {}, `Applied to every traditional Medicare base payment, ${D.edition.payShort}`), h('b', {}, `≈ ${fmtMoney(hosp.pen)} estimated`))));
 }
 
@@ -73,6 +73,9 @@ export function explainerPart(D, index) {
     value: e.n, display: `${fmtInt(e.n)} hospitals` })), { max: all.length, ink: true });
 
   // Step 2: ERR strip with condition toggle
+  const meds = Object.values(D.meta.peerMedians).flatMap((m) => Object.values(m));
+  const medLo = Math.min(...meds);
+  const medHi = Math.max(...meds);
   const stripEl = h('div');
   const condBtns = h('div', { class: 'seg', role: 'group', 'aria-label': 'Condition' });
   const drawStrip = (k) => {
@@ -125,14 +128,14 @@ export function explainerPart(D, index) {
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File (eligible discharges).`, body: step1 })),
       h('li', { class: 'step' }, stepHead(2, 'Each hospital gets a ratio',
         'The excess readmission ratio (ERR) divides the readmissions CMS predicts for this hospital by the readmissions an average hospital would have with the same patients. Above 1.0 means more than expected.'),
-        figure({ title: 'Every hospital\'s ratio, one dot each', take: `Red dots are above 1.0. The large dot is ${ex.name}, used in the worksheet below. Select a dot to open that hospital.`,
+        figure({ title: 'Every hospital\'s ratio, one dot each', take: `Red dots are above 1.0, more readmissions than expected. A hospital is penalized only for being above its peer group's median, which runs from ${f4(medLo)} to ${f4(medHi)}. The large dot is ${ex.name}, used in the worksheet below. Select a dot to open that hospital.`,
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File. Hospitals with at least ${MIN_DISCHARGES} cases.`, body: h('div', {}, h('div', { class: 'controls' }, condBtns), stripEl) })),
       h('li', { class: 'step' }, stepHead(3, 'Hospitals are compared with peers',
         'Since FY2019, hospitals are split into five equal groups by the share of their Medicare patients who also qualify for full Medicaid, a common marker of low income. Each hospital is judged only against its own group.'),
         figure({ title: 'Share of stays from dual-eligible patients', take: 'Group 1 serves the fewest low-income patients; group 5 the most. Each band holds about a fifth of hospitals.',
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File (dual proportion, peer group).`, body: bandEl })),
       h('li', { class: 'step' }, stepHead(4, 'The bar to clear is the group median',
-        'A condition adds to the penalty only if the hospital\'s ratio is above its peer group\'s median for that condition. Half of each group is above the median by definition, which is why most hospitals end up with some penalty.'),
+        'A condition adds to the penalty only if the hospital\'s ratio is above its peer group\'s median for that condition. CMS sets each median over every hospital in the group, so about half of the hospitals that are measured on a condition land above it. That is why most hospitals end up with some penalty.'),
         figure({ title: `Peer-group medians for ${D.edition.label}`, take: 'The medians differ slightly by group. Shaded cells are above 1.0.',
           source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: grid })),
       h('li', { class: 'step' }, stepHead(5, 'The worksheet',

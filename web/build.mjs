@@ -29,7 +29,7 @@ const { fy } = JSON.parse(rawData).meta;
 const data = rawData.replace(/</g, '\\u003c');
 const shell = read('src/shell.html');
 
-const DESC = `How Medicare's Hospital Readmissions Reduction Program works, and the FY${fy} penalty for every hospital, state, and metro area.`;
+const DESC = `How Medicare's Hospital Readmissions Reduction Program works, and the FY${fy} penalty for every hospital in the program, by state and metro area.`;
 const FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
   + `<link rel="stylesheet" href="${FONTS_HREF}">`;
 const ICON = `<link rel="icon" href="data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="3" fill="#c4303a"/><text x="16" y="23" font-family="Georgia,serif" font-weight="700" font-size="18" text-anchor="middle" fill="#fbfbf8">30</text></svg>')}">`;

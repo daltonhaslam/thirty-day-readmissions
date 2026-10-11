@@ -6,7 +6,7 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, vsLabel, PEERS } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, vsLabel, noEstimateNote, PEERS } from '../model.js';
 import { summaryColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
@@ -30,7 +30,9 @@ export function resolveScope(D, route) {
   if (view === 'state') {
     const any = list[0];
     const metros = [...new Set(list.map((x) => x.cbsa).filter(Boolean))];
-    const rows = metros.map((c) => ({ label: D.cbsaNames[c], href: link('metro', c), list: list.filter((x) => x.cbsa === c) }));
+    // A metro that crosses state lines shows only this state's hospitals, so say so (the linked page shows the whole metro).
+    const rows = metros.map((c) => ({ label: D.byCbsa.get(c).some((x) => x.st !== key) ? `${D.cbsaNames[c]} (${key} part)` : D.cbsaNames[c],
+      href: link('metro', c), list: list.filter((x) => x.cbsa === c) }));
     const rural = list.filter((x) => !x.cbsa);
     if (rural.length) rows.push({ label: 'Outside metro areas', list: rural });
     return { kind: 'State', name: D.meta.states[key], list, crumbs: crumbsFor(D, { region: any.region, division: any.division }),
@@ -71,8 +73,9 @@ export function renderScope(D, route, state = {}) {
   const S = summarize(list);
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
+  const noEstNote = noEstimateNote(list);
   const deck = `${fmtInt(S.nPen)} of ${fmtInt(S.n)} hospitals (${fmtPct(S.pctPen, 0)}) take a cut in ${D.edition.label}, averaging ${fmtPct(S.meanRed)} across all of them`
-    + `${rank ? `, ${rank.rank === 1 ? 'the largest average' : `the ${ordinal(rank.rank)}-largest average`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}.`;
+    + `${rank ? `, ${rank.rank === 1 ? 'the largest average' : `the ${ordinal(rank.rank)}-largest average`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. Estimated total: ${fmtMoney(S.penTotal)}${noEstNote ? ` (${noEstNote})` : ''}.`;
 
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
@@ -81,7 +84,7 @@ export function renderScope(D, route, state = {}) {
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),
-    field(6, 'Estimated dollars', fmtMoney(S.penTotal), { note: 'modeled; see Methods' }));
+    field(6, 'Estimated dollars', fmtMoney(S.penTotal), { note: noEstNote ? `modeled; see Methods. ${noEstNote}` : 'modeled; see Methods' }));
 
   const mapEl = h('div', { class: 'map map--scope' });
   const scopeStates = [...new Set(list.map((x) => x.st))];

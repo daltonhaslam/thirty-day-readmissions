@@ -18,6 +18,8 @@ const GLOSSARY = [
   ['Traditional Medicare (FFS)', 'Fee-for-service Medicare, paid directly by CMS. Medicare Advantage plans are private plans paid separately; the cut does not apply to them.'],
   ['IPPS', 'The Inpatient Prospective Payment System, which sets Medicare payments to general acute-care hospitals each fiscal year.'],
   ['CCN', 'CMS Certification Number, the six-digit ID CMS assigns each hospital.'],
+  ['Teaching level', 'Major teaching means a resident-to-bed ratio of 0.25 or more; minor teaching is any lower ratio above zero. The ratio comes from the IPPS impact file, which draws on Medicare cost reports.'],
+  ['Beds', 'The hospital\'s bed count from its Medicare cost report, as listed in the IPPS impact file. It can differ from licensed or certified beds.'],
   ['Metro area (CBSA)', 'A Core-Based Statistical Area defined by the Office of Management and Budget: a city and the counties tied to it by commuting.'],
 ];
 
@@ -40,7 +42,7 @@ export function renderMethods(D) {
         h('p', {}, 'For each of the six conditions with at least 25 cases, CMS compares the hospital\'s excess readmission ratio with its peer group\'s median. Each condition above the median contributes:'),
         h('pre', { class: 'formula' }, 'neutrality modifier × payment weight × (ratio − peer median)'),
         h('p', {}, `The contributions are added, capped at 3%, and subtracted from 1 to give the payment adjustment factor. This year the neutrality modifier is ${m.nm.toFixed(4)}. The cut applies to every traditional-Medicare base inpatient payment the hospital receives from ${E.payLong}.`),
-        h('p', {}, `Recomputing every hospital from the values CMS publishes reproduces its factor exactly for ${fmtInt(rep.exact)} hospitals and within 0.0001 for the other ${fmtInt(rep.rounding)}. CMS computes from unrounded ratios and weights; the file publishes them rounded to four decimals.`),
+        h('p', {}, `Recomputing every hospital from the values CMS publishes reproduces its factor exactly for ${fmtInt(rep.exact)} hospitals and within 0.0001 for the other ${fmtInt(rep.rounding)}. CMS computes from unrounded ratios and weights. The text version of its file, which this site reads, rounds them to four decimals; the Excel version carries the unrounded values, and recomputing from those reproduces every factor.`),
 
         h('h2', {}, 'Estimated dollars'),
         h('p', {}, 'CMS publishes each hospital\'s percentage, not a dollar amount. This site estimates the base payments the cut applies to, then multiplies by the cut:'),
@@ -51,7 +53,7 @@ export function renderMethods(D) {
 
         h('h2', {}, 'How to read a penalty'),
         h('ul', {},
-          h('li', {}, 'It is relative. Half of each peer group sits above each median by definition, so most hospitals measured on several conditions get some cut.'),
+          h('li', {}, 'It is relative. CMS sets each median over every hospital in the peer group, so about half of the hospitals measured on a condition sit above it, and most hospitals measured on several conditions get some cut.'),
           h('li', {}, 'A readmission is any unplanned return to an acute-care hospital within 30 days, for any reason. Not every readmission is preventable, and the ratios are adjusted for patients\' age and illnesses, not for their income or support at home.'),
           h('li', {}, 'Small hospitals have noisier ratios. CMS\'s statistical model pulls low-volume hospitals toward the average, and conditions under 25 cases do not count.'),
           h('li', {}, 'Medicare Advantage patients are in the ratios starting with FY2027, but the cut applies only to traditional Medicare payments.'),
@@ -59,11 +61,11 @@ export function renderMethods(D) {
           h('li', {}, 'Not included: Maryland (its own all-payer model), critical access, children\'s, cancer, psychiatric, rehabilitation, and long-term care hospitals. Puerto Rico hospitals are not subject to the cut.')),
 
         h('h2', {}, 'Places'),
-        h('p', {}, `Hospitals are placed at the center of their ZIP code (${fmtInt(m.geocode.zip)} hospitals) or, when the ZIP is a post-office box, the center of their county (${fmtInt(m.geocode.county)}). Metro areas are the CBSA where each hospital sits, from the IPPS impact file. Regions and divisions follow the Census Bureau.`),
+        h('p', {}, `Map dots are approximate: each hospital is placed at the center of its ZIP code (${fmtInt(m.geocode.zip)} hospitals) or, when the ZIP is not in the Census file or its center falls far outside the hospital's county, the center of that county (${fmtInt(m.geocode.county)}). Metro areas are the CBSA where each hospital sits, from the IPPS impact file. Regions and divisions follow the Census Bureau.`),
 
         h('h2', {}, 'History'),
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
-          + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals are CMS estimates from each year's payment rule, or KFF Health News reporting where CMS printed none. FY2025 uses CMS's simulation of that year under the pre-FY2027 method. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
+          + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals come from CMS (a payment-rule estimate or, for FY2025, a later simulation of that year under the pre-FY2027 method) or from KFF Health News reporting; each bar's tooltip names its source. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
         h('h2', {}, 'Feedback and privacy'),
         h('p', {}, FEEDBACK_ENABLED
           ? 'The feedback form at the bottom of every page sends your note, the page you were on, and your email if you choose to give it. It goes to a private spreadsheet and an email inbox that only I read. Nothing else is collected, and the site sets no cookies. Please leave out any patient information.'

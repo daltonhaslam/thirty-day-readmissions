@@ -51,7 +51,7 @@ export function penaltyHistogram(el, { reds, compare, compareLabel = 'All hospit
 
     const bars = [{ x0: 0, x1: zeroW, n: a.zero, red: 0, title: 'No penalty' },
       ...a.bins.map((n, i) => ({ x0: x(i * STEP), x1: x((i + 1) * STEP), n, red: (i + 0.5) * STEP,
-        title: `${(i * STEP).toFixed(2)}% to under ${((i + 1) * STEP).toFixed(2)}% reduction` }))];
+        title: `${(i * STEP).toFixed(2)}% to ${i === N_BINS - 1 ? '' : 'under '}${((i + 1) * STEP).toFixed(2)}% reduction` }))];
     g.append('g').selectAll('rect').data(bars).join('rect')
       .attr('x', (d) => d.x0 + 0.5).attr('width', (d) => Math.max(1, d.x1 - d.x0 - 1))
       .attr('y', (d) => y(norm(d.n, reds.length))).attr('height', (d) => hgt - y(norm(d.n, reds.length)))

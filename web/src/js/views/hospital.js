@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CAP, CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -91,7 +91,7 @@ function historyChart(D, x) {
       { label: 'National average', kind: 'line', values: years.map((fy) => D.nationalByFy[fy]?.meanRed ?? null), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   const n = vals.filter((v) => v != null).length;
   const pen = vals.filter((v) => v > 0).length;
-  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: national average. "n/a" means the hospital was not in that year's file.` };
+  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: national average. "n/a" means the hospital was not in that year's file, or had no condition with enough cases.` };
 }
 
 // Returns [element, title] or null for an unknown CCN.
@@ -105,6 +105,8 @@ export function renderHospital(D, id) {
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
   const hist = historyChart(D, x);
+  const { sum } = contrib(x, D.meta);
+  const capNote = sum > CAP + 1e-9 ? ` These add to ${(sum * 100).toFixed(2)} points before the ${CAP_PCT}% cap.` : '';
 
   const el = h('div', { class: 'wrap hosp' },
     breadcrumb(crumbsFor(D, { region: x.region, division: x.division, st: x.st, cbsa: x.cbsa }), x.name),
@@ -127,10 +129,10 @@ export function renderHospital(D, id) {
           field('B', 'Estimated dollars', x.pen != null ? fmtMoney(x.pen) : '—', { note: x.base != null ? `on ≈ ${fmtMoney(x.base)} of base payments` : 'no volume data' })),
         h('p', { class: 'small muted' }, rankLine(D, x)),
         FEEDBACK_ENABLED ? h('button', { class: 'btn hosp__report', type: 'button', onclick: () => openFeedback({ kind: 'data' }) }, 'Report a problem with this hospital\'s data') : null)),
-    figure({ title: 'Where the penalty came from', take: 'Each row is one condition. Dot: this hospital\'s ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals.',
+    figure({ title: 'Where the penalty came from', take: `Each row is one condition. Dot: this hospital's ratio (red = counted toward the penalty; hollow = too few cases). Thick tick: peer-group median. Shaded band: middle 80% of peer hospitals with enough cases to be measured on that condition.${capNote}`,
       source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: condEl }),
     h('div', { class: 'grid-2 grid-2--wide-left' },
-      figure({ title: 'What if?', take: `Drag a ratio to see how the cut would change. Hypothetical: peer medians stay at their ${D.edition.label} values.`, source: 'Recomputed with the CMS formula.', body: whatIf(D, x, v.measured) }),
+      figure({ title: 'What if?', take: `Drag a ratio to see how the cut would change. This is an approximation: peer medians, payment weights, and the neutrality modifier stay at their ${D.edition.label} values.`, source: 'The CMS formula, approximated.', body: whatIf(D, x, v.measured) }),
       figure({ title: 'Penalty history', take: hist.take, source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: hist.el })),
     h('details', { class: 'hosp__ws' }, h('summary', { class: 'btn' }, 'Show the full worksheet'), worksheet(D, x, { compact: true })),
     neighbors.length > 1 ? figure({ title: x.cbsa ? `Other hospitals in ${x.cbsaName}` : `Other hospitals outside metro areas in ${D.meta.states[x.st]}`,
