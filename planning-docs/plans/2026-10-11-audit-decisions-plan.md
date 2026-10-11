@@ -17,7 +17,7 @@ Meta:
 - `replication`: computed from full-precision values (expected: all hospitals exact)
 - `geocode`: adds an `address` count
 - `mdh`: `{ "endDate": "2026-12-31", "share": <fraction of FY volume before endDate> }`
-- `accuracy`: cost-report benchmark summary for the assumptions section (`within15`, `within15Small`, `costYear`)
+- `dollarCheck`: cost-report benchmark summary for the assumptions section (`asOf`, `source`, `n`, `rateDrift`, `within10`, `within15`, `within15Small`, `within15Large`, `note`), from `pipeline/content/dollar_check.json`
 
 ## Batch 1: pipeline (worktree, one agent)
 
