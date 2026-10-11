@@ -78,6 +78,23 @@ class GeoTest(unittest.TestCase):
 SQUARE = [[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]  # ~111 km square county at the equator
 
 
+class CountyLabelTest(unittest.TestCase):
+    """build_data.county_label: Care Compare's county when the atlas knows it, else the impact-file county's name."""
+    COUNTIES = geo.Counties(centroid={}, by_name={("DC", "districtofcolumbia"): (0, 0), ("VA", "richmond"): (0, 0)},
+                            shape={}, name={"11001": "District of Columbia", "51760": "Richmond"})
+
+    def label(self, st, county, fips):
+        import build_data
+        return build_data.county_label({"county": county}, st, fips, self.COUNTIES)
+
+    def test_unknown_care_compare_county_falls_back_to_the_impact_file_county(self):
+        self.assertEqual(self.label("DC", "THE DISTRICT", "11001"), "District of Columbia")
+
+    def test_known_county_and_virginia_city_keep_care_compares_wording(self):
+        self.assertEqual(self.label("DC", "DISTRICT OF COLUMBIA", "11001"), "District of Columbia")
+        self.assertEqual(self.label("VA", "RICHMOND CITY", "51760"), "Richmond City")
+
+
 class StrayPointTest(unittest.TestCase):
     """build_data.locate: a ZIP point far outside the impact-file county falls back to that county's centroid."""
     COUNTIES = geo.Counties(centroid={"99001": (0.5, 0.5), "99002": (9.0, 9.0)}, by_name={},

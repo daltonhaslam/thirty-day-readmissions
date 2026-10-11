@@ -280,6 +280,15 @@ def locate(g, imp, st, zcta, counties, point=None):
     return None, None, None, None
 
 
+def county_label(g, st, fips, counties):
+    """Care Compare's county, title-cased, when the atlas knows it for that state (Virginia's "Richmond City" matches
+    "Richmond"); otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT") the impact-file county's atlas name."""
+    key = geo.county_key(st, g.get("county"))
+    if key in counties.by_name or (key[0], key[1].removesuffix("city")) in counties.by_name:
+        return names.smart_title(g.get("county"))
+    return counties.name.get(fips) or names.smart_title(g.get("county"))
+
+
 # Lookups shared by every hospital record. Collected for the build report: `moved`, (ccn, Care Compare county,
 # impact-file county, geo source) where the impact-file county replaced Care Compare's; `addons`, {ccn: (federal
 # base, MDH add-on, add-on had MDH status lasted the whole year)}.
@@ -315,7 +324,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "alias": names.alias(shown, imp.get("name")),
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
-        "county": fips_county or names.smart_title(g.get("county")) or None,
+        "county": fips_county or county_label(g, st, fips, ref.counties) or None,
         "zip": g.get("zip"),
         "lat": rnd(lat, 4), "lon": rnd(lon, 4), "geo": gsrc,
         "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),
