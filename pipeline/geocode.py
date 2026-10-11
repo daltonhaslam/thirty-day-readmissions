@@ -24,6 +24,7 @@ URL = "https://geocoding.geo.census.gov/geocoder/locations/addressbatch"
 BENCHMARK = "Public_AR_Current"
 MAX_ROWS = 10_000  # the service's batch limit
 MAX_RESPONSE = 10_000_000  # bytes
+MIN_MATCHED = 0.5  # share of hospitals that must match before the CSV is rewritten (2026-10: 87%)
 OUT = build_data.CONTENT / "geocodes.csv"
 FIELDS = ["ccn", "lat", "lon", "match", "source"]
 # (south, north, west, east): conterminous US, Alaska, Hawaii, Puerto Rico and the U.S. Virgin Islands,
@@ -108,7 +109,11 @@ def geocode(cands, send=post):
     return found
 
 
-def write(found, path=OUT):
+def write(found, attempted, path=OUT):
+    """Write the CSV sorted by CCN, unless fewer than MIN_MATCHED of `attempted` hospitals matched (an outage or an
+    error page must not wipe the committed points)."""
+    if len(found) < MIN_MATCHED * attempted:
+        raise SystemExit(f"only {len(found)} of {attempted} addresses matched; {path.name} left unchanged")
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(FIELDS)
@@ -119,7 +124,7 @@ def main():
     ccns = sorted(parse.read_supplemental(build_data.path("supp")))
     cands = candidates(ccns, parse.read_hgi(build_data.path("hgi")), parse.read_pos(build_data.path("pos")))
     found = geocode(cands)
-    write(found)
+    write(found, len(cands))
     kinds = {k: sum(1 for v in found.values() if v[2] == k) for k in ("Exact", "Non_Exact")}
     srcs = {k: sum(1 for v in found.values() if v[3] == k) for k in ("hgi", "pos")}
     print(f"wrote {OUT.relative_to(build_data.ROOT)}: {len(found)} of {len(ccns)} hospitals {kinds} {srcs}; "

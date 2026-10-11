@@ -150,8 +150,9 @@ def report_pos(hospitals, impact):
     moved = sum(1 for x in hospitals if bed_band(x["beds"]) != bed_band(cr[x["id"]]))
     print(f"beds: certified (POS) {src['pos']}, cost report {src['cr']}, none {src[None]}; "
           f"{moved} hospitals in a different bed band than with cost-report beds")
-    print("  e.g. " + "; ".join(f"{x['id']} {cr[x['id']]}->{x['beds']}" for x in hospitals
-                                if x["id"] in ("360375", "490148", "670331", "670340", "220052", "240010", "050030")))
+    tiny = [x for x in hospitals if (cr[x["id"]] or 0) < 5]
+    big = sorted(hospitals, key=lambda x: -abs((x["beds"] or 0) - (cr[x["id"]] or 0)))[:3]
+    print("  cost-report beds -> certified: " + "; ".join(f"{x['id']} {cr[x['id']]}->{x['beds']}" for x in tiny + big))
     off = [x for x in hospitals if x["inactive"]]
     print(f"inactive in POS ({len(off)}, still ranked and totaled): " + "; ".join(
         f"{x['id']} {x['name']} {x['inactive']['code']} {x['inactive']['date']}" for x in off))
@@ -249,7 +250,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
     shown = names.display_name(g.get("name"), imp.get("name"))
-    types =sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
+    types = sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
     base = model.est_base_payment(imp, ref.rates)
     if "MDH" in types and base is not None:
         addon = model.est_mdh_addon(imp, base, ref.mdh_share)

@@ -212,8 +212,7 @@ def read_hgi(path):
 
     def build(r):
         return {"name": r["name"], "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"],
-                "zip": r["zip"][:5].zfill(5),
-                "county": r["county"], "ownership": r["ownership"],
+                "zip": r["zip"][:5].zfill(5), "county": r["county"], "ownership": r["ownership"],
                 "star": int(r["star"]) if r["star"].isdigit() else None}
     return _index_by_ccn(path, _read_table(path, "Facility ID", columns, ",", "utf-8-sig"), build)
 
@@ -246,7 +245,8 @@ def read_pos(path):
         if d and not (len(d) == 8 and d.isdigit()):
             raise SchemaError(f"{path}: malformed termination date {d!r} for {r['ccn']}")
         return {"beds": _int(r["beds"]) or None, "term": r["term"], "termDate": f"{d[:4]}-{d[4:6]}-{d[6:]}" if d else None,
-                "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"], "zip": r["zip"][:5].zfill(5) if r["zip"] else ""}
+                "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"],
+                "zip": r["zip"][:5].zfill(5) if r["zip"] else ""}
     try:  # Windows-1252 (en dashes and curly quotes as 0x96/0x92); an undefined byte means the encoding changed
         return _index_by_ccn(path, _read_table(path, "PRVDR_CTGRY_SBTYP_CD", columns, ",", "cp1252"), build)
     except UnicodeDecodeError as e:

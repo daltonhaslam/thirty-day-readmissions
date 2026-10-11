@@ -70,11 +70,19 @@ class FlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d, "g.csv")
             geocode.write({"020012": (64.834607892861, -147.739134283597, "Exact", "hgi"),
-                           "010001": (31.215662945023, -85.361445951887, "Non_Exact", "pos")}, p)
+                           "010001": (31.215662945023, -85.361445951887, "Non_Exact", "pos")}, 3, p)
             self.assertEqual(p.read_text().splitlines(), ["ccn,lat,lon,match,source", "010001,31.21566,-85.36145,Non_Exact,pos",
                                                           "020012,64.83461,-147.73913,Exact,hgi"])
             self.assertEqual(build_data.load_geocodes(p), {"010001": (31.21566, -85.36145), "020012": (64.83461, -147.73913)})
             self.assertEqual(build_data.load_geocodes(Path(d, "missing.csv")), {})
+
+    def test_a_mostly_failed_run_leaves_the_csv_alone(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d, "g.csv")
+            p.write_text("ccn,lat,lon,match,source\n")
+            with self.assertRaises(SystemExit):
+                geocode.write({"010001": (31.2, -85.4, "Exact", "hgi")}, 2912, p)
+            self.assertEqual(p.read_text(), "ccn,lat,lon,match,source\n")
 
 
 if __name__ == "__main__":
