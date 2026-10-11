@@ -210,7 +210,7 @@ export function verdict(h, meta) {
 }
 
 // What-if factor: CMS's published factor moved by the recomputed change. When no measured condition is
-// above its median any more the cut is zero by CMS's rule; this also absorbs the 0.0001 rounding gap and
+// above its median any more the cut is zero by CMS's rule; this also absorbs any gap left by rounded inputs and
 // any share CMS counted that cannot be recomputed (a flagged condition with no published payment weight).
 export function whatIfPaf(h, meta, over) {
   const anyAbove = CONDS.some((k) => {

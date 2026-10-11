@@ -1,6 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { accuracyLine, assumptionRows } from '../src/js/views/methods.js';
+import { accuracyLine, assumptionRows, replicationText } from '../src/js/views/methods.js';
+import { factorCheck } from '../src/js/views/explainer.js';
+
+test('replication text follows the pipeline check: all exact, or exact plus a rounding remainder', () => {
+  assert.match(replicationText({ exact: 2912, rounding: 0, total: 2912 }), /^Recomputing every hospital .* full precision .* exactly for all 2,912 hospitals\./);
+  const old = replicationText({ exact: 2835, rounding: 77, total: 2912 });
+  assert.match(old, /exactly for 2,835 hospitals and within 0\.0001 for the other 77\./);
+  assert.match(old, /rounds them to four decimals/);
+});
+
+test('worksheet check: matches, a rounding gap, or a condition with no published weight', () => {
+  const h = { paf: 0.9948, c: { HF: { flag: 1, ratio: 0.05 } } };
+  assert.equal(factorCheck(h, 0.9948), '· matches');
+  assert.equal(factorCheck(h, 0.9949), '· differs by 0.0001 (CMS used unrounded ratios and weights; this copy of its file rounds them to four decimals)');
+  assert.match(factorCheck({ paf: 0.99, c: { HF: { flag: 1, ratio: null } } }, 0.9903), /differs by 0\.0003 \(CMS counted a condition whose payment weight it did not publish\)/);
+});
 
 const edition = { fy: 2027, label: 'FY2027' };
 const hospitals = [
