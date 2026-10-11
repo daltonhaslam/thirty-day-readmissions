@@ -37,6 +37,25 @@ class NamesTest(unittest.TestCase):
         self.assertEqual(names.display_name(None, "Some Hospital"), "Some Hospital")
 
 
+class AliasTest(unittest.TestCase):
+    def test_materially_different_impact_name_becomes_the_alias(self):
+        self.assertEqual(names.alias("Spectrum Health", "Corewell Health Grand Rapids Hospitals Butterworth"),
+                         "Corewell Health Grand Rapids Hospitals Butterworth")
+        self.assertEqual(names.alias("Marion Communtiy Hospital", "Hca Florida Ocala Hospital"), "HCA Florida Ocala Hospital")
+        self.assertEqual(names.alias("Ascension Providence Rochester Hospital", "Henry Ford Rochester Hospital"),
+                         "Henry Ford Rochester Hospital")  # only 1 of 3 distinctive words shared
+
+    def test_same_name_in_other_spelling_has_no_alias(self):
+        for shown, impact in [("AdventHealthManchester", "AdventHealth Manchester"), ("TJ Health Columbia", "T J Health Columbia"),
+                              ("Baptist Hlth Med Ctr", "Baptist Health Medical Center"), ("St. Mary's Hospital", "Saint Marys Hosp"),
+                              ("Kershawhealth", "Kershaw Medical Center"), ("Memorial Hospital", "Memorial Hospital Inc")]:
+            self.assertIsNone(names.alias(shown, impact), (shown, impact))
+
+    def test_missing_names_have_no_alias(self):
+        self.assertIsNone(names.alias("Some Hospital", None))
+        self.assertIsNone(names.alias(None, "Some Hospital"))
+
+
 class GeoTest(unittest.TestCase):
     def test_region_and_division(self):
         self.assertEqual(geo.region_of("UT"), ("West", "Mountain"))
@@ -188,7 +207,7 @@ class ContractTest(unittest.TestCase):
     def test_contract_keys(self):
         self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
         self.assertEqual([c["key"] for c in self.d["conditions"]], ["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"])
-        keys = {"id", "name", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
+        keys = {"id", "name", "alias", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
                 "division", "beds", "bedsSrc", "teach", "own", "ownDetail", "star", "types", "inactive", "paf", "red",
                 "dual", "peer", "base", "pen", "c"}
         self.assertEqual(set(self.h[0]), keys)
@@ -302,6 +321,11 @@ class FreshBuildTest(unittest.TestCase):
         self.assertIn("MDH", self.by_id["360123"]["types"])
         self.assertEqual(self.by_id["360123"]["base"], round(federal + model.est_mdh_addon(imp, federal, 92 / 365)))
         self.assertGreater(self.by_id["360123"]["base"], federal * 1.15)
+
+    def test_aliases_only_for_care_compare_names(self):
+        self.assertEqual(self.by_id["230038"]["alias"], "Corewell Health Grand Rapids Hospitals Butterworth")
+        self.assertIsNone(self.by_id["420117"]["alias"])  # no Care Compare name: nothing to alias
+        self.assertTrue(50 <= sum(1 for x in self.built["hospitals"] if x["alias"]) <= 120)
 
     def test_replication_counts_add_up(self):
         rep = self.built["meta"]["replication"]

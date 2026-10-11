@@ -248,7 +248,8 @@ def hospital_record(ccn, s, imp, g, p, ref):
         ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
-    types = sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
+    shown = names.display_name(g.get("name"), imp.get("name"))
+    types =sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
     base = model.est_base_payment(imp, ref.rates)
     if "MDH" in types and base is not None:
         addon = model.est_mdh_addon(imp, base, ref.mdh_share)
@@ -257,7 +258,8 @@ def hospital_record(ccn, s, imp, g, p, ref):
     pen = model.est_penalty(base, s["paf"])
     return {
         "id": ccn,
-        "name": names.display_name(g.get("name"), imp.get("name")) or f"Hospital {ccn} (name not in CMS files)",
+        "name": shown or f"Hospital {ccn} (name not in CMS files)",
+        "alias": names.alias(shown, imp.get("name")) if g.get("name") else None,
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
         "county": fips_county or names.smart_title(g.get("county")) or None,

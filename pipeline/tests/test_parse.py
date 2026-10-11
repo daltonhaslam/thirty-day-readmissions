@@ -163,6 +163,7 @@ class HgiTest(unittest.TestCase):
         r = parse.read_hgi(FIX / "hgi.csv")["050454"]
         self.assertEqual(r["name"], "UCSF MEDICAL CENTER")
         self.assertEqual((r["city"], r["st"], r["zip"]), ("SAN FRANCISCO", "CA", "94143"))
+        self.assertEqual(r["street"], "505 PARNASSUS AVE, BOX 0296")
         self.assertIn(r["star"], (None, 1, 2, 3, 4, 5))
 
 
