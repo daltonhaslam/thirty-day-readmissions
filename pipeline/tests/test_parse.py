@@ -145,6 +145,7 @@ class ImpactMdhTest(unittest.TestCase):
         rows = parse.read_impact(FIX / "impact.txt", fy=2027, grouper=44)
         self.assertTrue(rows["010007"]["mdh"])
         self.assertFalse(rows["010001"]["mdh"])
+        self.assertEqual((rows["010007"]["hsp"], rows["010001"]["hsp"]), (5248.3, None))
 
 
 class MalformedCcnTest(unittest.TestCase):

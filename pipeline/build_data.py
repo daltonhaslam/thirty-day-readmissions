@@ -8,6 +8,7 @@ prints a coverage report.
 import json
 import sys
 from collections import namedtuple
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -24,6 +25,10 @@ FY = 2027
 GROUPER = 44  # MS-DRG grouper version used in the FY2027 impact file
 FILE_DATE = "2026-10-07"
 PERF = ["2023-07-01", "2025-06-30"]
+# Medicare-dependent hospital status ends on this date under current law (extended through Dec 31, 2026 by section
+# 6202 of the Consolidated Appropriations Act, 2026). The MDH add-on counts only for the fiscal-year days up to it;
+# move it if Congress extends the program again.
+MDH_END = "2026-12-31"
 # Per-hospital history covers FY2013 through the prior year. When FY advances, append the prior year's
 # PAFs (fy, ccn, paf, scope_flag) to HIST_FILE and its national row to HIST_SUMMARY before rebuilding.
 HIST_FIRST_FY, HIST_LAST_FY = 2013, FY - 1
@@ -148,6 +153,24 @@ def report_pos(hospitals, impact):
         f"{x['id']} {x['name']} {x['inactive']['code']} {x['inactive']['date']}" for x in off))
 
 
+def year_share(fy, end):
+    """Fraction of fiscal year `fy` (Oct 1 - Sep 30) that falls on or before the ISO date `end`, between 0 and 1."""
+    start, stop = date(fy - 1, 10, 1), date(fy, 9, 30)
+    last = min(max(date.fromisoformat(end), start - timedelta(days=1)), stop)
+    return ((last - start).days + 1) / ((stop - start).days + 1)
+
+
+def report_mdh(hospitals, addons, share):
+    """Print how the Medicare-dependent hospital add-on changed the base and the estimated penalty."""
+    paf = {x["id"]: x["paf"] for x in hospitals}
+    got = {c: (fed, a, a * (1 - paf[c])) for c, (fed, a) in addons.items() if a > 0}
+    print(f"MDH add-on ({share:.4f} of the year): {len(got)} of {len(addons)} MDHs, base +${sum(v[1] for v in got.values()) / 1e6:.1f}M, "
+          f"estimated penalty +${sum(v[2] for v in got.values()) / 1e6:.2f}M")
+    if got:
+        rel, usd = max(got, key=lambda c: got[c][1] / got[c][0]), max(got, key=lambda c: got[c][2])
+        print(f"  largest: {rel} base +{100 * got[rel][1] / got[rel][0]:.1f}%; {usd} penalty +${got[usd][2]:,.0f}")
+
+
 def group_constant(rows, value, label):
     """The single value `value(row)` shared by every row; SystemExit if rows disagree."""
     vals = {value(r) for r in rows}
@@ -187,8 +210,9 @@ def locate(g, imp, st, zcta, counties):
     return None, None, None, None
 
 
-# Lookups shared by every hospital record; `moved` collects map points pulled back into their county
-Ref = namedtuple("Ref", "zcta counties cbsa_names rates moved")
+# Lookups shared by every hospital record. Collected for the build report: `moved`, map points pulled back into
+# their county; `addons`, {ccn: (federal base, MDH add-on)}.
+Ref = namedtuple("Ref", "zcta counties cbsa_names rates mdh_share moved addons")
 
 
 def hospital_record(ccn, s, imp, g, p, ref):
@@ -202,7 +226,12 @@ def hospital_record(ccn, s, imp, g, p, ref):
         ref.moved.append(f"{ccn} {g.get('county')} -> {fips_county}")
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
+    types = sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set()))
     base = model.est_base_payment(imp, ref.rates)
+    if "MDH" in types and base is not None:
+        addon = model.est_mdh_addon(imp, base, ref.mdh_share)
+        ref.addons[ccn] = (base, addon)
+        base += addon
     pen = model.est_penalty(base, s["paf"])
     return {
         "id": ccn,
@@ -220,7 +249,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "own": ownership(g.get("ownership"), imp.get("own")),
         "ownDetail": g.get("ownership"),
         "star": g.get("star"),
-        "types": sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set())),
+        "types": types,
         "inactive": inactive(p),
         "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": cms_round(s["dual"]), "peer": s["peer"],
         "base": round(base) if base is not None else None,
@@ -262,12 +291,14 @@ def build():
         peer_med[str(p)] = {k: rd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"))
                             for k in parse.CONDITIONS}
 
-    ref = Ref(zcta, counties, cbsa_names, rates, [])
+    mdh_share = year_share(FY, MDH_END)
+    ref = Ref(zcta, counties, cbsa_names, rates, mdh_share, [], {})
     hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
                  for ccn in sorted(supp)]
     if ref.moved:
         print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(ref.moved)}")
     report_pos(hospitals, impact)
+    report_mdh(hospitals, ref.addons, mdh_share)
     unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
     if unchecked:
         print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
@@ -296,6 +327,7 @@ def build():
             "replication": {"exact": sum(1 for v in status.values() if v == "exact"),
                             "rounding": sum(1 for v in status.values() if v == "rounding"), "total": len(supp),
                             "mismatches": [c for c, v in status.items() if v == "mismatch"]},
+            "mdh": {"endDate": MDH_END, "share": mdh_share},
             "geocode": geocode, "states": states,
             "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}

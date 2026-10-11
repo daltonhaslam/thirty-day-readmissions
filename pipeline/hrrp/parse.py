@@ -192,7 +192,7 @@ def read_impact(path, fy, grouper):
                "cola": "Cost of Living Adjustment", "irb": "Resident to Bed Ratio", "beds": "Beds",
                "cases": f"CASETA{grouper}", "cmi": f"TACMIV{grouper}", "qual_red": "Proxy Quality Reduction",
                "ehr_red": "Proxy EHR Reduction", "own": "Ownership Control Type", "ptype": "Provider Type",
-               "mdh": "MDH Flag"}
+               "mdh": "MDH Flag", "hsp": "HSP Rate"}
 
     def build(r):
         return {
@@ -200,7 +200,7 @@ def read_impact(path, fy, grouper):
             "urgeo": r["urgeo"], "wi": num(r["wi"]), "cola": num(r["cola"]) or 1.0, "irb": num(r["irb"]) or 0.0,
             "beds": _int(r["beds"]), "cases": num(r["cases"]), "cmi": num(r["cmi"]),
             "qual_red": num(r["qual_red"]) == 1, "ehr_red": num(r["ehr_red"]) == 1,
-            "own": r["own"] or None, "ptype": _int(r["ptype"]), "mdh": r["mdh"].upper() == "Y",
+            "own": r["own"] or None, "ptype": _int(r["ptype"]), "mdh": r["mdh"].upper() == "Y", "hsp": num(r["hsp"]),
         }
     return _index_by_ccn(path, _read_table(path, "Provider Number", columns), build)
 

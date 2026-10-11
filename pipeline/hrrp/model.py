@@ -52,6 +52,18 @@ def est_base_payment(imp, rates):
     return imp["cases"] * imp["cmi"] * (labor * imp["wi"] + nonlabor * (imp.get("cola") or 1.0))
 
 
+MDH_EXCESS_SHARE = 0.75
+
+
+def est_mdh_addon(imp, federal, share):
+    """Medicare-dependent hospital add-on to the base (42 CFR 412.152, 412.108): 75% of the amount by which the
+    hospital-specific-rate payment (HSP rate x CMI x cases, the federal estimate's cases and CMI) exceeds the federal
+    payment, times `share`, the fraction of the fiscal year the hospital keeps MDH status. 0 without an HSP rate."""
+    if federal is None or not imp.get("hsp"):
+        return 0.0
+    return MDH_EXCESS_SHARE * max(0.0, imp["hsp"] * imp["cmi"] * imp["cases"] - federal) * share
+
+
 def est_penalty(base, paf):
     if base is None or paf is None:
         return None

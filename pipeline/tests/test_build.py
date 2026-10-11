@@ -269,6 +269,16 @@ class FreshBuildTest(unittest.TestCase):
                                          "reason": "terminated for failing health and safety requirements"})
         self.assertEqual(self.built["meta"]["replication"]["total"], len(self.built["hospitals"]))
 
+    def test_mdh_base_adds_the_hospital_specific_add_on_for_oct_to_dec(self):
+        import build_data
+        from hrrp import model, parse
+        self.assertEqual(self.built["meta"]["mdh"], {"endDate": "2026-12-31", "share": 92 / 365})
+        imp = parse.read_impact(build_data.path("impact"), build_data.FY, build_data.GROUPER)["360123"]  # UH St John
+        federal = model.est_base_payment(imp, self.built["meta"]["rates"])
+        self.assertIn("MDH", self.by_id["360123"]["types"])
+        self.assertEqual(self.by_id["360123"]["base"], round(federal + model.est_mdh_addon(imp, federal, 92 / 365)))
+        self.assertGreater(self.by_id["360123"]["base"], federal * 1.15)
+
     def test_replication_counts_add_up(self):
         rep = self.built["meta"]["replication"]
         self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
@@ -293,6 +303,15 @@ class ProviderOfServicesTest(unittest.TestCase):
         import build_data
         self.assertEqual([build_data.bed_band(b) for b in (None, 99, 100, 299, 300, 499, 500)],
                          [None, "<100", "100-299", "100-299", "300-499", "300-499", "500+"])
+
+
+class MdhShareTest(unittest.TestCase):
+    def test_share_of_fiscal_year_before_mdh_status_ends(self):
+        import build_data
+        self.assertEqual(build_data.year_share(2027, "2026-12-31"), 92 / 365)  # Oct 1 - Dec 31, 2026
+        self.assertEqual(build_data.year_share(2027, "2026-06-30"), 0)
+        self.assertEqual(build_data.year_share(2027, "2028-09-30"), 1)
+        self.assertEqual(build_data.year_share(2028, "2028-09-30"), 1)  # leap-year FY: 366 of 366
 
 
 class PrecisionTest(unittest.TestCase):
