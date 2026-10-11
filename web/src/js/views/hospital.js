@@ -42,7 +42,10 @@ function summarySentence(D, x, v) {
     return `${name} has no ${D.edition.label} cut. ${names[0].toUpperCase()}${names.slice(1)} came in above the peer-group median, but `
       + `${v.above.length > 1 ? 'their share' : 'its share'} of the hospital's Medicare payments is small enough that the reduction rounded to zero.`;
   }
-  return `Medicare will pay ${name} ${fmtPct(x.red)} less on the base payment for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `
+  // An inactive hospital will not be paid under this CCN, so its cut is stated without promising a year of payments.
+  const lead = x.inactive ? `CMS set the ${D.edition.label} cut for ${name} at ${fmtPct(x.red)}. `
+    : `Medicare will pay ${name} ${fmtPct(x.red)} less on the base payment for every traditional-Medicare inpatient stay from ${D.edition.payLong}. `;
+  return lead
     + `${v.nAbove} of its ${v.nMeasured} measured conditions came in above the peer-group median; ${inSentence(D.condByKey[v.top].short)} added the most.`;
 }
 
