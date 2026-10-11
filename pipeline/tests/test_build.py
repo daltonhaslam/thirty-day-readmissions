@@ -177,6 +177,13 @@ class ContractTest(unittest.TestCase):
             for k, c in x["c"].items():
                 self.assertFalse(c["n"] is None and c["err"] is None, (x["id"], k))
 
+    def test_dollar_check_is_copied_from_content(self):
+        dc = self.d["meta"]["dollarCheck"]
+        self.assertEqual(dc, json.loads((ROOT / "pipeline" / "content" / "dollar_check.json").read_text(encoding="utf-8")))
+        self.assertEqual(set(dc), {"asOf", "source", "n", "rateDrift", "within10", "within15", "within15Small",
+                                   "within15Large", "note"})
+        self.assertTrue(all(0 < dc[k] <= 100 for k in ("within10", "within15", "within15Small", "within15Large")))
+
     def test_whats_new_is_for_this_fiscal_year(self):
         items = self.d["meta"]["whatsNew"]
         self.assertTrue(items)

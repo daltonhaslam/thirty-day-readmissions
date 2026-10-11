@@ -357,6 +357,7 @@ def build():
                             "rounding": sum(1 for v in status.values() if v == "rounding"), "total": len(supp),
                             "mismatches": [c for c, v in status.items() if v == "mismatch"]},
             "mdh": {"endDate": MDH_END, "share": mdh_share},
+            "dollarCheck": load_content("dollar_check.json") or None,
             "geocode": geocode, "states": states,
             "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}
