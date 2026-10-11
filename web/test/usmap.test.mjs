@@ -14,3 +14,8 @@ test('map color bins on the rounded value that is displayed', () => {
   assert.equal(METRICS.dollars.cls(1_960_000), 'p2');
   assert.equal(METRICS.dollars.cls(1_940_000), 'p1');
 });
+
+test('a state with no measured hospital gets no share-penalized color', () => {
+  assert.equal(METRICS.pct.cls(METRICS.pct.value({ pctPen: null })), null);
+  assert.equal(METRICS.pct.cls(0), 'p1');
+});

@@ -2,8 +2,9 @@
 
 Usage: python3 -I pipeline/build_data.py
 Hard-fails on schema drift, duplicate CCNs, out-of-range PAFs, a Table 15 disagreement, an Excel workbook
-value that does not round to the tab-delimited file's, or stored values that no longer reproduce every PAF;
-prints a coverage report.
+value that does not round to the tab-delimited file's, stored values that no longer reproduce every PAF or that
+the site would print differently from CMS's 4-decimal values, or a missing content/dollar_check.json; prints a
+coverage report.
 """
 import csv
 import json
@@ -52,9 +53,12 @@ FILES = {
     "states": ("us_atlas_states", "states-10m.json"),
 }
 SUPP_SHEET = "FR FY 2027"  # the workbook sheet that "supp" is the tab-delimited export of
-# ERRs, DRG ratios, peer medians, and the neutrality modifier are written with this many decimals: the fewest that
-# still reproduce every FY2027 PAF from the JSON (5 leaves 7 hospitals 0.0001 off). The build fails if it stops sufficing.
+# ERRs, DRG ratios, peer medians, and the neutrality modifier are written with at least this many decimals: the fewest
+# that still reproduce every FY2027 PAF from the JSON (5 leaves 7 hospitals 0.0001 off). The build fails if it stops
+# sufficing. A value gets more decimals, up to MAX_DECIMALS, when the site's toFixed(4) of it would otherwise differ
+# from CMS's published 4-decimal value (1.02485 prints as 1.0249; CMS shows the full 1.0248497... as 1.0248).
 DECIMALS = 6
+MAX_DECIMALS = 12
 
 CONDITION_INFO = {
     "AMI": ("Heart attack", "Acute myocardial infarction (AMI)"),
@@ -92,11 +96,29 @@ def ownership(detail, own_code):
 
 
 def rnd(v, places, half_up=False):
-    """v rounded to `places` decimals; None stays None. half_up rounds ties up, as CMS's published values are
-    (Python's round() would give 0.15625 -> 0.1562)."""
+    """v rounded to `places` decimals; None stays None. half_up rounds as CMS's published values are: the value as
+    Excel shows it (15 significant digits, so 0.12344999999999999 is 0.12345), ties up (Python's round() would give
+    0.15625 -> 0.1562)."""
     if v is None:
         return None
-    return float(Decimal(repr(v)).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)) if half_up else round(v, places)
+    return float(Decimal(f"{v:.15g}").quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP)) if half_up else round(v, places)
+
+
+def to_fixed4(v):
+    """JavaScript's Number(v).toFixed(4), as a Decimal: the exact binary value rounded, an exact tie to the larger
+    (half up, since every value rounded this way is positive)."""
+    return Decimal(v).quantize(Decimal("0.0001"), ROUND_HALF_UP)
+
+
+def stored(v, published, label):
+    """v as hrrp.json stores it: rounded to the fewest decimals, from DECIMALS up to MAX_DECIMALS, at which the site's
+    toFixed(4) prints CMS's 4-decimal `published` value; None stays None. SystemExit when no precision does."""
+    if v is None:
+        return None
+    for places in range(DECIMALS, MAX_DECIMALS + 1):
+        if to_fixed4(round(v, places)) == Decimal(repr(published)):
+            return round(v, places)
+    raise SystemExit(f"{label}: {v!r} does not print as CMS's {published} at any precision up to {MAX_DECIMALS} decimals")
 
 
 def _values(s):
@@ -113,10 +135,30 @@ def precision_mismatches(full, published):
             if rnd(a, 4, half_up=True) != b]
 
 
-def as_stored(s):
-    """A supplemental record with its formula inputs rounded as hrrp.json stores them."""
-    return {**s, "nm": rnd(s["nm"], DECIMALS),
-            "c": {k: {**c, **{f: rnd(c[f], DECIMALS) for f in ("err", "med", "ratio")}} for k, c in s["c"].items()}}
+def as_stored(ccn, s, pub):
+    """A full-precision supplemental record (s) with its formula inputs stored as hrrp.json writes them, each printing as
+    in CMS's tab-delimited record (pub); see stored()."""
+    return {**s, "nm": stored(s["nm"], pub["nm"], f"{ccn} nm"),
+            "c": {k: {**c, **{f: stored(c[f], pub["c"][k][f], f"{ccn} {k}.{f}") for f in ("err", "med", "ratio")}}
+                  for k, c in s["c"].items()}}
+
+
+def replication_gate(kept):
+    """SystemExit naming every hospital whose PAF the stored values ({ccn: as_stored record}) do not reproduce."""
+    short = sorted(c for c, s in kept.items() if model.replication_status(s) != "exact")
+    if short:
+        raise SystemExit(f"The stored values do not reproduce the PAF of {len(short)} hospitals: {', '.join(short)}. "
+                         f"Either {DECIMALS} decimals are too few (raise DECIMALS) or CMS counted a flagged condition "
+                         "whose payment weight it did not publish, which the formula cannot recompute.")
+
+
+def extra_places(hospitals, peer_med, nm):
+    """(stored with more than DECIMALS decimals, all) over the 4-decimal values the site prints: the neutrality
+    modifier, each peer median, and each hospital's ERRs and DRG ratios."""
+    shown = [nm, *(v for g in peer_med.values() for v in g.values()),
+             *(c[f] for x in hospitals for c in x["c"].values() for f in ("err", "ratio"))]
+    shown = [v for v in shown if v is not None]
+    return sum(1 for v in shown if round(v, DECIMALS) != v), len(shown)
 
 
 def beds(cr, pos):
@@ -128,9 +170,10 @@ def beds(cr, pos):
 
 
 def inactive(p):
-    """{date, reason} when the Provider of Services file shows the hospital's Medicare participation ended."""
+    """{date, reason} when the Provider of Services file shows the hospital's Medicare participation ended (codes 01-07;
+    the date may be None). Active (00) and awaiting state approval (80) are not inactive."""
     reason = parse.POS_TERMINATION.get(p.get("term"))
-    return {"date": p["termDate"], "reason": reason} if reason else None
+    return {"date": p.get("termDate"), "reason": reason} if reason else None
 
 
 def report_pos(hospitals, impact, pos):
@@ -153,10 +196,16 @@ def year_share(fy, end):
     return ((last - start).days + 1) / ((stop - start).days + 1)
 
 
+def mdh_shortfall(addons):
+    """{ccn: % by which the MDH's estimate would fall short if its status lasted the whole year}; MDHs with no
+    federal base (no cases, so no full-year total either) are left out."""
+    return {c: 100 * (1 - (fed + a) / (fed + full)) for c, (fed, a, full) in addons.items() if fed}
+
+
 def report_mdh(hospitals, addons, share, shortfall):
     """Print how the Medicare-dependent hospital add-on changed the base and the estimated penalty."""
     paf = {x["id"]: x["paf"] for x in hospitals}
-    got = {c: (fed, a, a * (1 - paf[c])) for c, (fed, a, _) in addons.items() if a > 0}
+    got = {c: (fed, a, a * (1 - paf[c])) for c, (fed, a, _) in addons.items() if fed and a > 0}
     print(f"MDH add-on ({share:.4f} of the year): {len(got)} of {len(addons)} MDHs, base +${sum(v[1] for v in got.values()) / 1e6:.1f}M, "
           f"estimated penalty +${sum(v[2] for v in got.values()) / 1e6:.2f}M")
     if got:
@@ -178,6 +227,14 @@ def group_constant(rows, value, label):
 def load_content(name):
     p = CONTENT / name
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+
+def load_dollar_check(p=CONTENT / "dollar_check.json"):
+    """The cost-report check of the dollar estimates, which Methods quotes; SystemExit when the file is missing."""
+    if not p.exists():
+        raise SystemExit(f"{p} is missing: the Methods page quotes its cost-report check of the dollar estimates. "
+                         "Restore it (or rerun the check) before building.")
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 STRAY_KM = 40  # a ZIP/county point farther than this outside the impact-file county is replaced by that county's centroid
@@ -235,8 +292,8 @@ OPTIONAL = ("alias", "bedsSrc", "inactive")
 
 
 def hospital_record(ccn, s, imp, g, p, ref):
-    """One hospital's data-contract record from its supplemental (s), impact (imp), Care Compare (g), and Provider
-    of Services (p) rows."""
+    """One hospital's data-contract record from its supplemental record as stored (s, from as_stored), impact (imp),
+    Care Compare (g), and Provider of Services (p) rows."""
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
@@ -274,7 +331,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": rnd(s["dual"], 4, half_up=True), "peer": s["peer"],
         "base": round(base) if base is not None else None,
         "pen": round(pen) if pen is not None else None,
-        "c": {k: {"n": c["n"], "err": rnd(c["err"], DECIMALS), "flag": c["flag"], "ratio": rnd(c["ratio"], DECIMALS)}
+        "c": {k: {"n": c["n"], "err": c["err"], "flag": c["flag"], "ratio": c["ratio"]}
               for k, c in s["c"].items() if not (c["n"] is None and c["err"] is None)},
     }
     return {k: v for k, v in rec.items() if v is not None or k not in OPTIONAL}
@@ -297,25 +354,28 @@ def build():
     out_of_range = [c for c, s in supp.items() if not 1 - model.CAP <= s["paf"] <= 1.0]
     if out_of_range:
         raise SystemExit(f"PAF out of range for {out_of_range[:10]}")
-    drift = precision_mismatches(supp, parse.read_supplemental(path("supp")))
+    pub = parse.read_supplemental(path("supp"))
+    drift = precision_mismatches(supp, pub)
     if drift:
         raise SystemExit(f"Excel workbook and tab-delimited file disagree on {len(drift)} values: {drift[:10]}")
-    short = [c for c, s in supp.items() if model.replication_status(as_stored(s)) != "exact"]
-    if short:
-        raise SystemExit(f"{DECIMALS} decimals do not reproduce the PAF of {len(short)} hospitals {short[:10]}: raise DECIMALS")
+    kept = {c: as_stored(c, s, pub[c]) for c, s in supp.items()}
+    replication_gate(kept)
 
-    nm = group_constant(supp.values(), lambda s: s["nm"], "neutrality modifier")
+    # One value across the group, at full precision and as stored: (full, stored)[1]
+    nm = group_constant(supp, lambda c: (supp[c]["nm"], kept[c]["nm"]), "neutrality modifier")[1]
     peer_cut, peer_med = [], {}
     for p in range(1, 6):
-        grp = [s for s in supp.values() if s["peer"] == p]
-        peer_cut.append([rnd(f(s["dual"] for s in grp), 4, half_up=True) for f in (min, max)])
-        peer_med[str(p)] = {k: rnd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"), DECIMALS)
-                            for k in parse.CONDITIONS}
+        grp = [c for c in supp if supp[c]["peer"] == p]
+        peer_cut.append([rnd(f(supp[c]["dual"] for c in grp), 4, half_up=True) for f in (min, max)])
+        peer_med[str(p)] = {k: group_constant(grp, lambda c, k=k: (supp[c]["c"][k]["med"], kept[c]["c"][k]["med"]),
+                                              f"peer {p} {k} median")[1] for k in parse.CONDITIONS}
 
     mdh_share = year_share(FY, MDH_END)
     ref = Ref(zcta, counties, load_geocodes(), cbsa_names, rates, mdh_share, [], {})
-    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
+    hospitals = [hospital_record(ccn, kept[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
                  for ccn in sorted(supp)]
+    n_extra, n_shown = extra_places(hospitals, peer_med, nm)
+    print(f"stored with more than {DECIMALS} decimals so the site prints CMS's 4-decimal value: {n_extra} of {n_shown}")
     for src, what in (("county", f"moved to impact-file county centroid (point > {STRAY_KM} km outside it)"),
                       ("address", "street address inside the impact-file county, not Care Compare's")):
         hits = [f"{c} {old} -> {new}" for c, old, new, s in ref.moved if s == src]
@@ -324,8 +384,7 @@ def build():
     set_aside = [x["id"] for x in hospitals if x["id"] in ref.points and x["geo"] != "address"]
     print(f"geocoded addresses {len(ref.points)}; set aside (> {STRAY_KM} km outside the impact-file county): {set_aside}")
     report_pos(hospitals, impact, pos)
-    # % by which each MDH's estimate would fall short if its status lasted the whole year
-    shortfall = {c: 100 * (1 - (fed + a) / (fed + full)) for c, (fed, a, full) in ref.addons.items()}
+    shortfall = mdh_shortfall(ref.addons)
     report_mdh(hospitals, ref.addons, mdh_share, shortfall)
     unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
     if unchecked:
@@ -346,7 +405,7 @@ def build():
     whats_new = load_content("whats_new.json") or {}
     return {
         "meta": {
-            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": rnd(nm, DECIMALS),
+            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": nm,
             "peerCutoffs": peer_cut, "peerMedians": peer_med, "rates": rates,
             "totals": {"modelBase": sum(x["base"] or 0 for x in hospitals),
                        "modelPen": sum(x["pen"] or 0 for x in hospitals),
@@ -354,7 +413,7 @@ def build():
             "replication": {"exact": sum(1 for s in supp.values() if model.replication_status(s) == "exact"),
                             "total": len(supp)},
             "mdh": {"endDate": MDH_END, "maxShortfall": round(max(shortfall.values(), default=0))},
-            "dollarCheck": load_content("dollar_check.json") or None,
+            "dollarCheck": load_dollar_check(),
             "geocode": geocode, "states": states,
             "whatsNew": whats_new.get("items", []) if whats_new.get("fy") == FY else [],
             "divisions": [{"name": d, "region": r, "states": [s for s in sts if s in states]}

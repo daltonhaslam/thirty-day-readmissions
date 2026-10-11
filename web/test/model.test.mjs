@@ -47,10 +47,11 @@ test('browser formula reproduces CMS PAF for every FY2027 hospital', () => {
   assert.deepEqual(bad.map((h) => h.id), []);
 });
 
-test('summarize handles empty lists without NaN', () => {
+test('summarize handles empty lists without NaN; share penalized is null with nothing measured', () => {
   const s = summarize([]);
-  for (const v of Object.values(s)) assert.ok(Number.isFinite(v), JSON.stringify(s));
+  for (const [k, v] of Object.entries(s)) if (k !== 'pctPen') assert.ok(Number.isFinite(v), JSON.stringify(s));
   assert.equal(s.n, 0);
+  assert.equal(s.pctPen, null);
 });
 
 const MEASURED = { HF: { n: 40, err: 1.1 } };
@@ -79,8 +80,17 @@ test('summarize: share penalized is of hospitals measured on at least one condit
   const s = summarize(list);
   assert.deepEqual([s.n, s.nPen, s.nMeasured], [5, 1, 2]);
   assert.equal(s.pctPen, 50);
-  const none = summarize([{ red: 0, c: {} }]);
-  assert.deepEqual([none.nMeasured, none.pctPen], [0, 0]);
+  const none = summarize([{ red: 0, c: {} }, { red: 0, c: { HF: { n: 24, err: 1.3 } } }]);
+  assert.deepEqual([none.n, none.nMeasured, none.pctPen], [2, 0, null]);
+  assert.equal(fmtPct(none.pctPen, 0), '—');
+  assert.equal(penalizedOfMeasured(none), 'none measured');
+});
+
+test('scope KPI: an all-unmeasured area shows no share and skips the comparison with the nation', async () => {
+  const { penalizedNote } = await import('../src/js/views/scope.js');
+  const nation = summarize([{ red: 0.5, c: MEASURED }, { red: 0, c: MEASURED }]);
+  assert.equal(penalizedNote(summarize([{ red: 0, c: {} }]), nation), 'of 0 measured');
+  assert.equal(penalizedNote(summarize([{ red: 0.2, c: MEASURED }]), nation), 'of 1 measured · +50 pts vs nation');
 });
 
 test('percentileRank is the share of values strictly below', () => {

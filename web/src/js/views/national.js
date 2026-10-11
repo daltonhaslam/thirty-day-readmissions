@@ -51,9 +51,9 @@ export function measuredFigure(D, list) {
   const measured = (x) => CONDS.filter((k) => isMeasured(x.c[k])).length;
   const rows = [0, 1, 2, 3, 4, 5, 6].map((n) => {
     const sm = summarize(list.filter((x) => measured(x) === n));
-    const row = { label: plural(n, 'condition'), value: sm.pctPen, display: fmtPct(sm.pctPen, 0), note: `${fmtInt(sm.n)} hospitals`, n: sm.n };
-    // With no condition measured a hospital cannot be penalized (pctPen is 0), so the row has no rate to show.
-    return n === 0 ? { ...row, display: 'n/a', note: `${row.note} · cannot be penalized` } : row;
+    // With no condition measured a hospital cannot be penalized: pctPen is null, so the row shows no rate.
+    return { label: plural(n, 'condition'), value: sm.pctPen, display: fmtPct(sm.pctPen, 0),
+      note: `${fmtInt(sm.n)} hospitals${sm.pctPen == null ? ' · cannot be penalized' : ''}`, n: sm.n };
   }).filter((r) => r.n > 0);
   return figure({ title: 'More conditions measured, more ways to be penalized',
     take: 'Share of hospitals penalized, by how many of the six conditions had at least 25 cases. A hospital is penalized if any one condition lands above its peer median, so each added condition is another chance.',
@@ -69,9 +69,9 @@ export function peerFigure(D, list) {
     tip: () => [x.name, [['Cut', fmtPct(x.red)], ['Peer group', x.peer], x.place]], href: link('hospital', x.id) })),
   domain: [0, CAP_PCT], ticks: [0, 0.5, 1, 1.5, 2, 2.5, CAP_PCT], tickFormat: (d) => `${d}%`, medians: meds, rowH: 44,
   label: 'Payment reductions by peer group' });
-  const sums = groups.map(summarize);
+  const pcts = groups.map((g) => summarize(g).pctPen).filter((v) => v != null);
   return figure({ title: 'Penalties by peer group',
-    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. The thick tick in each row marks that group's median cut. Among hospitals measured on at least one condition, the share penalized ranges from ${fmtPct(Math.min(...sums.map((s) => s.pctPen)), 0)} to ${fmtPct(Math.max(...sums.map((s) => s.pctPen)), 0)}.`,
+    take: `Group 1 serves the fewest dual-eligible patients, group 5 the most. The thick tick in each row marks that group's median cut. Among hospitals measured on at least one condition, the share penalized ranges from ${fmtPct(Math.min(...pcts), 0)} to ${fmtPct(Math.max(...pcts), 0)}.`,
     source: `CMS FY${D.meta.fy} HRRP Supplemental Data File.`, body: el });
 }
 
@@ -87,7 +87,7 @@ export function typeFigure(D, list) {
     const rows = order.map((label) => {
       const grp = list.filter((x) => keyOf(x) === label);
       const sm = summarize(grp);
-      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: `${fmtInt(sm.n)} hospitals · ${fmtPct(sm.pctPen, 0)} of measured penalized`, n: sm.n };
+      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: `${fmtInt(sm.n)} hospitals · ${sm.pctPen == null ? 'none measured' : `${fmtPct(sm.pctPen, 0)} of measured penalized`}`, n: sm.n };
     }).filter((r) => r.n > 0);
     return h('div', {}, h('div', { class: 'cap muted sub' }, title), barRows(rows, { max: 0.8 }));
   });

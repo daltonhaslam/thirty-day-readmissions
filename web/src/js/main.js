@@ -2,7 +2,7 @@ import { loadData } from './data.js';
 import { SITE_NAME } from './site.js';
 import { buildIndex } from './ui/search.js';
 import { renderShell, markNav } from './views/shell.js';
-import { onRoute } from './router.js';
+import { onRoute, scrollTarget } from './router.js';
 import { renderHome } from './views/home.js';
 import { renderScope } from './views/scope.js';
 import { renderHospital } from './views/hospital.js';
@@ -50,7 +50,8 @@ onRoute((route) => {
   const key = `${route.view}:${route.key ?? ''}`;
   const back = fromHistory;
   fromHistory = false;
-  if (key !== current) {
+  const changed = key !== current;
+  if (changed) {
     const firstView = current === null;
     if (current) positions.set(current, window.scrollY);
     const state = back && viewStates.has(key) ? viewStates.get(key) : {};
@@ -65,9 +66,10 @@ onRoute((route) => {
       const h1 = main.querySelector('h1');
       if (h1) { h1.tabIndex = -1; h1.focus({ preventScroll: true }); }
     }
-    if (!route.section) window.scrollTo(0, back && positions.has(key) ? positions.get(key) : 0);
   }
-  if (route.section) document.getElementById(route.section)?.scrollIntoView({ block: 'start' });
+  const to = scrollTarget(route, { changed, back, saved: positions.get(key) });
+  if (to.section) document.getElementById(to.section)?.scrollIntoView({ block: 'start' });
+  else window.scrollTo(0, to.y);
   history.replaceState({ thirtyDays: key }, '');
   markNav(route.view === 'methods' ? 'methods' : route.section);
 });

@@ -227,8 +227,9 @@ def read_hgi(path):
     return _index_by_ccn(path, _read_table(path, "Facility ID", columns, ",", "utf-8-sig"), build)
 
 
-# Provider of Services termination codes (PGM_TRMNTN_CD) with plain-words reasons. Meanings from CMS's POS record
-# layout for this dataset (P.QWB.POSQ.OTHER.LAYOUT.MAR23.pdf); the CLIA-only codes cannot occur in this file.
+# Provider of Services termination codes (PGM_TRMNTN_CD) with plain-words reasons for the codes that end Medicare
+# participation (01-07); None for the ones that do not. Meanings from CMS's POS record layout for this dataset
+# (P.QWB.POSQ.OTHER.LAYOUT.MAR23.pdf); the CLIA-only codes cannot occur in this file.
 POS_TERMINATION = {
     "00": None,  # ACTIVE PROVIDER
     "01": "merger or closure",  # VOLUNTARY-MERGER, CLOSURE
@@ -238,7 +239,7 @@ POS_TERMINATION = {
     "05": "terminated for failing health and safety requirements",  # INVOLUNTARY-FAILURE TO MEET HEALTH/SAFETY REQ
     "06": "terminated for failing its Medicare agreement",  # INVOLUNTARY-FAILURE TO MEET AGREEMENT
     "07": "change in provider status",  # OTHER-PROVIDER STATUS CHANGE
-    "80": "awaiting state approval",  # AWAITING STATE APPROVAL
+    "80": None,  # AWAITING STATE APPROVAL: not a termination
 }
 
 

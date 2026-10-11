@@ -16,6 +16,10 @@ export function condStrip(D, x) {
     h('span', { class: 'visually-hidden' }, counted.length ? `Penalized on ${counted.join(', ')}` : 'No condition penalized'));
 }
 
+// The inactive tag's tooltip and the CSV's inactive column; CMS can list an ended agreement without a date.
+export const inactiveTitle = ({ inactive: { date } }) => `CMS lists this hospital's Medicare agreement as ended${date ? ` on ${date}` : ''}`;
+export const inactiveCell = (x) => (x.inactive ? x.inactive.date ?? 'date not listed' : null);
+
 // Columns for tables of areas (states, metros, divisions) whose rows carry summarize() fields plus label/href.
 export function summaryColumns(label) {
   return [
@@ -32,7 +36,7 @@ export function hospitalColumns(D, { compact = false } = {}) {
   const cols = [
     { key: 'name', label: 'Hospital', cls: 'name', firstDir: 'asc', sort: (x) => x.name,
       render: (x) => [h('a', { href: link('hospital', x.id) }, x.name),
-        x.inactive ? h('span', { class: 'tag', title: `CMS lists this hospital's Medicare agreement as ended on ${x.inactive.date}` }, 'inactive') : null,
+        x.inactive ? h('span', { class: 'tag', title: inactiveTitle(x) }, 'inactive') : null,
         h('small', {}, `${x.place} · CCN ${x.id}`)], csv: (x) => x.name },
     { key: 'red', label: 'Cut', num: true, sort: (x) => x.red,
       render: (x) => [fmtPct(x.red), h('span', { class: 'pbar', style: { width: `${(x.red / CAP_PCT) * 48}px` } })] },
@@ -66,8 +70,9 @@ export const CSV_COLUMNS = [
   { label: 'State', value: (x) => x.st }, { label: 'Metro area', value: (x) => x.cbsaName },
   { label: 'Beds', value: (x) => x.beds },
   { label: 'Beds source', value: (x) => (x.beds == null ? null : x.bedsSrc === 'cr' ? 'cost report' : 'certified (Provider of Services file)') },
-  { label: 'Inactive (date)', value: (x) => x.inactive?.date },
-  // Stored values are already rounded by the pipeline: factor and dual share 4 dp, cut 2 dp, dollars whole, ERR 6 dp.
+  { label: 'Inactive (date)', value: inactiveCell },
+  // Stored values are already rounded by the pipeline: factor and dual share 4 dp, cut 2 dp, dollars whole, ERR at
+  // least 6 dp (more where needed to read as CMS's 4-dp value when rounded).
   { label: 'Payment adjustment factor', value: (x) => x.paf }, { label: 'Payment reduction (%)', value: (x) => x.red },
   { label: 'Estimated penalty ($, modeled)', value: (x) => x.pen },
   { label: 'Peer group', value: (x) => x.peer }, { label: 'Dual proportion', value: (x) => x.dual },

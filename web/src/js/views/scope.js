@@ -64,6 +64,11 @@ function scopeTrend(D, list) {
   return el;
 }
 
+// The Penalized KPI's note: measured count and the gap to the nation, or no comparison when nothing here is measured.
+export function penalizedNote(S, N) {
+  return `of ${fmtInt(S.nMeasured)} measured${S.pctPen == null ? '' : ` · ${vsLabel(S.pctPen, N.pctPen, 0, 'pts')}`}`;
+}
+
 // Returns [element, title] or null when the route matches nothing.
 export function renderScope(D, route, state = {}) {
   const sc = resolveScope(D, route);
@@ -73,7 +78,9 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition. `
+  const share = S.pctPen == null ? `${S.n === 1 ? 'it is not' : 'none is'} measured on any condition`
+    : `${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition`;
+  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${share}. `
     + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${plural(S.n, 'hospital')}`}, is ${fmtPct(S.meanRed)}`
     + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
   const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];
@@ -81,7 +88,7 @@ export function renderScope(D, route, state = {}) {
   const kpis = h('div', { class: 'form kpis' },
     h('div', { class: 'form__title' }, h('span', {}, `${sc.name} · ${D.edition.label}`), h('span', {}, 'Compared with all hospitals nationally')),
     field(1, 'Hospitals', fmtInt(S.n)),
-    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: `of ${fmtInt(S.nMeasured)} measured · ${vsLabel(S.pctPen, N.pctPen, 0, 'pts')}` }),
+    field(2, 'Penalized', fmtPct(S.pctPen, 0), { note: penalizedNote(S, N) }),
     field(3, 'Average cut', fmtPct(S.meanRed), { note: vsLabel(S.meanRed, N.meanRed, 2, 'pts') }),
     field(4, 'Cut 1% or more', fmtInt(S.nGe1), { note: `${fmtPct((100 * S.nGe1) / S.n, 0)} of hospitals (nation ${fmtPct((100 * N.nGe1) / N.n, 0)})` }),
     field(5, 'At the 3% cap', fmtInt(S.nMax)),

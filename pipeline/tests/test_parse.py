@@ -201,6 +201,11 @@ class PosTest(unittest.TestCase):
         with self.assertRaises(parse.SchemaError):
             parse.read_pos(self._variant(b",67,07,", b",67,42,"), self.KEEP)
 
+    def test_awaiting_state_approval_is_a_known_code(self):
+        rows = parse.read_pos(self._variant(b",67,07,", b",67,80,"), self.KEEP)
+        self.assertEqual(rows["010062"]["term"], "80")
+        self.assertIsNone(parse.POS_TERMINATION["80"])  # not a termination: build_data.inactive() leaves it active
+
     def test_rows_outside_keep_are_skipped_unchecked(self):
         rows = parse.read_pos(self._variant(b",67,07,", b",67,42,"), {"010001"})  # 010062's odd code is not ours
         self.assertEqual(list(rows), ["010001"])

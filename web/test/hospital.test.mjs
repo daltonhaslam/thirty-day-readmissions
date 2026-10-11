@@ -41,11 +41,22 @@ test('beds: certified counts read plainly; only the cost-report fallback is mark
   assert.equal(bedsLabel({ beds: null }), null);
 });
 
-test('inactive hospitals get a sentence naming the CCN, end date, and reason', async () => {
+test('inactive hospitals get a sentence naming the CCN, end date, and reason; the cut is mentioned only when there is one', async () => {
   const { inactiveSentence } = await import('../src/js/views/hospital.js');
   const D = { edition: { label: 'FY2027' } };
-  assert.equal(inactiveSentence(D, { id: '050001', inactive: { date: '2025-03-31', reason: 'voluntary termination' } }),
+  const x = { id: '050001', red: 0.42, inactive: { date: '2025-03-31', reason: 'voluntary termination' } };
+  assert.equal(inactiveSentence(D, x),
     'CMS lists this hospital\'s Medicare agreement under CCN 050001 as ended on March 31, 2025 (voluntary termination). It will not be paid under this ID in FY2027, so its cut is unlikely to be collected.');
+  assert.equal(inactiveSentence(D, { ...x, red: 0 }),
+    'CMS lists this hospital\'s Medicare agreement under CCN 050001 as ended on March 31, 2025 (voluntary termination). It will not be paid under this ID in FY2027.');
+  assert.equal(inactiveSentence(D, { ...x, inactive: { date: null, reason: 'merger or closure' } }),
+    'CMS lists this hospital\'s Medicare agreement under CCN 050001 as ended (merger or closure). It will not be paid under this ID in FY2027, so its cut is unlikely to be collected.');
+});
+
+test('the inactive tag tooltip omits a missing date', async () => {
+  const { inactiveTitle } = await import('../src/js/views/columns.js');
+  assert.equal(inactiveTitle({ inactive: { date: '2025-03-31' } }), 'CMS lists this hospital\'s Medicare agreement as ended on 2025-03-31');
+  assert.equal(inactiveTitle({ inactive: { date: null } }), 'CMS lists this hospital\'s Medicare agreement as ended');
 });
 
 test('explorer text filter matches the alias', async () => {

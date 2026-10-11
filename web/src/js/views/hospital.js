@@ -26,11 +26,11 @@ function rankLine(D, x) {
 // Bed counts are CMS certified beds; the few from the cost report instead are marked.
 export const bedsLabel = (x) => (x.beds ? `${fmtInt(x.beds)} beds${x.bedsSrc === 'cr' ? ' (cost report)' : ''}` : null);
 
-// For a hospital whose Medicare agreement CMS lists as ended. It stays in every ranking and total.
+// For a hospital whose Medicare agreement CMS lists as ended (the date can be missing). It stays in every ranking and total.
 export function inactiveSentence(D, x) {
   const { date, reason } = x.inactive;
-  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended on ${fmtDate(date, 'long')} (${reason}). `
-    + `It will not be paid under this ID in ${D.edition.label}, so its cut is unlikely to be collected.`;
+  return `CMS lists this hospital's Medicare agreement under CCN ${x.id} as ended${date ? ` on ${fmtDate(date, 'long')}` : ''} (${reason}). `
+    + `It will not be paid under this ID in ${D.edition.label}${x.red > 0 ? ', so its cut is unlikely to be collected' : ''}.`;
 }
 
 function summarySentence(D, x, v) {

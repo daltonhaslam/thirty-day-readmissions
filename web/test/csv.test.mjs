@@ -56,4 +56,11 @@ test('area CSV: share penalized of measured, rounded, with the counts behind it'
   const r = rowOf(csv);
   assert.deepEqual(Object.keys(r), ['State', 'Hospitals', 'Hospitals measured', 'Hospitals penalized', 'Penalized (% of measured)', 'Average cut (%)', 'Cut 1% or more (hospitals)', 'Estimated penalties ($, modeled)']);
   assert.deepEqual(Object.values(r), ['Utah', '4', '3', '2', '66.7', '0.38', '1', '16']);
+  const none = rowOf(toCSV([{ label: 'Nowhere', ...summarize([{ red: 0, pen: 0, c: {} }]) }], summaryCsvColumns('State')));
+  assert.deepEqual([none['Hospitals measured'], none['Penalized (% of measured)']], ['0', ''], 'no share when nothing is measured');
+});
+
+test('hospital CSV: an inactive hospital whose end date CMS does not list says so', () => {
+  const r = rowOf(toCSV([{ ...HOSP, inactive: { date: null, reason: 'merger or closure' } }], CSV_COLUMNS));
+  assert.equal(r['Inactive (date)'], 'date not listed');
 });

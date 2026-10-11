@@ -95,14 +95,25 @@ function mapPart(D) {
       figure({ title: 'Browse by region', take: 'Census regions and divisions.', body: regions })));
 }
 
+// Caption for the share-penalized history chart. Its bars use the history file's comparable population, which is not
+// the headline's (hospitals measured on at least one condition), so the caption says what each bar counts.
+export function shareTake(D) {
+  const barNow = D.nationalByFy[D.meta.fy]?.pctPen;
+  const whyDiffers = barNow != null && fmtPct(barNow, 0) !== fmtPct(D.nation.pctPen, 0)
+    ? ` ${D.edition.label} shows ${fmtPct(barNow, 0)} here, not the ${fmtPct(D.nation.pctPen, 0)} headline, because the headline counts only hospitals measured on at least one condition.` : '';
+  return 'Each bar is the share of hospitals in that year\'s CMS file with a cut. From FY2019 that is every hospital in the file; '
+    + 'for FY2013–FY2018 it leaves out three groups those files listed and later files drop: Maryland, Puerto Rico, and hospitals with no data for any condition.'
+    + `${whyDiffers} KFF Health News reported somewhat lower counts for FY2015, FY2016 and FY2018 (2,610, 2,592 and 2,573); this chart counts every hospital with a cut in CMS's final file.`;
+}
+
 function historyPart(D) {
   const nat = D.history.national;
   const years = nat.map((r) => r.fy);
   const ann = [...D.capMarks, { fy: 2019, label: 'peer groups' }, { fy: 2023, label: 'pneumonia paused', short: 'pneumonia out' }, { fy: 2027, label: 'MA added' }];
   const bands = [COVID_GAP];
   const pctEl = h('div');
-  trendChart(pctEl, { years, label: 'Share of hospitals penalized by fiscal year', yMax: 100, yFormat: (d) => `${d}%`, annotations: ann, bands,
-    series: [{ label: 'Penalized', kind: 'bar', values: nat.map((r) => r.pctPen), fmt: (v) => fmtPct(v, 1), style: { fill: 'var(--p3)' },
+  trendChart(pctEl, { years, label: 'Share of all hospitals in each year\'s CMS file that were penalized, by fiscal year', yMax: 100, yFormat: (d) => `${d}%`, annotations: ann, bands,
+    series: [{ label: 'Penalized, of all in file', kind: 'bar', values: nat.map((r) => r.pctPen), fmt: (v) => fmtPct(v, 1), style: { fill: 'var(--p3)' },
       tipExtra: (p) => [['Hospitals', `${fmtInt(D.nationalByFy[p.fy].nPen)} of ${fmtInt(D.nationalByFy[p.fy].n)}`]] }] });
   const avgEl = h('div');
   trendChart(avgEl, { years, label: 'Average payment reduction by fiscal year', yFormat: (d) => `${d}%`, annotations: ann, bands,
@@ -114,10 +125,6 @@ function historyPart(D) {
     series: [{ label: 'Estimated total', kind: 'bar', values: nat.map((r) => (r.totalEst ? r.totalEst / 1e6 : null)), fmt: (v) => `$${Math.round(v)}M`,
       tipExtra: (p) => [D.nationalByFy[p.fy].totalSrc?.label || ''] }] });
   const missing = nat.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(', ');
-  // The bars count every hospital in each year's file (comparable across years); the headline counts only measured ones.
-  const barNow = D.nationalByFy[D.meta.fy]?.pctPen;
-  const whyDiffers = barNow != null && fmtPct(barNow, 0) !== fmtPct(D.nation.pctPen, 0)
-    ? ` That is why ${D.edition.label} shows ${fmtPct(barNow, 0)} here, not the ${fmtPct(D.nation.pctPen, 0)} headline, which counts only hospitals measured on at least one condition.` : '';
 
   const timeline = h('ol', { class: 'ledger' }, D.timeline.map((t) => h('li', { class: t.fy && t.fy > D.meta.fy ? 'is-future' : null },
     h('span', { class: 'ledger__date' }, t.fy ? `FY${t.fy}` : t.date.slice(0, 4)),
@@ -126,9 +133,7 @@ function historyPart(D) {
 
   return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: `The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much. In the charts, dashed lines mark rule changes. ${COVID_GAP_NOTE}` },
     h('div', { class: 'grid-2' },
-      figure({ title: 'Share of hospitals penalized',
-        take: `Counts every hospital in each year's CMS file.${whyDiffers} Files for FY2013–FY2018 left out Maryland, Puerto Rico, and hospitals with no measured conditions.`
-          + ' KFF Health News reported somewhat lower counts for FY2015, FY2016 and FY2018 (2,610, 2,592 and 2,573); this chart counts every hospital with a cut in CMS\'s final file.',
+      figure({ title: 'Share penalized, of all hospitals in the file', take: shareTake(D),
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
       figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },

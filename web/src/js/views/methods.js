@@ -36,10 +36,13 @@ function monthsBefore(fy, endIso) {
   return end.getFullYear() === fy - 1 ? `Oct–${mon} ${fy - 1}` : `Oct ${fy - 1}–${mon} ${end.getFullYear()}`;
 }
 
-// How the estimates compare with hospitals' cost reports; empty until the data carries that check.
+// How the estimates compare with hospitals' cost reports, dated by the check (the build requires it; the guard keeps
+// a partial record from printing gaps).
 export function accuracyLine(dc) {
   if (dc?.within15 == null) return '';
-  return `Checked against hospitals' own Medicare cost reports, ${fmtPct(dc.within15, 0)} of estimates land within 15% after allowing for two years of payment-rate growth`
+  const month = dc.asOf ? new Date(`${dc.asOf}T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
+  const check = month ? `${/^[AEIOU]/.test(month) ? 'an' : 'a'} ${month} check` : 'a check';
+  return `In ${check} against hospitals' ${dc.costFy ? `FY${dc.costFy} ` : ''}Medicare cost reports, ${fmtPct(dc.within15, 0)} of estimates land within 15% after allowing for two years of payment-rate growth`
     + `${dc.within15Small != null ? ` (${fmtPct(dc.within15Small, 0)} for hospitals under 100 beds)` : ''}.`;
 }
 
@@ -126,7 +129,7 @@ export function renderMethods(D) {
 
         h('h2', {}, 'History'),
         h('p', {}, `Penalties for FY${E.firstFy} through FY${E.fy - 1} come from CMS's archived final-rule supplemental files.`
-          + ` For FY2013–FY2018 the share penalized excludes Maryland, Puerto Rico, and hospitals with no measured conditions, which those early files listed. Annual dollar totals come from CMS (a payment-rule estimate or, for FY2025, a later simulation of that year under the pre-FY2027 method) or from KFF Health News reporting; each bar's tooltip names its source. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
+          + ` The history chart's share penalized counts every hospital in each year's file, except that for FY2013–FY2018 it leaves out Maryland, Puerto Rico, and hospitals with no data for any condition, which those early files listed. Annual dollar totals come from CMS (a payment-rule estimate or, for FY2025, a later simulation of that year under the pre-FY2027 method) or from KFF Health News reporting; each bar's tooltip names its source. We found no total from either source for ${D.history.national.filter((r) => !r.totalEst).map((r) => `FY${r.fy}`).join(' or ')}.`)),
         h('h2', {}, 'Feedback and privacy'),
         h('p', {}, FEEDBACK_ENABLED
           ? 'The feedback form at the bottom of every page sends your note, the page you were on, and your email if you choose to give it. It goes to a private spreadsheet and an email inbox that only I read. Nothing else is collected, and the site sets no cookies. Please leave out any patient information.'

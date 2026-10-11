@@ -365,8 +365,25 @@ class ProviderOfServicesTest(unittest.TestCase):
         self.assertEqual(build_data.inactive({"term": "01", "termDate": "2024-08-31"}),
                          {"date": "2024-08-31", "reason": "merger or closure"})
 
+    def test_only_codes_01_to_07_end_participation(self):
+        import build_data
+        from hrrp import parse
+        self.assertIsNone(build_data.inactive({"term": "80", "termDate": None}))  # awaiting state approval
+        self.assertEqual(sorted(k for k, v in parse.POS_TERMINATION.items() if v), [f"0{i}" for i in range(1, 8)])
+
+    def test_a_termination_without_a_date_keeps_a_null_date(self):
+        import build_data
+        self.assertEqual(build_data.inactive({"term": "05", "termDate": None}),
+                         {"date": None, "reason": "terminated for failing health and safety requirements"})
+
 
 class MdhShareTest(unittest.TestCase):
+    def test_shortfall_skips_mdhs_with_no_federal_base(self):
+        import build_data
+        addons = {"360001": (100.0, 10.0, 40.0), "360002": (0.0, 0.0, 0.0), "360003": (0, 0.0, 5.0)}
+        self.assertEqual(build_data.mdh_shortfall(addons), {"360001": 100 * (1 - 110 / 140)})
+        self.assertEqual(build_data.mdh_shortfall({}), {})
+
     def test_share_of_fiscal_year_before_mdh_status_ends(self):
         import build_data
         self.assertEqual(build_data.year_share(2027, "2026-12-31"), 92 / 365)  # Oct 1 - Dec 31, 2026
@@ -388,6 +405,20 @@ class PrecisionTest(unittest.TestCase):
         self.assertEqual([build_data.rnd(v, 4, half_up=True) for v in (0.15625, 0.98625, None)], [0.1563, 0.9863, None])
         self.assertEqual([build_data.rnd(v, 4) for v in (0.15625, None)], [0.1562, None])
 
+    def test_workbook_value_is_compared_as_excel_shows_it(self):
+        import build_data
+        v = 0.12344999999999999  # a different double from 0.12345; Excel shows it, to 15 digits, as 0.12345
+        self.assertNotEqual(v, 0.12345)
+        self.assertEqual(build_data.rnd(v, 4, half_up=True), 0.1235)
+        full = {"010001": {**self.FULL["010001"], "dual": v}}
+        self.assertEqual(build_data.precision_mismatches(full, {"010001": {**self.PUBLISHED["010001"], "dual": 0.1235}}), [])
+
+    def test_to_fixed4_is_javascripts(self):
+        import build_data
+        # 1.02485 and 0.06145 are stored just above and below the tie; 0.03125 is an exact tie, which goes up.
+        self.assertEqual([str(build_data.to_fixed4(v)) for v in (1.02485, 0.06145, 0.03125, 1.0)],
+                         ["1.0249", "0.0614", "0.0313", "1.0000"])
+
     def test_matching_tables_pass(self):
         import build_data
         self.assertEqual(build_data.precision_mismatches(self.FULL, self.PUBLISHED), [])
@@ -401,6 +432,67 @@ class PrecisionTest(unittest.TestCase):
 
     def test_stored_values_are_rounded_to_decimals(self):
         import build_data
-        s = build_data.as_stored(self.FULL["010001"])
+        s = build_data.as_stored("010001", self.FULL["010001"], self.PUBLISHED["010001"])
         self.assertEqual((s["nm"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]), (round(0.96284743999129252, build_data.DECIMALS),
                                                                              round(1.08989959713565, build_data.DECIMALS), 601))
+
+    def test_stored_values_get_more_decimals_until_the_site_prints_cms_value(self):
+        import build_data
+        self.assertEqual(build_data.DECIMALS, 6)
+        self.assertEqual(build_data.stored(1.02484970123, 1.0248, "x"), 1.0248497)  # 1.02485 would print 1.0249
+        self.assertEqual(build_data.stored(0.06145012, 0.0615, "x"), 0.0614501)  # 0.06145 would print 0.0614
+        self.assertEqual(build_data.stored(1.08989959713565, 1.0899, "x"), 1.0899)
+        self.assertIsNone(build_data.stored(None, None, "x"))
+        with self.assertRaisesRegex(SystemExit, "010001 AMI.err: 1.02485 does not print as CMS's 1.0248"):
+            build_data.stored(1.02485, 1.0248, "010001 AMI.err")
+
+    def test_replication_gate_names_every_hospital_and_both_causes(self):
+        import build_data
+        from hrrp.parse import CONDITIONS
+        none = {"n": None, "err": None, "med": None, "flag": 0, "ratio": None}
+        hf = {"n": 601, "err": 1.0899, "med": 0.9928, "flag": 1, "ratio": 0.0325}  # 0.9628 x 0.0325 x 0.0971 = 0.0030
+        ok = {"paf": 0.997, "nm": 0.9628, "c": {**{k: none for k in CONDITIONS}, "HF": hf}}
+        build_data.replication_gate({"010001": ok})
+        no_weight = {**ok, "c": {**ok["c"], "HF": {**hf, "ratio": None}}}  # flagged, CMS counted it, no weight published
+        with self.assertRaises(SystemExit) as e:
+            build_data.replication_gate({"010001": ok, "010002": no_weight, "010003": no_weight})
+        msg = str(e.exception)
+        self.assertIn("2 hospitals: 010002, 010003.", msg)
+        self.assertIn("raise DECIMALS", msg)
+        self.assertIn("payment weight", msg)
+
+
+class DollarCheckTest(unittest.TestCase):
+    def test_a_missing_dollar_check_fails_the_build(self):
+        import build_data
+        with self.assertRaisesRegex(SystemExit, r"dollar_check\.json is missing"):
+            build_data.load_dollar_check(Path(__file__).parent / "fixtures" / "dollar_check.json")
+        self.assertEqual(build_data.load_dollar_check()["costFy"], 2024)
+
+
+@unittest.skipUnless((RAW / "hrrp_supplemental_fy2027").exists() and OUT.exists(), "raw data not fetched")
+class PublishedDigitsTest(unittest.TestCase):
+    """Every ERR, DRG ratio, peer median, and the neutrality modifier in hrrp.json prints, with JavaScript's toFixed(4),
+    as CMS's tab-delimited file shows it."""
+
+    def test_stored_values_print_as_cms_publishes_them(self):
+        import build_data
+        from decimal import Decimal
+        from hrrp import parse
+        pub = parse.read_supplemental(build_data.path("supp"))
+        d = json.loads(OUT.read_text(encoding="utf-8"))
+        off, n = [], 0
+        def check(v, want, label):
+            nonlocal n
+            if v is not None:
+                n += 1
+                if build_data.to_fixed4(v) != Decimal(repr(want)):
+                    off.append((label, v, want))
+        for x in d["hospitals"]:
+            for k, c in x["c"].items():
+                for f in ("err", "ratio"):
+                    check(c[f], pub[x["id"]]["c"][k][f], f"{x['id']} {k}.{f}")
+                check(d["meta"]["peerMedians"][str(x["peer"])][k], pub[x["id"]]["c"][k]["med"], f"{x['id']} {k}.med")
+            check(d["meta"]["nm"], pub[x["id"]]["nm"], f"{x['id']} nm")
+        self.assertEqual(off, [])
+        self.assertGreater(n, 28000)

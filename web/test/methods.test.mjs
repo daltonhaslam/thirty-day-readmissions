@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accuracyLine, assumptionRows, replicationText } from '../src/js/views/methods.js';
-import { factorCheck } from '../src/js/views/explainer.js';
+import { factorCheck, excessShown } from '../src/js/views/explainer.js';
 
 test('replication text follows the pipeline check: all exact, or exact for some', () => {
   assert.match(replicationText({ exact: 2912, total: 2912 }), /^Recomputing every hospital .* full precision .* exactly for all 2,912 hospitals\./);
@@ -14,19 +14,26 @@ test('worksheet check: matches, or differs by the gap', () => {
   assert.equal(factorCheck(h, 0.9949), '· differs by 0.0001');
 });
 
+test('worksheet line 4 is line 2 minus line 3 as printed, so the lines tie', () => {
+  // 1.02484 - 0.99276 = 0.03208 would print 0.0321; the printed lines are 1.0248 and 0.9928.
+  assert.equal(excessShown(1.02484, 0.99276), '0.0320');
+  assert.equal(excessShown(1.0899, 0.9928), '0.0971');
+});
+
 const edition = { fy: 2027, label: 'FY2027' };
 const hospitals = [
   { id: 'a', types: ['MDH'], pen: 10 },
   { id: 'b', types: ['MDH'], pen: 20, inactive: { date: '2025-03-31', reason: 'voluntary' } },
   { id: 'c', types: [], pen: null },
 ];
-const DOLLAR_CHECK = { source: 'Medicare cost reports (HCRIS) for cost-reporting periods beginning in FY2024', costFy: 2024, rateDrift: 1.066, within15: 85.0, within15Small: 73.7 };
+const DOLLAR_CHECK = { asOf: '2026-10-11', source: 'Medicare cost reports (HCRIS) for cost-reporting periods beginning in FY2024', costFy: 2024, rateDrift: 1.066, within15: 85.0, within15Small: 73.7 };
 const meta = (mdh = {}) => ({ dollarCheck: DOLLAR_CHECK, mdh: { endDate: '2026-12-31', maxShortfall: 33, ...mdh } });
 const find = (rows, re) => rows.find(([a]) => re.test(a));
 
-test('accuracy line reads the cost-report check, and is empty before the data has one', () => {
-  assert.equal(accuracyLine(DOLLAR_CHECK), "Checked against hospitals' own Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth (74% for hospitals under 100 beds).");
-  assert.equal(accuracyLine({ within15: 85 }), "Checked against hospitals' own Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth.");
+test('accuracy line dates the cost-report check, and stays harmless on a partial record', () => {
+  assert.equal(accuracyLine(DOLLAR_CHECK), "In an October 2026 check against hospitals' FY2024 Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth (74% for hospitals under 100 beds).");
+  assert.match(accuracyLine({ ...DOLLAR_CHECK, asOf: '2027-03-02' }), /^In a March 2027 check against hospitals' FY2024 Medicare cost reports,/);
+  assert.equal(accuracyLine({ within15: 85 }), "In a check against hospitals' Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth.");
   assert.equal(accuracyLine(undefined), '');
 });
 

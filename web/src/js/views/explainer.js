@@ -9,6 +9,8 @@ import { omnibox } from '../ui/omnibox.js';
 import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
+// Line 4: line 2 minus line 3 as printed, so the worksheet's lines tie. Line 6 still uses the full-precision excess.
+export const excessShown = (err, med) => (Number(f4(err)) - Number(f4(med))).toFixed(4);
 
 // The worksheet's last check: does line 9 match CMS's factor.
 export function factorCheck(hosp, recomputed) {
@@ -41,7 +43,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
       h('td', { class: 'num' }, f4(c?.err)),
       h('td', { class: 'num' }, f4(med)),
-      h('td', { class: 'num' }, counted ? `+${(c.err - med).toFixed(4)}` : why),
+      h('td', { class: 'num' }, counted ? `+${excessShown(c.err, med)}` : why),
       h('td', { class: 'num' }, f4(c?.ratio)),
       h('td', { class: 'num strong' }, counted ? `${(r.byCond[k] * 100).toFixed(3)}%` : '0'));
   });

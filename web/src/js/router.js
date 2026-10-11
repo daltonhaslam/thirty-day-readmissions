@@ -52,6 +52,14 @@ export function go(view, key) {
   window.location.hash = link(view, key);
 }
 
+// Where to scroll after a route change: { section } brings that section into view; otherwise { y }, the saved offset
+// on Back/Forward to another page, else the top. A same-page change that drops the section (Methods from
+// #methods-dollars) also goes to the top.
+export function scrollTarget(route, { changed, back, saved }) {
+  if (route.section) return { section: route.section };
+  return { y: changed && back && saved != null ? saved : 0 };
+}
+
 export function onRoute(cb) {
   const fire = () => cb(parseHash(window.location.hash));
   window.addEventListener('hashchange', fire);

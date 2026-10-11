@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseHash, link } from '../src/js/router.js';
+import { parseHash, link, scrollTarget } from '../src/js/router.js';
 import { DOLLARS_HREF } from '../src/js/views/util.js';
 
 test('empty hash is home', () => {
@@ -31,6 +31,17 @@ test('a Methods section is the methods view with a scroll target; unknown ones a
   assert.equal(DOLLARS_HREF, '#methods-dollars');
   assert.deepEqual(parseHash(DOLLARS_HREF), { view: 'methods', key: null, section: 'methods-dollars' });
   assert.equal(link('methods'), '#methods');
+});
+
+test('scroll after a route change: a section, the saved spot on Back, else the top', () => {
+  const methods = parseHash('#methods');
+  // Methods nav while on #methods-dollars: same page, section cleared, so back to the top.
+  assert.deepEqual(scrollTarget(methods, { changed: false, back: false, saved: 900 }), { y: 0 });
+  assert.deepEqual(scrollTarget(parseHash('#methods-dollars'), { changed: false, back: false }), { section: 'methods-dollars' });
+  assert.deepEqual(scrollTarget(parseHash('#'), { changed: false, back: false }), { y: 0 }); // wordmark from #map
+  assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: true, saved: 2400 }), { y: 2400 });
+  assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: false, saved: 2400 }), { y: 0 });
+  assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: true, saved: undefined }), { y: 0 });
 });
 
 test('garbage is notfound and never throws', () => {

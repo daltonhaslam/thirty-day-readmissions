@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadData, meanCutByYear, capMarks } from '../src/js/data.js';
+import { shareTake } from '../src/js/views/home.js';
 
 const D = loadData(JSON.parse(readFileSync(new URL('../src/data/hrrp.json', import.meta.url))));
 
@@ -28,6 +29,16 @@ test('the national line on area and hospital charts averages the same hospitals,
   assert.deepEqual(meanCutByYear([{ id: 'z', paf: 1 }], { years: [2026, 2027], history: { paf: {} }, meta: { fy: 2027 } }), [null, 0]);
   assert.equal(D.programTrend.length, D.years.length);
   assert.ok(Math.abs(D.programTrend.at(-1) - D.nation.meanRed) < 1e-9, 'this year matches the national average');
+});
+
+test('history share-penalized caption: what each bar counts, and why this year differs from the headline', () => {
+  const t = shareTake(D);
+  assert.match(t, /^Each bar is the share of hospitals in that year's CMS file with a cut\. From FY2019 that is every hospital in the file; for FY2013–FY2018 it leaves out three groups those files listed and later files drop: Maryland, Puerto Rico, and hospitals with no data for any condition\./);
+  assert.match(t, / FY2027 shows 80% here, not the 83% headline, because the headline counts only hospitals measured on at least one condition\. /);
+  assert.match(t, /KFF Health News reported somewhat lower counts for FY2015, FY2016 and FY2018 \(2,610, 2,592 and 2,573\)/);
+  // When the two round alike there is nothing to explain.
+  const same = { ...D, nation: { ...D.nation, pctPen: D.nationalByFy[D.meta.fy].pctPen } };
+  assert.doesNotMatch(shareTake(same), /headline/);
 });
 
 test('cap marks come from each year\'s cap; narrow labels keep "cap" only on the last', () => {

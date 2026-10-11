@@ -246,6 +246,11 @@ for (const width of [1280, 360]) {
   check(top != null && top >= -2 && top < 200, `estimate tag landed ${top}px from the dollar assumptions`);
   check(await page.getAttribute('.nav a[data-nav="methods"]', 'aria-current') === 'true', 'Methods nav not marked on a Methods section');
   check(await page.locator('#methods-dollars table.assume tbody tr').count() >= 9, 'assumptions table is missing rows');
+  // The Methods nav link from a Methods section is the same page with the section cleared: back to the top.
+  await page.locator('.nav a[data-nav="methods"]').click();
+  await page.waitForTimeout(400);
+  const y = await page.evaluate(() => window.scrollY);
+  check(y < 5, `Methods nav from #methods-dollars left the page at ${Math.round(y)}px instead of the top`);
   await page.close();
 }
 

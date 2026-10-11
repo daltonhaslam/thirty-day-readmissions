@@ -65,8 +65,8 @@ export function summarize(list) {
     n: list.length,
     nPen: pen.length,
     nMeasured,
-    // Share of hospitals measured on at least one condition that take a cut.
-    pctPen: nMeasured ? (100 * pen.length) / nMeasured : 0,
+    // Share of hospitals measured on at least one condition that take a cut; null when none is measured.
+    pctPen: nMeasured ? (100 * pen.length) / nMeasured : null,
     meanRed: mean(reds),
     get medianRed() { return median(reds); },
     meanRedPen: mean(pen),
@@ -136,8 +136,8 @@ export function fmtInt(v) {
 // "1 hospital", "2,912 hospitals".
 export const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 export const upFirst = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-// "83% of 2,798 measured", from a summarize() result.
-export const penalizedOfMeasured = (sm) => `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`;
+// "83% of 2,798 measured", from a summarize() result; "none measured" when no hospital is.
+export const penalizedOfMeasured = (sm) => (sm.pctPen == null ? 'none measured' : `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`);
 
 export function fmtMoney(v) {
   if (v == null || !Number.isFinite(v)) return '—';

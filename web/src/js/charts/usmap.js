@@ -7,9 +7,10 @@ import { showTip, hideTip } from '../ui/tooltip.js';
 import { rampVar, BINS } from './scale.js';
 import { fmtPct, fmtInt, fmtMoney, penalizedOfMeasured } from '../model.js';
 
-// Colors bin on the value as each metric's fmt displays it, so a color never disagrees with its label.
+// Colors bin on the value as each metric's fmt displays it, so a color never disagrees with its label. A missing value
+// (share penalized where no hospital is measured) has no bin: cls is null and the state stays neutral.
 const rounded = (dp, unit = 1) => (v) => Number((v / unit).toFixed(dp)) * unit;
-const step = (cuts, labels, shown = rounded(0)) => ({ cls: (v) => `p${1 + cuts.filter((c) => shown(v) >= c).length}`, labels });
+const step = (cuts, labels, shown = rounded(0)) => ({ cls: (v) => (v == null ? null : `p${1 + cuts.filter((c) => shown(v) >= c).length}`), labels });
 export const METRICS = {
   avg: { label: 'Average cut', value: (sm) => sm.meanRed, fmt: (v) => fmtPct(v),
     ...step([0.25, 0.35, 0.45, 0.6], ['under 0.25%', '0.25–0.34%', '0.35–0.44%', '0.45–0.59%', '0.60%+'], rounded(2)) },
@@ -57,7 +58,8 @@ export function usMap(el, D, opts) {
     const sm = f.abbr && stateSummary.get(f.abbr);
     if (!sm) return 'url(#hatch)';
     const metric = METRICS[o.metric || 'avg'];
-    return o.plain ? 'var(--paper-2)' : `var(--${metric.cls(metric.value(sm))})`;
+    const cls = metric.cls(metric.value(sm));
+    return o.plain || !cls ? 'var(--paper-2)' : `var(--${cls})`;
   };
   const draw = (W) => {
     el.replaceChildren();
