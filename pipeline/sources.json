@@ -48,6 +48,14 @@
     "note": "CMS Provider Data Catalog: Hospital General Information (dataset xubh-q36u, modified 2026-07-22)"
   },
   {
+    "name": "pos_hospital_q2_2026",
+    "file": "Hospital_and_other.DATA.Q2_2026.csv",
+    "unzip": false,
+    "sha256": "bcfb9c680f02fdc05a4c82b90e434ad96bb52ea0a1f04eb424bb3dad5a9ffe3d",
+    "url": "https://data.cms.gov/sites/default/files/2026-07/7780b4e3-4c4b-4811-8884-65ca23b7a4e8/Hospital_and_other.DATA.Q2_2026.csv",
+    "note": "CMS Provider of Services File, Hospital & Non-Hospital Facilities, Q2 2026 (certified beds, termination status, addresses)"
+  },
+  {
     "name": "zcta_gazetteer_2024",
     "file": "2024_Gaz_zcta_national.zip",
     "unzip": true,

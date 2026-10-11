@@ -7,6 +7,7 @@ prints a coverage report.
 """
 import json
 import sys
+from collections import namedtuple
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -36,6 +37,7 @@ FILES = {
     "rates": ("ipps_tables_1a_1e_fy2027", "extracted/CMS-1849-CN Tables 1A - 1E.txt"),
     "cbsa": ("county_cbsa_fy2027", "extracted/FY 2027 FR County to CBSA Crosswalk.txt"),
     "hgi": ("hospital_general_info", "Hospital_General_Information.csv"),
+    "pos": ("pos_hospital_q2_2026", "Hospital_and_other.DATA.Q2_2026.csv"),
     "zcta": ("zcta_gazetteer_2024", "extracted/2024_Gaz_zcta_national.txt"),
     "counties": ("us_atlas_counties", "counties-10m.json"),
     "states": ("us_atlas_states", "states-10m.json"),
@@ -113,6 +115,39 @@ def as_stored(s):
             "c": {k: {**c, "err": rd(c["err"]), "med": rd(c["med"]), "ratio": rd(c["ratio"])} for k, c in s["c"].items()}}
 
 
+def beds(cr, pos):
+    """(beds, source): the Provider of Services certified bed count ('pos') for every hospital that has one, else
+    the impact file's cost-report beds ('cr'); (None, None) when neither is present or above zero."""
+    if pos:
+        return pos, "pos"
+    return (cr, "cr") if cr else (None, None)
+
+
+def inactive(p):
+    """{date, code, reason} when the Provider of Services file shows the hospital's Medicare participation ended."""
+    reason = parse.POS_TERMINATION.get(p.get("term"))
+    return {"date": p["termDate"], "code": p["term"], "reason": reason} if reason else None
+
+
+def bed_band(b):
+    """The site's bed-size bands (web/src/js/model.js BED_BANDS)."""
+    return None if b is None else "<100" if b < 100 else "100-299" if b < 300 else "300-499" if b < 500 else "500+"
+
+
+def report_pos(hospitals, impact):
+    """Print where bed counts came from, how many hospitals changed bed band, and the hospitals POS shows inactive."""
+    src = {k: sum(1 for x in hospitals if x["bedsSrc"] == k) for k in ("pos", "cr", None)}
+    cr = {x["id"]: (impact.get(x["id"]) or {}).get("beds") or None for x in hospitals}
+    moved = sum(1 for x in hospitals if bed_band(x["beds"]) != bed_band(cr[x["id"]]))
+    print(f"beds: certified (POS) {src['pos']}, cost report {src['cr']}, none {src[None]}; "
+          f"{moved} hospitals in a different bed band than with cost-report beds")
+    print("  e.g. " + "; ".join(f"{x['id']} {cr[x['id']]}->{x['beds']}" for x in hospitals
+                                if x["id"] in ("360375", "490148", "670331", "670340", "220052", "240010", "050030")))
+    off = [x for x in hospitals if x["inactive"]]
+    print(f"inactive in POS ({len(off)}, still ranked and totaled): " + "; ".join(
+        f"{x['id']} {x['name']} {x['inactive']['code']} {x['inactive']['date']}" for x in off))
+
+
 def group_constant(rows, value, label):
     """The single value `value(row)` shared by every row; SystemExit if rows disagree."""
     vals = {value(r) for r in rows}
@@ -152,16 +187,22 @@ def locate(g, imp, st, zcta, counties):
     return None, None, None, None
 
 
-def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates, moved):
-    """One hospital's data-contract record; appends to `moved` when its map point was pulled back into its county."""
+# Lookups shared by every hospital record; `moved` collects map points pulled back into their county
+Ref = namedtuple("Ref", "zcta counties cbsa_names rates moved")
+
+
+def hospital_record(ccn, s, imp, g, p, ref):
+    """One hospital's data-contract record from its supplemental (s), impact (imp), Care Compare (g), and Provider
+    of Services (p) rows."""
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat, lon, gsrc, fips_county = locate(g, imp, st, zcta, counties)
+    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties)
     if fips_county:
-        moved.append(f"{ccn} {g.get('county')} -> {fips_county}")
+        ref.moved.append(f"{ccn} {g.get('county')} -> {fips_county}")
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
-    base = model.est_base_payment(imp, rates)
+    nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
+    base = model.est_base_payment(imp, ref.rates)
     pen = model.est_penalty(base, s["paf"])
     return {
         "id": ccn,
@@ -171,15 +212,16 @@ def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates, moved):
         "county": fips_county or names.smart_title(g.get("county")) or None,
         "zip": g.get("zip"),
         "lat": r4(lat), "lon": r4(lon), "geo": gsrc,
-        "cbsa": cbsa, "cbsaName": cbsa_names.get(cbsa),
+        "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),
         "urban": imp["urgeo"] in ("LURBAN", "OURBAN") if imp else None,
         "region": region, "division": division,
-        "beds": imp.get("beds") or None,
+        "beds": nbeds, "bedsSrc": beds_src,
         "teach": teach_level(imp["irb"]) if imp else None,
         "own": ownership(g.get("ownership"), imp.get("own")),
         "ownDetail": g.get("ownership"),
         "star": g.get("star"),
         "types": sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set())),
+        "inactive": inactive(p),
         "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": cms_round(s["dual"]), "peer": s["peer"],
         "base": round(base) if base is not None else None,
         "pen": round(pen) if pen is not None else None,
@@ -193,6 +235,7 @@ def build():
     t15 = parse.read_table15(path("t15"), FY)
     impact = parse.read_impact(path("impact"), FY, GROUPER)
     hgi = parse.read_hgi(path("hgi"))
+    pos = parse.read_pos(path("pos"))
     zcta = parse.read_zcta(path("zcta"))
     cbsa_names = parse.read_cbsa_names(path("cbsa"))
     rates = parse.read_rates(path("rates"))
@@ -219,11 +262,12 @@ def build():
         peer_med[str(p)] = {k: rd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"))
                             for k in parse.CONDITIONS}
 
-    moved = []
-    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, zcta, counties,
-                                 cbsa_names, rates, moved) for ccn in sorted(supp)]
-    if moved:
-        print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(moved)}")
+    ref = Ref(zcta, counties, cbsa_names, rates, [])
+    hospitals = [hospital_record(ccn, supp[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
+                 for ccn in sorted(supp)]
+    if ref.moved:
+        print(f"moved to impact-file county centroid (point > {STRAY_KM} km outside it): {'; '.join(ref.moved)}")
+    report_pos(hospitals, impact)
     unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
     if unchecked:
         print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "

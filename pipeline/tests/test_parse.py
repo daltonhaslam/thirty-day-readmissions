@@ -165,6 +165,43 @@ class HgiTest(unittest.TestCase):
         self.assertIn(r["star"], (None, 1, 2, 3, 4, 5))
 
 
+class PosTest(unittest.TestCase):
+    def setUp(self):
+        self.rows = parse.read_pos(FIX / "pos.csv")
+
+    def test_active_hospital(self):
+        self.assertEqual(self.rows["010001"], {"beds": 420, "term": "00", "termDate": None, "street": "1108 ROSS CLARK CIRCLE",
+                                               "city": "DOTHAN", "st": "AL", "zip": "36301"})
+
+    def test_terminated_provider_and_non_hospital_rows(self):
+        self.assertEqual((self.rows["010062"]["term"], self.rows["010062"]["termDate"]), ("07", "2025-03-13"))
+        self.assertIsNone(self.rows["011001"]["beds"])
+        self.assertEqual(self.rows["220017"]["zip"], "02124")
+
+    def test_windows_1252_text_and_spacing(self):
+        self.assertEqual(self.rows["030149"]["street"], "4860 E BASLINE RD, STE 102")
+        self.assertEqual(self.rows["670128"]["street"], "2600 EAST PFLUGERVILLE PARKWAY")
+
+    def _variant(self, old, new):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        p = Path(d.name, "pos.csv")
+        p.write_bytes((FIX / "pos.csv").read_bytes().replace(old, new))
+        return p
+
+    def test_duplicate_ccn_raises(self):
+        with self.assertRaises(parse.SchemaError):
+            parse.read_pos(self._variant(b"01,01,010062,", b"01,01,010001,"))
+
+    def test_unknown_termination_code_raises(self):
+        with self.assertRaises(parse.SchemaError):
+            parse.read_pos(self._variant(b",67,07,", b",67,42,"))
+
+    def test_bytes_undefined_in_windows_1252_raise(self):
+        with self.assertRaises(parse.SchemaError):
+            parse.read_pos(self._variant(b"CARNEY", b"CARN\x81Y"))
+
+
 class GeoFilesTest(unittest.TestCase):
     def test_zcta_centroid(self):
         self.assertEqual(parse.read_zcta(FIX / "zcta.txt")["36301"], (31.140459, -85.409097))

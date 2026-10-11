@@ -39,8 +39,9 @@ def _norm(h):
 
 
 def _rows(path, delimiter="\t", encoding="latin1"):
+    """The file's rows, streamed (the Provider of Services file is 30 MB and 473 columns wide)."""
     with open(path, newline="", encoding=encoding) as f:
-        return list(csv.reader(f, delimiter=delimiter))
+        yield from csv.reader(f, delimiter=delimiter)
 
 
 _XL = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -117,7 +118,8 @@ def _table(path, rows, anchor, columns):
     `path` only labels errors; `rows` are the file's rows as lists of strings.
     """
     target = _norm(anchor)
-    for i, row in enumerate(rows):
+    rows = iter(rows)
+    for row in rows:
         if row and _norm(row[0]) == target:
             header = [_norm(h) for h in row]
             idx = {}
@@ -127,13 +129,7 @@ def _table(path, rows, anchor, columns):
                 if not hits:
                     raise SchemaError(f"{path}: expected column {name!r} not found")
                 idx[key] = hits[0]
-            width = len(row)
-            out = []
-            for r in rows[i + 1:]:
-                if r and r[0].strip():
-                    r = (r + [""] * width)[:width]
-                    out.append({k: r[j].strip() for k, j in idx.items()})
-            return out
+            return [{k: (r[j] if j < len(r) else "").strip() for k, j in idx.items()} for r in rows if r and r[0].strip()]
     raise SchemaError(f"{path}: header row starting with {anchor!r} not found")
 
 
@@ -219,6 +215,41 @@ def read_hgi(path):
                 "county": r["county"], "ownership": r["ownership"],
                 "star": int(r["star"]) if r["star"].isdigit() else None}
     return _index_by_ccn(path, _read_table(path, "Facility ID", columns, ",", "utf-8-sig"), build)
+
+
+# Provider of Services termination codes (PGM_TRMNTN_CD) with plain-words reasons. Meanings from CMS's POS record
+# layout for this dataset (P.QWB.POSQ.OTHER.LAYOUT.MAR23.pdf); the CLIA-only codes cannot occur in this file.
+POS_TERMINATION = {
+    "00": None,  # ACTIVE PROVIDER
+    "01": "merger or closure",  # VOLUNTARY-MERGER, CLOSURE
+    "02": "left Medicare, dissatisfied with payment",  # VOLUNTARY-DISSATISFACTION WITH REIMBURSEMENT
+    "03": "left Medicare at risk of being terminated",  # VOLUNTARY-RISK OF INVOLUNTARY TERMINATION
+    "04": "left Medicare for another reason",  # VOLUNTARY-OTHER REASON FOR WITHDRAWAL
+    "05": "terminated for failing health and safety requirements",  # INVOLUNTARY-FAILURE TO MEET HEALTH/SAFETY REQ
+    "06": "terminated for failing its Medicare agreement",  # INVOLUNTARY-FAILURE TO MEET AGREEMENT
+    "07": "change in provider status",  # OTHER-PROVIDER STATUS CHANGE
+    "80": "awaiting state approval",  # AWAITING STATE APPROVAL
+}
+
+
+def read_pos(path):
+    """CMS Provider of Services file (hospital & non-hospital facilities) -> {ccn: {beds, term, termDate, street, city,
+    st, zip}}. `beds` is the certified bed count; `term` the termination code (see POS_TERMINATION)."""
+    columns = {"ccn": "PRVDR_NUM", "beds": "CRTFD_BED_CNT", "term": "PGM_TRMNTN_CD", "date": "TRMNTN_EXPRTN_DT",
+               "street": "ST_ADR", "city": "CITY_NAME", "st": "STATE_CD", "zip": "ZIP_CD"}
+
+    def build(r):
+        if r["term"] not in POS_TERMINATION:
+            raise SchemaError(f"{path}: unknown termination code {r['term']!r} for {r['ccn']}")
+        d = r["date"]
+        if d and not (len(d) == 8 and d.isdigit()):
+            raise SchemaError(f"{path}: malformed termination date {d!r} for {r['ccn']}")
+        return {"beds": _int(r["beds"]) or None, "term": r["term"], "termDate": f"{d[:4]}-{d[4:6]}-{d[6:]}" if d else None,
+                "street": " ".join(r["street"].split()), "city": r["city"], "st": r["st"], "zip": r["zip"][:5].zfill(5) if r["zip"] else ""}
+    try:  # Windows-1252 (en dashes and curly quotes as 0x96/0x92); an undefined byte means the encoding changed
+        return _index_by_ccn(path, _read_table(path, "PRVDR_CTGRY_SBTYP_CD", columns, ",", "cp1252"), build)
+    except UnicodeDecodeError as e:
+        raise SchemaError(f"{path}: not Windows-1252 text ({e})") from None
 
 
 def read_zcta(path):

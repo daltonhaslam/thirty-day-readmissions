@@ -172,8 +172,8 @@ class ContractTest(unittest.TestCase):
         self.assertEqual(set(self.d), {"meta", "conditions", "hospitals", "history", "timeline", "research", "geo"})
         self.assertEqual([c["key"] for c in self.d["conditions"]], ["AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"])
         keys = {"id", "name", "city", "st", "county", "zip", "lat", "lon", "geo", "cbsa", "cbsaName", "urban", "region",
-                "division", "beds", "teach", "own", "ownDetail", "star", "types", "paf", "red", "dual", "peer", "base",
-                "pen", "c"}
+                "division", "beds", "bedsSrc", "teach", "own", "ownDetail", "star", "types", "inactive", "paf", "red",
+                "dual", "peer", "base", "pen", "c"}
         self.assertEqual(set(self.h[0]), keys)
         self.assertEqual(set(self.h[0]["c"]["HF"]), {"n", "err", "flag", "ratio"})
         self.assertEqual(len(self.d["meta"]["peerCutoffs"]), 5)
@@ -257,9 +257,42 @@ class FreshBuildTest(unittest.TestCase):
         for ccn, county in [("020012", "Fairbanks North Star"), ("230216", "St. Clair"), ("140013", "Peoria")]:
             self.assertEqual((self.by_id[ccn]["geo"], self.by_id[ccn]["county"]), ("county", county), ccn)
 
+    def test_beds_come_from_certified_counts(self):
+        for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:
+            self.assertEqual((self.by_id[ccn]["beds"], self.by_id[ccn]["bedsSrc"]), (n, "pos"), ccn)
+        self.assertGreater(sum(1 for x in self.built["hospitals"] if x["bedsSrc"] == "pos"), 2900)
+
+    def test_inactive_hospitals_stay_in_the_data(self):
+        off = {x["id"]: x["inactive"] for x in self.built["hospitals"] if x["inactive"]}
+        self.assertEqual(len(off), 21)
+        self.assertEqual(off["140082"], {"date": "2025-08-09", "code": "05",
+                                         "reason": "terminated for failing health and safety requirements"})
+        self.assertEqual(self.built["meta"]["replication"]["total"], len(self.built["hospitals"]))
+
     def test_replication_counts_add_up(self):
         rep = self.built["meta"]["replication"]
         self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
+
+
+class ProviderOfServicesTest(unittest.TestCase):
+    def test_certified_beds_win_whenever_present(self):
+        import build_data
+        self.assertEqual(build_data.beds(155, 240), (240, "pos"))
+        self.assertEqual(build_data.beds(1, 30), (30, "pos"))
+        self.assertEqual(build_data.beds(120, None), (120, "cr"))
+        self.assertEqual(build_data.beds(None, None), (None, None))
+
+    def test_inactive_uses_the_official_code_meaning(self):
+        import build_data
+        self.assertIsNone(build_data.inactive({"term": "00", "termDate": None}))
+        self.assertIsNone(build_data.inactive({}))
+        self.assertEqual(build_data.inactive({"term": "01", "termDate": "2024-08-31"}),
+                         {"date": "2024-08-31", "code": "01", "reason": "merger or closure"})
+
+    def test_bed_bands_match_the_site(self):
+        import build_data
+        self.assertEqual([build_data.bed_band(b) for b in (None, 99, 100, 299, 300, 499, 500)],
+                         [None, "<100", "100-299", "100-299", "300-499", "300-499", "500+"])
 
 
 class PrecisionTest(unittest.TestCase):
