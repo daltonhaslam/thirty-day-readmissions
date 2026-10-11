@@ -7,6 +7,7 @@ ACRONYMS = {
     "WVU", "LSU", "USA", "US", "ICU", "TMC", "HSHS", "AHN", "SCL", "UI", "KU", "UK", "UTMB", "OSU", "IU", "HMH",
     "RWJ", "RWJBH", "NYC", "NY", "BJC", "SUNY", "UMC", "CHS", "AMG", "ACMC", "SJMC", "UNMC", "PAM", "LTAC", "SBH",
     "NCH", "CMC", "TJUH", "HSC", "AHMC", "SRMC", "RMC", "LAC", "USC", "MLK", "UIHC", "AHS", "CHRISTUS", "INTEGRIS",
+    "ARH", "PIH", "UF", "UH", "CAMC", "LIJ", "SE",
     # state abbreviations that are not also common English words
     "TX", "NJ", "NC", "SC", "ND", "SD", "NM", "NH", "WV", "WI", "WA", "WY", "MN", "MS", "NV", "KY", "KS",
     "IA", "IL", "AZ", "AK", "CT", "FL", "GA", "RI", "VT", "TN",
@@ -19,6 +20,8 @@ SPECIAL = {"UMASS": "UMass", "UCHEALTH": "UCHealth", "MEDSTAR": "MedStar", "PROM
 # Vowel-less abbreviations that are words, not acronyms (title-cased, not upper-cased). Y counts as a vowel,
 # so words like SYS or PKWY already title-case.
 TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "RGNL", "BLVD", "MGMT", "ST", "MT", "FT", "DR", "JR", "SR"}
+# Words kept lower case wherever they appear ("dba" = doing business as)
+LOWER = {"DBA"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
 VOWELS = set("AEIOUY")
 
@@ -31,6 +34,8 @@ def _cap(word):
         return SPECIAL[up]
     if up in ACRONYMS:
         return up
+    if up in LOWER:
+        return word.lower()
     letters = re.sub(r"[^A-Z]", "", up)
     if letters in TITLE_ABBR:
         return up[:1] + up[1:].lower()

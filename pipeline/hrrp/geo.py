@@ -1,5 +1,6 @@
 """State → census region/division, and county centroids decoded from us-atlas TopoJSON."""
 import json
+import math
 from pathlib import Path
 
 DIVISIONS = {
@@ -98,3 +99,45 @@ def county_centroids(path):
             if st:
                 by_name.setdefault(county_key(st, g.get("properties", {}).get("name")), (best[2], best[1]))
     return by_fips, by_name
+
+
+def county_shapes(path):
+    """({county FIPS: [polygon rings]}, {county FIPS: atlas name}); a polygon is [outer ring, *hole rings] in lon/lat."""
+    topo = json.loads(Path(path).read_text(encoding="utf-8"))
+    arcs = _decode_arcs(topo)
+    shapes, labels = {}, {}
+    for g in topo["objects"]["counties"]["geometries"]:
+        polys = [g["arcs"]] if g["type"] == "Polygon" else g.get("arcs", []) if g["type"] == "MultiPolygon" else []
+        if polys:
+            fips = str(g["id"]).zfill(5)
+            shapes[fips] = [[_ring(arcs, r) for r in poly] for poly in polys]
+            labels[fips] = g.get("properties", {}).get("name")
+    return shapes, labels
+
+
+def _in_ring(lat, lon, ring):
+    """Ray-casting point-in-ring test (ring in lon/lat)."""
+    inside = False
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+        if (y0 > lat) != (y1 > lat) and lon < (x1 - x0) * (lat - y0) / (y1 - y0) + x0:
+            inside = not inside
+    return inside
+
+
+def _edge_km(lat, lon, ring):
+    """Distance in km from a point to the nearest edge of a ring (local equirectangular approximation)."""
+    kx, ky = 111.32 * math.cos(math.radians(lat)), 110.57
+    best = math.inf
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+        ax, ay, bx, by = (x0 - lon) * kx, (y0 - lat) * ky, (x1 - lon) * kx, (y1 - lat) * ky
+        dx, dy = bx - ax, by - ay
+        t = 0.0 if dx == dy == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / (dx * dx + dy * dy)))
+        best = min(best, math.hypot(ax + t * dx, ay + t * dy))
+    return best
+
+
+def km_outside(lat, lon, polys):
+    """0 if the point is inside one of the county's polygons, else km to the nearest polygon edge."""
+    if any(_in_ring(lat, lon, p[0]) and not any(_in_ring(lat, lon, h) for h in p[1:]) for p in polys):
+        return 0.0
+    return min(_edge_km(lat, lon, p[0]) for p in polys)

@@ -51,6 +51,42 @@ class GeoTest(unittest.TestCase):
         self.assertAlmostEqual(lon, -111.92, delta=0.3)
 
 
+SQUARE = [[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]  # ~111 km square county at the equator
+
+
+class StrayPointTest(unittest.TestCase):
+    """build_data.locate: a ZIP point far outside the impact-file county falls back to that county's centroid."""
+    FIPS = {"99001": (0.5, 0.5)}
+    SHAPES = {"99001": [SQUARE]}
+    LABELS = {"99001": "Squareville"}
+    HOSP = {"zip": "11111", "county": "Wrongshire"}
+    IMP = {"fips": "99001"}
+
+    def locate(self, zip_pt, imp=IMP):
+        import build_data
+        return build_data.locate(self.HOSP, imp, "ZZ", {"11111": zip_pt}, {**self.FIPS, "99002": (9.0, 9.0)}, {},
+                                 self.SHAPES, self.LABELS)
+
+    def test_km_outside(self):
+        self.assertEqual(geo.km_outside(0.5, 0.5, [SQUARE]), 0.0)
+        self.assertAlmostEqual(geo.km_outside(0.5, 1.1, [SQUARE]), 11.1, delta=0.3)
+        hole = [SQUARE[0], [(0.4, 0.4), (0.4, 0.6), (0.6, 0.6), (0.6, 0.4), (0.4, 0.4)]]
+        self.assertGreater(geo.km_outside(0.5, 0.5, [hole]), 0)
+
+    def test_inside_keeps_zip(self):
+        self.assertEqual(self.locate((0.2, 0.3)), (0.2, 0.3, "zip", None))
+
+    def test_slightly_outside_keeps_zip(self):
+        self.assertEqual(self.locate((0.5, 1.2)), (0.5, 1.2, "zip", None))  # ~22 km out
+
+    def test_far_outside_uses_fips_centroid_and_name(self):
+        self.assertEqual(self.locate((0.5, 2.0)), (0.5, 0.5, "county", "Squareville"))  # ~111 km out
+
+    def test_fips_missing_from_atlas_keeps_zip(self):
+        self.assertEqual(self.locate((5.0, 5.0), {"fips": "09110"}), (5.0, 5.0, "zip", None))
+        self.assertEqual(self.locate((5.0, 5.0), {"fips": "99002"}), (5.0, 5.0, "zip", None))  # centroid known, no shape
+
+
 @unittest.skipUnless(OUT.exists(), "run pipeline/build_data.py first")
 class ContractTest(unittest.TestCase):
     @classmethod
@@ -151,6 +187,19 @@ class HistorySummaryTest(unittest.TestCase):
 
 
 class NamesEdgeTest(unittest.TestCase):
+    def test_health_system_acronyms(self):
+        for raw, want in [("WHITESBURG ARH HOSPITAL", "Whitesburg ARH Hospital"), ("PIH HEALTH DOWNEY HOSPITAL", "PIH Health Downey Hospital"),
+                          ("UF HEALTH SHANDS HOSPITAL", "UF Health Shands Hospital"), ("UH REGIONAL HOSPITALS", "UH Regional Hospitals"),
+                          ("CAMC CHARLESTON SURGICAL HOSPITAL", "CAMC Charleston Surgical Hospital"),
+                          ("NS/LIJ HS SOUTHSIDE HOSPITAL", "NS/LIJ HS Southside Hospital"),
+                          ("OSF SAINT ELIZABETH MDL CTR", "OSF Saint Elizabeth Mdl Ctr"),
+                          ("ASCENSION SE WISCONSIN HOSPITAL", "Ascension SE Wisconsin Hospital")]:
+            self.assertEqual(names.smart_title(raw), want)
+
+    def test_dba_is_lower_case(self):
+        self.assertEqual(names.smart_title("HCA-HEALTHONE DBA SWEDISH MEDICAL CENTER"), "HCA-Healthone dba Swedish Medical Center")
+        self.assertEqual(names.smart_title("COLISEUM MEDICAL CENTERS, LLC, DBA"), "Coliseum Medical Centers, LLC, dba")
+
     def test_mount_abbreviation(self):
         self.assertEqual(names.smart_title("MT SINAI HOSPITAL MEDICAL CENTER"), "Mt Sinai Hospital Medical Center")
 
@@ -188,6 +237,10 @@ class FreshBuildTest(unittest.TestCase):
         self.assertEqual(x["geo"], "county")
         self.assertAlmostEqual(x["lat"], 41.4, delta=0.3)
         self.assertEqual(self.built["meta"]["geocode"]["none"], 0)
+
+    def test_stray_zip_points_are_moved_to_their_impact_file_county(self):
+        for ccn, county in [("020012", "Fairbanks North Star"), ("230216", "St. Clair"), ("140013", "Peoria")]:
+            self.assertEqual((self.by_id[ccn]["geo"], self.by_id[ccn]["county"]), ("county", county), ccn)
 
     def test_replication_reports_exact_and_rounding_matches_separately(self):
         rep = self.built["meta"]["replication"]
