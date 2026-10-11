@@ -20,7 +20,7 @@ test('worksheet line 4 is the unrounded excess to four decimals, and a sliver ab
   assert.equal(excessText(1.0899, 0.9928), '+0.0971');
   assert.equal(excessText(0.99284, 0.99281), '< 0.0001');
   assert.equal(excessText(0.9929, 0.99281), '+0.0001');
-  assert.match(WORKSHEET_NOTE, /^Ratios, medians, and weights are printed to four decimals; lines 4 and 6 use CMS's unrounded values, so the last digit can differ from a hand calculation\.$/);
+  assert.equal(WORKSHEET_NOTE, 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use full-precision values, so the last digit can differ from a hand calculation.');
 });
 
 const edition = { fy: 2027, label: 'FY2027' };
@@ -45,7 +45,9 @@ test('assumption rows: MDH add-on through the end date, rate drift, inactive cou
   assert.deepEqual(find(rows, /^Payments priced/), ['Payments priced at FY2027 rates', 'Runs about 6.6% above FY2024 cost reports, by design']);
   assert.match(find(rows, /Medicare-dependent/)[0], /^Medicare-dependent add-on included for Oct–Dec 2026 only, assuming MDH status ends December 31, 2026, as current law says \(2 hospitals\)$/);
   assert.match(find(rows, /Medicare-dependent/)[1], /up to about 33% for some$/);
-  assert.deepEqual(find(rows, /no longer active/), ['1 hospital CMS lists as no longer active is still shown', 'CMS will not pay them under this ID, so any cut they have is unlikely to be collected']);
+  assert.deepEqual(find(rows, /no longer active/), ['1 hospital CMS lists as no longer active is still shown', 'CMS will not pay it under this ID, so any cut it has is unlikely to be collected']);
+  const two = assumptionRows({ meta: meta(), edition, hospitals: [...hospitals, { id: 'd', types: [], pen: 5, inactive: { date: null, reason: 'merger or closure' } }] });
+  assert.deepEqual(find(two, /no longer active/), ['2 hospitals CMS lists as no longer active are still shown', 'CMS will not pay them under this ID, so any cut they have is unlikely to be collected']);
   // Some inactive hospitals have no cut (factor 1.0), so the row must not say each one has one.
   assert.doesNotMatch(find(rows, /no longer active/)[1], /their cut/);
   assert.deepEqual(find(rows, /impact file/), ['1 hospital missing from the impact file gets no estimate', 'Totals note the count instead of adding $0']);

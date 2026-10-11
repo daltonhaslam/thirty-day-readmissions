@@ -93,12 +93,23 @@ test('one "none measured" wording for the map tooltip, the area deck, and the ty
   const one = summarize([{ red: 0, c: {} }]);
   assert.deepEqual([noneMeasured(none), noneMeasured(one)], ['none measured on any condition', 'not measured on any condition']);
   assert.equal(deckShare(none), 'none measured on any condition');
-  assert.equal(deckShare(one), 'not measured on any condition');
+  assert.equal(deckShare(one), 'it is not measured on any condition');
   assert.equal(typeNote(none), '2 hospitals · none measured on any condition');
   assert.equal(typeNote(one), '1 hospital · not measured on any condition');
   const some = summarize([{ red: 0.2, c: MEASURED }, { red: 0, c: MEASURED }]);
   assert.equal(deckShare(some), '50% of the 2 measured on at least one condition');
   assert.equal(typeNote(some), '2 hospitals · 50% of measured penalized');
+});
+
+test('area deck lead: a whole sentence whose verb agrees, including a one-hospital area', async () => {
+  const { deckLead } = await import('../src/js/views/scope.js');
+  const lead = (list) => deckLead(summarize(list), 'FY2027');
+  assert.equal(lead([{ red: 0, c: {} }]), '0 of 1 hospital takes a cut in FY2027: it is not measured on any condition.');
+  assert.equal(lead([{ red: 0.2, c: MEASURED }]), '1 of 1 hospital takes a cut in FY2027: 100% of the 1 measured on at least one condition.');
+  assert.equal(lead([{ red: 0, c: MEASURED }]), '0 of 1 hospital takes a cut in FY2027: 0% of the 1 measured on at least one condition.');
+  assert.equal(lead([{ red: 0, c: {} }, { red: 0, c: {} }]), '0 of 2 hospitals take a cut in FY2027: none measured on any condition.');
+  assert.equal(lead([{ red: 0.2, c: MEASURED }, { red: 0, c: MEASURED }]), '1 of 2 hospitals takes a cut in FY2027: 50% of the 2 measured on at least one condition.');
+  assert.equal(lead([{ red: 0.2, c: MEASURED }, { red: 0.1, c: MEASURED }]), '2 of 2 hospitals take a cut in FY2027: 100% of the 2 measured on at least one condition.');
 });
 
 test('scope KPI: an all-unmeasured area shows no share and skips the comparison with the nation', async () => {

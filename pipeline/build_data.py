@@ -60,7 +60,7 @@ SUPP_SHEET = "FR FY 2027"  # the workbook sheet that "supp" is the tab-delimited
 # sufficing. A value gets more decimals, up to MAX_DECIMALS, when the site's toFixed(4) of it would otherwise differ
 # from CMS's published 4-decimal value (1.02485 prints as 1.0249; CMS shows the full 1.0248497... as 1.0248). An exact
 # tie that no rounding fixes (the double 0.06145 sits below the tie, so prints 0.0614; Excel shows CMS's 0.0615) is
-# stored one unit of its last decimal toward CMS's value (0.061451).
+# stored one unit of its MAX_DECIMALS-th decimal toward CMS's value (0.061450000001), and listed in the build report.
 DECIMALS = 6
 MAX_DECIMALS = 12
 
@@ -114,19 +114,30 @@ def to_fixed4(v):
     return Decimal(v).quantize(Decimal("0.0001"), ROUND_HALF_UP)
 
 
-def stored(v, published, label):
+def stored(v, published, label, ties=None):
     """v as hrrp.json stores it, so that the site's toFixed(4) prints CMS's 4-decimal `published` value; None stays None.
-    The first candidate that prints right: v rounded to DECIMALS, DECIMALS + 1, ... MAX_DECIMALS decimals; then, for an
-    exact tie no rounding fixes, each of those moved one unit of its last decimal toward `published`. SystemExit when
-    none does. A moved value is off v by up to 1.5 units of its last decimal; the replication gate still checks the PAFs."""
+    The first plain rounding that prints right, to DECIMALS, DECIMALS + 1, ... MAX_DECIMALS decimals; only if none does
+    (an exact tie no rounding fixes), v rounded to MAX_DECIMALS, MAX_DECIMALS - 1, ... DECIMALS decimals and moved one
+    unit of its last decimal toward `published`, finest first so the move is as small as it can be (~1e-12), and
+    appended to `ties` as (label, v, stored value). SystemExit when nothing prints right. A moved value is off v by up
+    to 1.5 units of its last decimal; the replication gate still checks the PAFs."""
     if v is None:
         return None
     want = Decimal(repr(published))
     places = range(DECIMALS, MAX_DECIMALS + 1)
-    plain = [Decimal(repr(round(v, d))) for d in places]
-    nudged = [r + Decimal(1 if to_fixed4(float(r)) < want else -1).scaleb(-d) for d, r in zip(places, plain)]
-    for c in (*plain, *nudged):
-        if to_fixed4(float(c)) == want:
+
+    def prints(c):
+        return to_fixed4(float(c)) == want
+
+    plain = next((c for c in (Decimal(repr(round(v, d))) for d in places) if prints(c)), None)
+    if plain is not None:
+        return float(plain)
+    for d in reversed(places):
+        r = Decimal(repr(round(v, d)))
+        c = r + Decimal(1 if to_fixed4(float(r)) < want else -1).scaleb(-d)
+        if prints(c):
+            if ties is not None:
+                ties.append((label, v, float(c)))
             return float(c)
     raise SystemExit(f"{label}: {v!r} does not print as CMS's {published} at any precision up to {MAX_DECIMALS} decimals, "
                      "even moved one unit of the last decimal")
@@ -146,12 +157,16 @@ def precision_mismatches(full, published):
             if rnd(a, 4, half_up=True) != b]
 
 
-def as_stored(ccn, s, pub, nm, med):
+def as_stored(ccn, s, pub, nm, peer_med, ties=None):
     """A full-precision supplemental record (s) with its formula inputs stored as hrrp.json writes them: the stored
-    neutrality modifier (nm) and peer-group medians ({condition: median}), and its ERRs and DRG ratios each printing as
-    in CMS's tab-delimited record (pub); see stored()."""
+    neutrality modifier (nm) and its peer group's medians (peer_med, {"1".."5": {condition: median}}), and its ERRs and
+    DRG ratios each printing as in CMS's tab-delimited record (pub); see stored(), which appends any value it moves off
+    an exact tie to `ties`. SystemExit naming the hospital when its peer group is missing or not one of 1-5."""
+    med = peer_med.get(str(s.get("peer")))
+    if med is None:
+        raise SystemExit(f"{ccn}: peer group {s.get('peer')!r} is not one of 1-5")
     return {**s, "nm": nm,
-            "c": {k: {**c, "med": med[k], **{f: stored(c[f], pub["c"][k][f], f"{ccn} {k}.{f}") for f in ("err", "ratio")}}
+            "c": {k: {**c, "med": med[k], **{f: stored(c[f], pub["c"][k][f], f"{ccn} {k}.{f}", ties) for f in ("err", "ratio")}}
                   for k, c in s["c"].items()}}
 
 
@@ -228,13 +243,14 @@ def report_mdh(hospitals, addons, share, shortfall):
         print(f"  a full year of MDH status would leave estimates up to {shortfall[c]:.1f}% short ({c})")
 
 
-def stored_constant(rows, full, published, label):
-    """The value `full(row)` that every row shares at full precision, stored as hrrp.json writes it (see stored()) with
-    any one row's 4-decimal `published(row)`; SystemExit if rows disagree."""
+def stored_constant(rows, full, published, label, ties=None):
+    """The value `full(row)` that every row shares at full precision, stored as hrrp.json writes it (see stored(), which
+    appends a value it moves off an exact tie to `ties`) with any one row's 4-decimal `published(row)`; SystemExit if
+    rows disagree."""
     vals = {full(r) for r in rows}
     if len(vals) != 1:
         raise SystemExit(f"{label} is not constant: {sorted(vals, key=str)[:5]}")
-    return stored(vals.pop(), published(rows[0]), label)
+    return stored(vals.pop(), published(rows[0]), label, ties)
 
 
 def load_content(name):
@@ -257,28 +273,48 @@ def _is_number(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 
-# content/dollar_check.json fields the site reads: (check, what the field must be).
+def _is_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _between(lo, hi):
+    return lambda v: _is_number(v) and lo <= v <= hi
+
+
+# content/dollar_check.json fields the build requires: (check, what the field must be). The site reads asOf, costFy,
+# rateDrift, within15, and within15Small (Methods); source, n, within10, and within15Large are recorded for provenance.
+# "note" is optional and unchecked.
 DOLLAR_CHECK_FIELDS = {
     "asOf": (_is_date, "a YYYY-MM-DD date"),
     "source": (lambda v: isinstance(v, str) and v.strip() != "", "a non-empty string"),
-    "costFy": (lambda v: isinstance(v, int) and not isinstance(v, bool), "an integer"),
-    **{f: (_is_number, "a number") for f in ("n", "rateDrift", "within10", "within15", "within15Small", "within15Large")},
+    "costFy": (_is_int, "an integer"),
+    "n": (lambda v: _is_int(v) and v > 0, "a positive integer"),
+    "rateDrift": (_between(0.5, 2), "a number between 0.5 and 2"),
+    **{f: (_between(0, 100), "a percentage between 0 and 100") for f in ("within10", "within15", "within15Small", "within15Large")},
 }
-DOLLAR_CHECK_ABOUT = ("It is a dated result of the October 2026 comparison of the dollar estimates with hospitals' Medicare cost "
-                      "reports, which Methods quotes. No script makes it: update it by hand when that comparison is redone.")
+
+
+def dollar_check_about(rec):
+    """What content/dollar_check.json is and how to fix it, dated by the record's own asOf when it has a valid one."""
+    when = f"the {rec['asOf']}" if _is_date(rec.get("asOf")) else "the"
+    return (f"It is a dated result of {when} cost-report comparison (the dollar estimates checked against hospitals' "
+            "Medicare cost reports), which Methods quotes. No script makes it: update it by hand when that comparison is redone.")
 
 
 def load_dollar_check(p=CONTENT / "dollar_check.json"):
-    """content/dollar_check.json, the cost-report comparison Methods quotes; SystemExit when the file is missing or a
-    field in DOLLAR_CHECK_FIELDS is missing or of the wrong type."""
+    """content/dollar_check.json, the cost-report comparison Methods quotes; SystemExit when the file is missing or not
+    valid JSON, or a field in DOLLAR_CHECK_FIELDS is missing, of the wrong type, or out of range."""
     if not p.exists():
-        raise SystemExit(f"{p} is missing. {DOLLAR_CHECK_ABOUT} Restore it from git before building.")
-    dc = json.loads(p.read_text(encoding="utf-8"))
+        raise SystemExit(f"{p} is missing. {dollar_check_about({})} Restore it from git before building.")
+    try:
+        dc = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as e:  # json.JSONDecodeError and UnicodeDecodeError
+        raise SystemExit(f"{p} is not valid JSON ({e}). {dollar_check_about({})}") from None
     rec = dc if isinstance(dc, dict) else {}
     bad = [f"{f} is missing" if f not in rec else f"{f} should be {want}, not {rec[f]!r}"
            for f, (ok, want) in DOLLAR_CHECK_FIELDS.items() if not ok(rec.get(f))]
     if bad:
-        raise SystemExit(f"{p}: {'; '.join(bad)}. {DOLLAR_CHECK_ABOUT}")
+        raise SystemExit(f"{p}: {'; '.join(bad)}. {dollar_check_about(rec)}")
     return dc
 
 
@@ -325,13 +361,55 @@ def locate(g, imp, st, zcta, counties, point=None):
     return None, None, None, None
 
 
-def county_label(g, st, fips, counties):
-    """Care Compare's county, title-cased, when the atlas knows it for that state (Virginia's "Richmond City" matches
-    "Richmond"); otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT") the impact-file county's atlas name."""
+CITY_STATES = ("MD", "MO", "NV", "VA")  # states with independent cities: FIPS county codes 500 and up
+NO_SUFFIX = ("AK", "DC", "PR")  # Alaska's boroughs and census areas, the District, Puerto Rico's municipios
+
+
+def independent_city(fips):
+    """True for an independent city's FIPS code: county code 500 and up in MD, MO, NV, or VA."""
+    return bool(fips) and geo.STATE_FIPS.get(fips[:2]) in CITY_STATES and int(fips[2:]) >= 500
+
+
+def named_city(name, st, fips, point, counties):
+    """True when Care Compare's county name is an independent city. Care Compare writes one "RICHMOND CITY", so a name
+    ending in "City" that the atlas does not have whole ("Richmond City", "Manassas City") is one. Otherwise the atlas
+    place of that name in the state decides ("James City" is a county; "Carson City" and a bare "Salem" are cities);
+    where a county and a city share the name ("Fairfax", "St. Louis"), the one holding the hospital's street-address
+    point, else the impact-file county (fips) if it is either, else the county. Inova Fair Oaks (490101) is filed under
+    Fairfax city, but its address is in Fairfax County."""
+    if st not in CITY_STATES or not name:
+        return False
+    key = geo.county_key(st, name)
+    same = sorted(f for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2]) == st and geo.county_key(st, n) == key)
+    if not same:
+        return bool(re.search(r" city$", name, re.I))
+    inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
+    return independent_city((inside or [f for f in same if f == fips] or same)[0])
+
+
+def place_name(name, st, city):
+    """`name` with its legal suffix, as the hospital page shows it: "Butte County", "East Baton Rouge Parish", an
+    independent city (`city`) as "Richmond City" (Care Compare's style), and no suffix in AK, DC, and PR or on a name
+    that already ends in County or Parish."""
+    if not name or st in NO_SUFFIX or re.search(r" (county|parish)$", name, re.I):
+        return name
+    if st == "LA":
+        return f"{name} Parish"
+    if city:
+        return name if re.search(r" city$", name, re.I) else f"{name} City"
+    return f"{name} County"
+
+
+def county_label(g, st, fips, counties, point=None):
+    """The hospital's county or independent city with its legal suffix (place_name). Care Compare's name, title-cased,
+    when the atlas knows it for that state (Virginia's "Richmond City" matches "Richmond"), a city when named_city()
+    says so (point: the street-address point, if any); otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT")
+    the impact-file county's atlas name, a city when its FIPS code is one."""
     key = geo.county_key(st, g.get("county"))
-    if key in counties.by_name or (key[0], key[1].removesuffix("city")) in counties.by_name:
-        return names.smart_title(g.get("county"))
-    return counties.name.get(fips) or names.smart_title(g.get("county"))
+    if key in counties.by_name or (key[0], key[1].removesuffix("city")) in counties.by_name or not counties.name.get(fips):
+        name = names.smart_title(g.get("county"))
+        return place_name(name, st, named_city(name, st, fips, point, counties))
+    return place_name(counties.name[fips], st, independent_city(fips))
 
 
 # Lookups shared by every hospital record. Collected for the build report: `moved`, (ccn, Care Compare county,
@@ -351,7 +429,8 @@ def hospital_record(ccn, s, imp, g, p, ref):
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, ref.points.get(ccn))
+    point = ref.points.get(ccn)
+    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, point)
     if fips_county:
         ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
@@ -369,7 +448,8 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "alias": names.alias(shown, imp.get("name")),
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
-        "county": fips_county or county_label(g, st, fips, ref.counties) or None,
+        "county": (place_name(fips_county, st, independent_city(fips)) if fips_county
+                   else county_label(g, st, fips, ref.counties, point)) or None,
         "zip": g.get("zip"),
         "lat": rnd(lat, 4), "lon": rnd(lon, 4), "geo": gsrc,
         "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),
@@ -413,14 +493,15 @@ def build():
     if drift:
         raise SystemExit(f"Excel workbook and tab-delimited file disagree on {len(drift)} values: {drift[:10]}")
     # One value across the group at full precision, stored once
-    nm = stored_constant(list(supp), lambda c: supp[c]["nm"], lambda c: pub[c]["nm"], "neutrality modifier")
+    ties = []  # (label, full value, stored value) for each value stored() moved off an exact tie
+    nm = stored_constant(list(supp), lambda c: supp[c]["nm"], lambda c: pub[c]["nm"], "neutrality modifier", ties)
     peer_cut, peer_med = [], {}
     for p in range(1, 6):
         grp = [c for c in supp if supp[c]["peer"] == p]
         peer_cut.append([rnd(f(supp[c]["dual"] for c in grp), 4, half_up=True) for f in (min, max)])
         peer_med[str(p)] = {k: stored_constant(grp, lambda c, k=k: supp[c]["c"][k]["med"], lambda c, k=k: pub[c]["c"][k]["med"],
-                                              f"peer {p} {k} median") for k in parse.CONDITIONS}
-    kept = {c: as_stored(c, s, pub[c], nm, peer_med[str(s["peer"])]) for c, s in supp.items()}
+                                              f"peer {p} {k} median", ties) for k in parse.CONDITIONS}
+    kept = {c: as_stored(c, s, pub[c], nm, peer_med, ties) for c, s in supp.items()}
     replication_gate(kept)
 
     mdh_share = year_share(FY, MDH_END)
@@ -429,6 +510,8 @@ def build():
                  for ccn in sorted(supp)]
     n_extra, n_shown = extra_places(hospitals, peer_med, nm)
     print(f"stored with more than {DECIMALS} decimals so the site prints CMS's 4-decimal value: {n_extra} of {n_shown}")
+    print(f"moved one unit of the last decimal off an exact tie ({len(ties)}): "
+          + ("; ".join(f"{label} {v!r} -> {s!r}" for label, v, s in ties) or "none"))
     for src, what in (("county", f"moved to impact-file county centroid (point > {STRAY_KM} km outside it)"),
                       ("address", "street address inside the impact-file county, not Care Compare's")):
         hits = [f"{c} {old} -> {new}" for c, old, new, s in ref.moved if s == src]

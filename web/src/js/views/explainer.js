@@ -15,7 +15,7 @@ export const excessText = (err, med) => {
   const s = (err - med).toFixed(4);
   return s === '0.0000' ? '< 0.0001' : `+${s}`;
 };
-export const WORKSHEET_NOTE = 'Ratios, medians, and weights are printed to four decimals; lines 4 and 6 use CMS\'s unrounded values, so the last digit can differ from a hand calculation.';
+export const WORKSHEET_NOTE = 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use full-precision values, so the last digit can differ from a hand calculation.';
 
 // The worksheet's last check: does line 9 match CMS's factor.
 export function factorCheck(hosp, recomputed) {

@@ -68,6 +68,13 @@ for (const width of [1280, 360]) {
     check(await p.getByRole('button', { name: /report a problem/i }).count() === 1, 'report button missing on a hospital page');
     await p.close();
   }
+  // The county note is the pipeline's full place name, shown as is.
+  for (const [id, county] of [['490066', 'James City County'], ['490032', 'Richmond City'], ['190020', 'East Baton Rouge Parish']]) {
+    const { page: p } = await open(`#hospital-${id}`);
+    const note = await p.locator('.hosp__id .field', { hasText: 'Location' }).locator('.field__note').textContent();
+    check(note === county, `${id}: county note "${note}", expected "${county}"`);
+    await p.close();
+  }
   for (const id of ['010051', '010021']) {
     const { page: p } = await open(`#hospital-${id}`);
     const t = await p.textContent('main');

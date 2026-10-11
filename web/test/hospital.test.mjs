@@ -41,16 +41,6 @@ test('beds: certified counts read plainly; only the cost-report fallback is mark
   assert.equal(bedsLabel({ beds: null }), null);
 });
 
-test('county label: County by default, Parish in Louisiana, no suffix where the name or place already says it', async () => {
-  const { countyLabel } = await import('../src/js/views/hospital.js');
-  assert.equal(countyLabel({ st: 'CA', county: 'Butte' }), 'Butte County');
-  assert.equal(countyLabel({ st: 'LA', county: 'East Baton Rouge' }), 'East Baton Rouge Parish');
-  assert.equal(countyLabel({ st: 'AK', county: 'Fairbanks North Star' }), 'Fairbanks North Star');
-  assert.equal(countyLabel({ st: 'DC', county: 'District of Columbia' }), 'District of Columbia');
-  assert.equal(countyLabel({ st: 'VA', county: 'Richmond City' }), 'Richmond City');
-  assert.equal(countyLabel({ st: 'TX', county: null }), null);
-});
-
 test('inactive hospitals get a sentence naming the CCN, end date, and reason; the cut is mentioned only when there is one', async () => {
   const { inactiveSentence } = await import('../src/js/views/hospital.js');
   const D = { edition: { label: 'FY2027' } };

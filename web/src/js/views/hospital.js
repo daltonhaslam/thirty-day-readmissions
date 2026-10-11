@@ -24,14 +24,6 @@ function rankLine(D, x) {
 }
 
 // Bed counts are CMS certified beds; the few from the cost report instead are marked.
-// "Butte County": Louisiana has parishes; Alaska boroughs and census areas, DC, and names that already say what
-// they are (Virginia's "Richmond City") take no suffix.
-export function countyLabel(x) {
-  if (!x.county) return null;
-  if (['AK', 'DC', 'PR'].includes(x.st) || /\b(city|county|parish|borough|area)$/i.test(x.county)) return x.county;
-  return `${x.county} ${x.st === 'LA' ? 'Parish' : 'County'}`;
-}
-
 export const bedsLabel = (x) => (x.beds ? `${fmtInt(x.beds)} beds${x.bedsSrc === 'cr' ? ' (cost report)' : ''}` : null);
 
 // For a hospital whose Medicare agreement CMS lists as ended (the date can be missing). It stays in every ranking and total.
@@ -141,7 +133,7 @@ export function renderHospital(D, id) {
         h('div', { class: 'field field--wide' }, h('div', { class: 'field__label' }, h('span', { class: 'field__no' }, '1'), 'Hospital'),
           h('h1', { class: 'hosp__name' }, x.name),
           x.alias ? h('p', { class: 'hosp__alias' }, `Also listed by CMS as ${x.alias}`) : null),
-        field(2, 'Location', [x.place, x.zip ? ` ${x.zip}` : ''].join(''), { note: countyLabel(x) }),
+        field(2, 'Location', [x.place, x.zip ? ` ${x.zip}` : ''].join(''), { note: x.county }),
         field(3, 'Metro area', x.cbsaName || 'Outside metro areas', { note: x.cbsa ? h('a', { href: link('metro', x.cbsa) }, 'See this metro') : h('a', { href: link('state', x.st) }, `See ${D.meta.states[x.st]}`) }),
         field(4, 'Type', types.join(' · ') || '—', { small: true }),
         field(5, 'Peer group', `${x.peer} of 5`, { note: `${fmtPct(x.dual * 100, 1)} of stays dual-eligible` }),

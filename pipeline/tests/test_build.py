@@ -79,20 +79,68 @@ SQUARE = [[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]  # ~111 
 
 
 class CountyLabelTest(unittest.TestCase):
-    """build_data.county_label: Care Compare's county when the atlas knows it, else the impact-file county's name."""
-    COUNTIES = geo.Counties(centroid={}, by_name={("DC", "districtofcolumbia"): (0, 0), ("VA", "richmond"): (0, 0)},
-                            shape={}, name={"11001": "District of Columbia", "51760": "Richmond"})
+    """build_data.county_label: Care Compare's county when the atlas knows it, else the impact-file county's name; either
+    with its legal suffix."""
+    NAMES = {"11001": "District of Columbia", "51760": "Richmond", "51159": "Richmond", "51095": "James City",
+             "51830": "Williamsburg", "51059": "Fairfax", "51600": "Fairfax", "51775": "Salem", "51683": "Manassas",
+             "51153": "Prince William", "29189": "St. Louis", "29510": "St. Louis", "32510": "Carson City",
+             "06007": "Butte", "22033": "East Baton Rouge", "02090": "Fairbanks North Star", "46102": "Oglala Lakota"}
+    COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
+                            shape={"51059": [SQUARE]}, name=NAMES)
 
-    def label(self, st, county, fips):
+    def label(self, st, county, fips, point=None):
         import build_data
-        return build_data.county_label({"county": county}, st, fips, self.COUNTIES)
+        return build_data.county_label({"county": county}, st, fips, self.COUNTIES, point)
 
     def test_unknown_care_compare_county_falls_back_to_the_impact_file_county(self):
         self.assertEqual(self.label("DC", "THE DISTRICT", "11001"), "District of Columbia")
+        self.assertEqual(self.label("LA", "E. BATON ROUGE", "22033"), "East Baton Rouge Parish")
+        self.assertEqual(self.label("VA", "RICHMND", "51760"), "Richmond City")  # the atlas's "Richmond" for 51760
+        self.assertEqual(self.label("VA", "RICHMND", "51159"), "Richmond County")
+        self.assertEqual(self.label("CA", "BUTTTE", "06007"), "Butte County")
+        self.assertEqual(self.label("CA", "BUTTTE", "06999"), "Buttte County")  # no atlas county: Care Compare's name
+        self.assertIsNone(self.label("CA", None, None))
 
     def test_known_county_and_virginia_city_keep_care_compares_wording(self):
         self.assertEqual(self.label("DC", "DISTRICT OF COLUMBIA", "11001"), "District of Columbia")
         self.assertEqual(self.label("VA", "RICHMOND CITY", "51760"), "Richmond City")
+
+    def test_suffix_by_state(self):
+        self.assertEqual(self.label("CA", "BUTTE", "06007"), "Butte County")
+        self.assertEqual(self.label("LA", "EAST BATON ROUGE", "22033"), "East Baton Rouge Parish")
+        self.assertEqual(self.label("AK", "FAIRBANKS NORTH STAR", "02090"), "Fairbanks North Star")
+        self.assertEqual(self.label("SD", "OGLALA LAKOTA COUNTY", "46102"), "Oglala Lakota County")
+
+    def test_independent_cities_keep_city_and_counties_named_city_get_county(self):
+        self.assertEqual(self.label("VA", "JAMES CITY", "51095"), "James City County")
+        self.assertEqual(self.label("VA", "JAMES CITY", "51830"), "James City County")  # FIPS of Williamsburg, a city
+        self.assertEqual(self.label("VA", "MANASSAS CITY", "51153"), "Manassas City")  # FIPS of a county
+        self.assertEqual(self.label("MO", "ST. LOUIS CITY", "29189"), "St. Louis City")
+        self.assertEqual(self.label("MO", "ST. LOUIS", "29189"), "St. Louis County")
+        self.assertEqual(self.label("NV", "CARSON CITY", "32510"), "Carson City")
+        self.assertEqual(self.label("VA", "SALEM", "51775"), "Salem City")  # Virginia has no Salem County
+
+    def test_a_name_a_county_shares_with_a_city_goes_by_the_address_then_the_fips_then_the_county(self):
+        # Inova Fair Oaks (490101) is filed under Fairfax city (51600), but its street address is in Fairfax County.
+        self.assertEqual(self.label("VA", "FAIRFAX", "51600", point=(0.5, 0.5)), "Fairfax County")
+        self.assertEqual(self.label("VA", "FAIRFAX", "51600", point=(5.0, 5.0)), "Fairfax City")  # in neither: the FIPS
+        self.assertEqual(self.label("VA", "FAIRFAX", "51600"), "Fairfax City")
+        self.assertEqual(self.label("VA", "RICHMOND", "51760"), "Richmond City")
+        self.assertEqual(self.label("VA", "RICHMOND", "51087"), "Richmond County")  # FIPS is neither: the county
+
+    def test_place_name(self):
+        import build_data
+        self.assertEqual(build_data.place_name("Richmond", "VA", True), "Richmond City")
+        self.assertEqual(build_data.place_name("Richmond City", "VA", True), "Richmond City")
+        self.assertEqual(build_data.place_name("James City", "VA", False), "James City County")
+        self.assertEqual(build_data.place_name("Orleans", "LA", False), "Orleans Parish")
+        self.assertEqual(build_data.place_name("Anchorage", "AK", False), "Anchorage")
+        self.assertEqual(build_data.place_name("", "TX", False), "")
+
+    def test_independent_city_fips(self):
+        import build_data
+        self.assertEqual([build_data.independent_city(f) for f in ("51760", "51159", "29510", "32510", "24510", "06500", None)],
+                         [True, False, True, True, True, False, False])
 
 
 class StrayPointTest(unittest.TestCase):
@@ -325,20 +373,33 @@ class FreshBuildTest(unittest.TestCase):
 
     def test_connecticut_po_box_zip_hospital_is_placed_by_street_address(self):
         x = self.by_id["070005"]  # Waterbury Hospital, New Haven County; its ZIP is a PO-box ZIP with no centroid
-        self.assertEqual((x["geo"], x["county"]), ("address", "New Haven"))
+        self.assertEqual((x["geo"], x["county"]), ("address", "New Haven County"))
         self.assertAlmostEqual(x["lat"], 41.56, delta=0.02)
         self.assertEqual(self.built["meta"]["geocode"]["none"], 0)
 
     def test_street_addresses_fix_points_and_counties_the_zip_got_wrong(self):
         for ccn, county, lat, lon in [("020012", "Fairbanks North Star", 64.83, -147.74),  # Fairbanks Memorial
-                                      ("230216", "St. Clair", 42.99, -82.43),  # McLaren Port Huron
-                                      ("140013", "Peoria", 40.75, -89.59),  # Carle Proctor
-                                      ("050030", "Butte", 39.50, -121.54)]:  # Oroville Hospital
+                                      ("230216", "St. Clair County", 42.99, -82.43),  # McLaren Port Huron
+                                      ("140013", "Peoria County", 40.75, -89.59),  # Carle Proctor
+                                      ("050030", "Butte County", 39.50, -121.54)]:  # Oroville Hospital
             x = self.by_id[ccn]
             self.assertEqual((x["geo"], x["county"]), ("address", county), ccn)
             self.assertAlmostEqual(x["lat"], lat, delta=0.01, msg=ccn)
             self.assertAlmostEqual(x["lon"], lon, delta=0.01, msg=ccn)
         self.assertGreater(self.built["meta"]["geocode"]["address"], 2400)
+
+    def test_counties_carry_their_legal_suffix(self):
+        want = {"490066": "James City County", "490143": "James City County",  # Williamsburg hospitals
+                "490032": "Richmond City", "260105": "St. Louis City", "260020": "St. Louis County", "290019": "Carson City",
+                "490101": "Fairfax County",  # Inova Fair Oaks: filed under Fairfax city, address in Fairfax County
+                "190020": "East Baton Rouge Parish", "090001": "District of Columbia", "020001": "Anchorage",
+                "430098": "Oglala Lakota County"}
+        self.assertEqual({c: self.by_id[c]["county"] for c in want}, want)
+        hosp = self.built["hospitals"]
+        self.assertFalse([x["id"] for x in hosp if x["county"] and re.search(r"\b(County|City|Parish) \1$", x["county"])])
+        self.assertFalse([x["id"] for x in hosp if x["st"] == "VA" and x["county"] == "Richmond County"])
+        self.assertEqual(sum(1 for x in hosp if x["county"] and not x["county"].endswith(("County", "Parish", "City"))),
+                         sum(1 for x in hosp if x["st"] in ("AK", "DC", "PR")))
 
     def test_beds_come_from_certified_counts(self):
         for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:
@@ -449,15 +510,28 @@ class PrecisionTest(unittest.TestCase):
 
     def test_stored_values_are_rounded_to_decimals(self):
         import build_data
-        s = build_data.as_stored("010001", self.FULL["010001"], self.PUBLISHED["010001"], 0.962847, {"HF": 0.992834})
+        s = build_data.as_stored("010001", self.FULL["010001"], self.PUBLISHED["010001"], 0.962847, {"1": {"HF": 0.992834}})
         self.assertEqual((s["nm"], s["c"]["HF"]["med"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]),
                          (0.962847, 0.992834, round(1.08989959713565, build_data.DECIMALS), 601))
+
+    def test_a_peer_group_missing_or_outside_1_to_5_fails_the_build_naming_the_hospital(self):
+        import build_data
+        for peer in (None, 0, 6):
+            rec = {**self.FULL["010001"], "peer": peer}
+            with self.subTest(peer=peer), self.assertRaisesRegex(SystemExit, f"^010001: peer group {peer!r} is not one of 1-5$"):
+                build_data.as_stored("010001", rec, self.PUBLISHED["010001"], 0.962847, {"1": {"HF": 0.992834}})
+        rec = {k: v for k, v in self.FULL["010001"].items() if k != "peer"}
+        with self.assertRaisesRegex(SystemExit, "^010001: peer group None is not one of 1-5$"):
+            build_data.as_stored("010001", rec, self.PUBLISHED["010001"], 0.962847, {"1": {"HF": 0.992834}})
 
     def test_group_constants_are_checked_at_full_precision_then_stored_once(self):
         import build_data
         full = {"a": 0.96284743999129252, "b": 0.96284743999129252}
         self.assertEqual(build_data.stored_constant(["a", "b"], full.get, lambda c: 0.9628, "nm"), 0.962847)
-        self.assertEqual(build_data.stored_constant(["a"], lambda c: 0.06145, lambda c: 0.0615, "peer 1 HF median"), 0.061451)
+        ties = []
+        self.assertEqual(build_data.stored_constant(["a"], lambda c: 0.06145, lambda c: 0.0615, "peer 1 HF median", ties),
+                         0.061450000001)
+        self.assertEqual(ties, [("peer 1 HF median", 0.06145, 0.061450000001)])
         with self.assertRaisesRegex(SystemExit, "peer 2 HF median is not constant"):
             build_data.stored_constant(["a", "b"], {"a": 0.9928, "b": 0.99280001}.get, lambda c: 0.9928, "peer 2 HF median")
         with self.assertRaisesRegex(SystemExit, "peer 3 AMI median is not constant: \\[\\]"):
@@ -480,13 +554,26 @@ class PrecisionTest(unittest.TestCase):
         # is 0.06145 again, which toFixed(4) prints 0.0614.
         self.assertEqual({round(0.06145, d) for d in range(build_data.DECIMALS, build_data.MAX_DECIMALS + 1)}, {0.06145})
         self.assertEqual(build_data.rnd(0.06145, 4, half_up=True), 0.0615)
-        v = build_data.stored(0.06145, 0.0615, "x")
-        self.assertEqual((v, str(build_data.to_fixed4(v))), (0.061451, "0.0615"))
+        # The move is one unit of the finest decimal (1e-12), the smallest that prints right, and is reported.
+        ties = []
+        v = build_data.stored(0.06145, 0.0615, "peer 1 HF median", ties)
+        self.assertEqual((v, str(build_data.to_fixed4(v))), (0.061450000001, "0.0615"))
+        self.assertEqual(ties, [("peer 1 HF median", 0.06145, 0.061450000001)])
         # The same just above a tie that CMS rounded down: 1.02484999999999 rounds to 1.02485, which prints 1.0249.
-        v = build_data.stored(1.02484999999999, 1.0248, "x")
-        self.assertEqual((v, str(build_data.to_fixed4(v))), (1.024849, "1.0248"))
-        # Plain rounding at any precision still wins over a move.
-        self.assertEqual(build_data.stored(0.06145012, 0.0615, "x"), 0.0614501)
+        v = build_data.stored(1.02484999999999, 1.0248, "010001 HF.err", ties)
+        self.assertEqual((v, str(build_data.to_fixed4(v))), (1.024849999999, "1.0248"))
+        self.assertEqual(ties[1], ("010001 HF.err", 1.02484999999999, 1.024849999999))
+        # Plain rounding at any precision still wins over a move, and is not reported.
+        self.assertEqual(build_data.stored(0.06145012, 0.0615, "x", ties), 0.0614501)
+        self.assertEqual(build_data.stored(1.02484970123, 1.0248, "x", ties), 1.0248497)
+        self.assertEqual(len(ties), 2)
+
+    def test_plain_roundings_stop_at_the_first_that_prints_right(self):
+        import build_data
+        from unittest import mock
+        with mock.patch.object(build_data, "to_fixed4", wraps=build_data.to_fixed4) as spy:
+            self.assertEqual(build_data.stored(1.08989959713565, 1.0899, "x"), 1.0899)
+        self.assertEqual(spy.call_count, 1)  # DECIMALS decimals already print right: no finer rounding is tried
 
     def test_replication_gate_names_every_hospital_and_both_causes(self):
         import build_data
@@ -508,24 +595,41 @@ class DollarCheckTest(unittest.TestCase):
     GOOD = {"asOf": "2026-10-11", "source": "Medicare cost reports", "costFy": 2024, "n": 2845, "rateDrift": 1.066,
             "within10": 73.4, "within15": 85.0, "within15Small": 73.7, "within15Large": 89.6, "note": "optional"}
 
-    def load(self, rec):
+    def load(self, rec, text=None):
         import build_data
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "dollar_check.json"
-            p.write_text(json.dumps(rec), encoding="utf-8")
+            p.write_text(json.dumps(rec) if text is None else text, encoding="utf-8")
             return build_data.load_dollar_check(p)
 
     def test_a_missing_dollar_check_fails_the_build(self):
         import build_data
-        with self.assertRaisesRegex(SystemExit, r"dollar_check\.json is missing\. It is a dated result of the October 2026 "
+        with self.assertRaisesRegex(SystemExit, r"dollar_check\.json is missing\. It is a dated result of the cost-report "
                                     r"comparison .* No script makes it: update it by hand when that comparison is redone\."):
             build_data.load_dollar_check(Path(__file__).parent / "fixtures" / "dollar_check.json")
         self.assertEqual(build_data.load_dollar_check()["costFy"], 2024)
 
+    def test_invalid_json_fails_the_build_with_the_same_guidance(self):
+        for text in ('{"asOf": "2026-10-11",', "", "\ufeff{}"):
+            with self.subTest(text=text), self.assertRaisesRegex(
+                    SystemExit, r"dollar_check\.json is not valid JSON \(.+\)\. It is a dated result of the cost-report "
+                                r"comparison .* update it by hand when that comparison is redone\.$"):
+                self.load(None, text)
+
+    def test_the_guidance_is_dated_by_the_records_own_as_of(self):
+        with self.assertRaisesRegex(SystemExit, r"n is missing\. It is a dated result of the 2027-03-02 cost-report comparison "):
+            self.load({**{k: v for k, v in self.GOOD.items() if k != "n"}, "asOf": "2027-03-02"})
+        with self.assertRaisesRegex(SystemExit, r"\. It is a dated result of the cost-report comparison "):
+            self.load({**self.GOOD, "asOf": "Oct 2026"})
+        with self.assertRaises(SystemExit) as e:
+            self.load({**self.GOOD, "n": 0})
+        self.assertNotIn("October 2026", str(e.exception))
+
     def test_a_complete_record_loads_as_written(self):
         self.assertEqual(self.load(self.GOOD), self.GOOD)
-        self.assertEqual(self.load({**self.GOOD, "n": 2845.0, "within15": 85})["within15"], 85)
+        self.assertEqual(self.load({**self.GOOD, "within15": 85, "within10": 0, "within15Large": 100, "rateDrift": 2})["within15"], 85)
+        self.assertEqual(self.load({k: v for k, v in self.GOOD.items() if k != "note"})["n"], 2845)  # note is optional
 
     def test_a_missing_field_fails_the_build_naming_it(self):
         rec = {k: v for k, v in self.GOOD.items() if k not in ("within15Large", "asOf")}
@@ -541,9 +645,22 @@ class DollarCheckTest(unittest.TestCase):
         for field, bad, want in [("asOf", "Oct 2026", "a YYYY-MM-DD date"), ("asOf", "2026-02-30", "a YYYY-MM-DD date"),
                                  ("source", "", "a non-empty string"), ("source", 7, "a non-empty string"),
                                  ("costFy", "2024", "an integer"), ("costFy", 2024.0, "an integer"), ("costFy", True, "an integer"),
-                                 ("n", None, "a number"), ("rateDrift", "1.066", "a number"), ("within15", True, "a number"),
-                                 ("within10", float("nan"), "a number")]:
+                                 ("n", None, "a positive integer"), ("n", 2845.0, "a positive integer"),
+                                 ("n", 0, "a positive integer"), ("n", -3, "a positive integer"), ("n", True, "a positive integer"),
+                                 ("rateDrift", "1.066", "a number between 0.5 and 2"),
+                                 ("within15", True, "a percentage between 0 and 100"),
+                                 ("within10", float("nan"), "a percentage between 0 and 100")]:
             with self.subTest(field=field, bad=bad), self.assertRaisesRegex(SystemExit, f"{field} should be {want}, not "):
+                self.load({**self.GOOD, field: bad})
+
+    def test_an_out_of_range_field_fails_the_build_naming_it(self):
+        for field, bad, want in [("rateDrift", 0.49, "a number between 0.5 and 2"), ("rateDrift", 2.01, "a number between 0.5 and 2"),
+                                 ("rateDrift", 106.6, "a number between 0.5 and 2"),
+                                 ("within10", -0.1, "a percentage between 0 and 100"),
+                                 ("within15", 100.5, "a percentage between 0 and 100"),
+                                 ("within15Small", 737, "a percentage between 0 and 100"),
+                                 ("within15Large", float("inf"), "a percentage between 0 and 100")]:
+            with self.subTest(field=field, bad=bad), self.assertRaisesRegex(SystemExit, f"{field} should be {want}, not {bad!r}"):
                 self.load({**self.GOOD, field: bad})
 
 

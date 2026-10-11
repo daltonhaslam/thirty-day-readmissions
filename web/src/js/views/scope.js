@@ -64,9 +64,14 @@ function scopeTrend(D, list) {
   return el;
 }
 
-// The deck's share penalized: of the hospitals measured on at least one condition, or noneMeasured() when none is.
-export const deckShare = (S) => (S.pctPen == null ? noneMeasured(S)
+// The deck's share penalized: of the hospitals measured on at least one condition, or noneMeasured() when none is
+// ("it is not measured on any condition" for a one-hospital area, so the deck's first sentence stays whole).
+export const deckShare = (S) => (S.pctPen == null ? `${S.n === 1 ? 'it is ' : ''}${noneMeasured(S)}`
   : `${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition`);
+
+// The deck's first sentence. Its subject is singular when one hospital takes a cut or the area has only one
+// ("0 of 1 hospital takes a cut").
+export const deckLead = (S, label) => `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 || S.n === 1 ? 'takes' : 'take'} a cut in ${label}: ${deckShare(S)}.`;
 
 // The Penalized KPI's note: measured count and the gap to the nation, or no comparison when nothing here is measured.
 export function penalizedNote(S, N) {
@@ -82,7 +87,7 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${deckShare(S)}. `
+  const deck = `${deckLead(S, D.edition.label)} `
     + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${plural(S.n, 'hospital')}`}, is ${fmtPct(S.meanRed)}`
     + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
   const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];
