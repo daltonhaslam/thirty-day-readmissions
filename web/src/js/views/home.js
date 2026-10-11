@@ -13,6 +13,7 @@ import { explorer } from './explorer.js';
 import { link, go, partNo } from '../router.js';
 import { safeHref, estTag, dollarsNote } from './util.js';
 import { SITE_NAME_TOP, SITE_NAME_RED } from '../site.js';
+import { COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
 function hero(D, index, S) {
   const bigMetro = [...D.byCbsa.entries()].reduce((a, b) => (b[1].length > a[1].length ? b : a));
@@ -97,13 +98,14 @@ function mapPart(D) {
 function historyPart(D) {
   const nat = D.history.national;
   const years = nat.map((r) => r.fy);
-  const ann = [{ fy: 2015, label: '3% cap' }, { fy: 2019, label: 'peer groups' }, { fy: 2023, label: 'pneumonia paused' }, { fy: 2027, label: 'MA added' }];
+  const ann = [...D.capMarks, { fy: 2019, label: 'peer groups' }, { fy: 2023, label: 'pneumonia paused', short: 'pneumonia out' }, { fy: 2027, label: 'MA added' }];
+  const bands = [COVID_GAP];
   const pctEl = h('div');
-  trendChart(pctEl, { years, label: 'Share of hospitals penalized by fiscal year', yMax: 100, yFormat: (d) => `${d}%`, annotations: ann,
+  trendChart(pctEl, { years, label: 'Share of hospitals penalized by fiscal year', yMax: 100, yFormat: (d) => `${d}%`, annotations: ann, bands,
     series: [{ label: 'Penalized', kind: 'bar', values: nat.map((r) => r.pctPen), fmt: (v) => fmtPct(v, 1), style: { fill: 'var(--p3)' },
       tipExtra: (p) => [['Hospitals', `${fmtInt(D.nationalByFy[p.fy].nPen)} of ${fmtInt(D.nationalByFy[p.fy].n)}`]] }] });
   const avgEl = h('div');
-  trendChart(avgEl, { years, label: 'Average payment reduction by fiscal year', yFormat: (d) => `${d}%`, annotations: ann,
+  trendChart(avgEl, { years, label: 'Average payment reduction by fiscal year', yFormat: (d) => `${d}%`, annotations: ann, bands,
     series: [{ label: 'Average, penalized hospitals', kind: 'line', values: nat.map((r) => r.meanRedPen), fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
       { label: 'Average, all hospitals', kind: 'line', values: nat.map((r) => r.meanRed), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)' } }] });
   const dolEl = h('div');
@@ -122,7 +124,7 @@ function historyPart(D) {
     h('span', { class: 'ledger__body' }, h('b', {}, t.title), ' ', t.body, ' ',
       safeHref(t.src?.url) ? h('a', { href: safeHref(t.src.url), target: '_blank', rel: 'noopener' }, t.src.label) : null))));
 
-  return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: 'The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much.' },
+  return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: `The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much. In the charts, dashed lines mark rule changes. ${COVID_GAP_NOTE}` },
     h('div', { class: 'grid-2' },
       figure({ title: 'Share of hospitals penalized',
         take: `Counts every hospital in each year's CMS file.${whyDiffers} Files for FY2013–FY2018 left out Maryland, Puerto Rico, and hospitals with no measured conditions.`

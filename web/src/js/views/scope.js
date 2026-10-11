@@ -6,12 +6,13 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, cutPct, vsLabel, noEstimateNote, PEERS } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, PEERS } from '../model.js';
 import { summaryColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
 import { link, slugify, go } from '../router.js';
 import { estTag } from './util.js';
+import { meanCutByYear, COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 
 // Resolve a scope route to {kind, name, list, crumbs, children}
 export function resolveScope(D, route) {
@@ -54,15 +55,12 @@ const rankOf = (D, kind, value) => {
 
 function scopeTrend(D, list) {
   const { years } = D;
-  const per = years.map((fy, i) => {
-    const vals = list.map((x) => (fy === D.meta.fy ? x.paf : D.history.paf[x.id]?.[i])).filter((v) => v != null);
-    return vals.length ? mean(vals.map(cutPct)) : null;
-  });
   const el = h('div');
-  trendChart(el, { years, label: 'Average cut by year, this area vs the nation', yFormat: (d) => `${d}%`,
+  trendChart(el, { years, label: `Average cut by year, this area vs all hospitals in the ${D.edition.label} program`, yFormat: (d) => `${d}%`,
+    annotations: D.capMarks, bands: [COVID_GAP],
     series: [
-      { label: 'This area', kind: 'line', values: per, fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
-      { label: 'Nation', kind: 'line', values: years.map((fy) => D.nationalByFy[fy]?.meanRed ?? null), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
+      { label: 'This area', kind: 'line', values: meanCutByYear(list, { years, history: D.history, fy: D.meta.fy }), fmt: (v) => fmtPct(v), style: { stroke: 'var(--form)', dot: 'var(--form)' } },
+      { label: `All hospitals in the ${D.edition.label} program`, kind: 'line', values: D.programTrend, fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   return el;
 }
 
@@ -128,7 +126,7 @@ export function renderScope(D, route, state = {}) {
     h('div', { class: 'grid-2' },
       figure({ title: 'Peer groups', take: 'How many hospitals here fall in each dual-eligible peer group. Group 5 serves the most low-income patients.',
         source: `CMS ${D.edition.label} HRRP Supplemental Data File.`, body: barRows(peerRows, { ink: true }) }),
-      figure({ title: 'Average cut over time', take: `Red: hospitals in ${sc.name} that are in this year's program. Dashed: all hospitals nationally.`,
+      figure({ title: 'Average cut over time', take: `Red: hospitals in ${sc.name} that are in the ${D.edition.label} program. Dashed: every hospital in the ${D.edition.label} program, nationwide. Each year averages those in that year's file. ${COVID_GAP_NOTE}`,
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: scopeTrend(D, list) })),
     childTable,
     part({ no: null, id: 'scope-hospitals', title: `Hospitals in ${sc.name}` },

@@ -9,6 +9,7 @@ import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
 import { estTag } from './util.js';
+import { COVID_GAP, COVID_GAP_NOTE } from '../data.js';
 import { openFeedback, FEEDBACK_ENABLED } from '../ui/feedbackForm.js';
 
 let bandsCache = null;
@@ -88,11 +89,12 @@ function historyChart(D, x) {
   const vals = years.map((fy, i) => (fy === D.meta.fy ? x.red : hist[i] != null ? cutPct(hist[i]) : null));
   const el = h('div');
   trendChart(el, { years, label: `Payment cut by year for ${x.name}`, yFormat: (d) => `${d}%`, yMax: Math.max(1, ...vals.filter((v) => v != null)) * 1.1,
+    annotations: D.capMarks, bands: [COVID_GAP],
     series: [{ label: x.name, kind: 'bar', values: vals, fmt: (v) => fmtPct(v), style: { fill: 'var(--p4)' } },
-      { label: 'National average', kind: 'line', values: years.map((fy) => D.nationalByFy[fy]?.meanRed ?? null), fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
+      { label: `All hospitals in the ${D.edition.label} program`, kind: 'line', values: D.programTrend, fmt: (v) => fmtPct(v), style: { stroke: 'var(--ink)', dash: '4 3', r: 2.2 } }] });
   const n = vals.filter((v) => v != null).length;
   const pen = vals.filter((v) => v > 0).length;
-  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: national average. "n/a" means the hospital was not in that year's file, or had no condition with enough cases.` };
+  return { el, take: `Penalized in ${pen} of the ${n} years with data. Bars: this hospital. Dashed line: average across every hospital in the ${D.edition.label} program. "n/a" means the hospital was not in that year's file, or had no condition with enough cases. ${COVID_GAP_NOTE}` };
 }
 
 // Returns [element, title] or null for an unknown CCN.

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { loadData } from '../src/js/data.js';
+import { loadData, meanCutByYear, capMarks } from '../src/js/data.js';
 
 const D = loadData(JSON.parse(readFileSync(new URL('../src/data/hrrp.json', import.meta.url))));
 
@@ -18,4 +18,21 @@ test('edition phrases come from the data', () => {
   assert.equal(D.edition.payLong, `October 1, ${D.meta.fy - 1} through September 30, ${D.meta.fy}`);
   assert.match(D.edition.perfLong, /^July 1, \d{4} through June 30, \d{4}$/);
   assert.equal(D.edition.yearsWord, 'Fifteen');
+});
+
+test('the national line on area and hospital charts averages the same hospitals, each year over those in its file', () => {
+  const history = { years: [2025, 2026], paf: { a: [0.99, 0.98], b: [null, 1] } };
+  const list = [{ id: 'a', paf: 0.97 }, { id: 'b', paf: 1 }, { id: 'c', paf: 0.995 }]; // c is new this year
+  const v = meanCutByYear(list, { years: [2025, 2026, 2027], history, fy: 2027 });
+  assert.deepEqual(v.map((x) => Math.round(x * 1000) / 1000), [1, 1, 1.167]);
+  assert.deepEqual(meanCutByYear([{ id: 'z', paf: 1 }], { years: [2026, 2027], history: { paf: {} }, fy: 2027 }), [null, 0]);
+  assert.equal(D.programTrend.length, D.years.length);
+  assert.ok(Math.abs(D.programTrend.at(-1) - D.nation.meanRed) < 1e-9, 'this year matches the national average');
+});
+
+test('cap marks come from each year\'s cap; narrow labels keep "cap" only on the last', () => {
+  const marks = capMarks([{ fy: 2013, cap: 1 }, { fy: 2014, cap: 2 }, { fy: 2015, cap: 3 }, { fy: 2016, cap: 3 }]);
+  assert.deepEqual(marks, [
+    { fy: 2013, label: '1% cap', short: '1%' }, { fy: 2014, label: '2% cap', short: '2%' }, { fy: 2015, label: '3% cap', short: '3% cap' }]);
+  assert.deepEqual(D.capMarks.map((m) => m.fy), [2013, 2014, 2015]);
 });
