@@ -33,6 +33,7 @@
 .ws tr.is-on { background: var(--form-tint); }
 .ws .strong { font-weight: 700; }
 .ws--grid td.hi { background: var(--form-tint); }
+.ws__note { margin: 0; padding: 6px 12px; }
 .ws__totals { list-style: none; margin: 0; padding: 0; border-top: var(--rule) solid var(--ink); }
 .ws__totals li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--bar-line); font: 400 var(--fs-sm)/1.35 var(--font-type); }
 .ws__totals li:last-child { border-bottom: 0; }

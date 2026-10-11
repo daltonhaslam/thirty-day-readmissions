@@ -136,8 +136,11 @@ export function fmtInt(v) {
 // "1 hospital", "2,912 hospitals".
 export const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 export const upFirst = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-// "83% of 2,798 measured", from a summarize() result; "none measured" when no hospital is.
-export const penalizedOfMeasured = (sm) => (sm.pctPen == null ? 'none measured' : `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`);
+// The share penalized of a summarize() result whose hospitals are none of them measured on any condition (pctPen is
+// null), worded once for the area deck, the type-of-hospital figure, and the map tooltip.
+export const noneMeasured = (sm) => `${sm.n === 1 ? 'not' : 'none'} measured on any condition`;
+// "83% of 2,798 measured", from a summarize() result; noneMeasured() when no hospital is.
+export const penalizedOfMeasured = (sm) => (sm.pctPen == null ? noneMeasured(sm) : `${fmtPct(sm.pctPen, 0)} of ${fmtInt(sm.nMeasured)} measured`);
 
 export function fmtMoney(v) {
   if (v == null || !Number.isFinite(v)) return '—';

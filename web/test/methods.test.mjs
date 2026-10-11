@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accuracyLine, assumptionRows, replicationText } from '../src/js/views/methods.js';
-import { factorCheck, excessShown } from '../src/js/views/explainer.js';
+import { factorCheck, excessText, WORKSHEET_NOTE } from '../src/js/views/explainer.js';
 
 test('replication text follows the pipeline check: all exact, or exact for some', () => {
   assert.match(replicationText({ exact: 2912, total: 2912 }), /^Recomputing every hospital .* full precision .* exactly for all 2,912 hospitals\./);
@@ -14,10 +14,13 @@ test('worksheet check: matches, or differs by the gap', () => {
   assert.equal(factorCheck(h, 0.9949), '· differs by 0.0001');
 });
 
-test('worksheet line 4 is line 2 minus line 3 as printed, so the lines tie', () => {
-  // 1.02484 - 0.99276 = 0.03208 would print 0.0321; the printed lines are 1.0248 and 0.9928.
-  assert.equal(excessShown(1.02484, 0.99276), '0.0320');
-  assert.equal(excessShown(1.0899, 0.9928), '0.0971');
+test('worksheet line 4 is the unrounded excess to four decimals, and a sliver above zero reads "< 0.0001"', () => {
+  // 1.02484 - 0.99276 = 0.03208: CMS's unrounded excess, not 1.0248 - 0.9928 as lines 2 and 3 print.
+  assert.equal(excessText(1.02484, 0.99276), '+0.0321');
+  assert.equal(excessText(1.0899, 0.9928), '+0.0971');
+  assert.equal(excessText(0.99284, 0.99281), '< 0.0001');
+  assert.equal(excessText(0.9929, 0.99281), '+0.0001');
+  assert.match(WORKSHEET_NOTE, /^Ratios, medians, and weights are printed to four decimals; lines 4 and 6 use CMS's unrounded values, so the last digit can differ from a hand calculation\.$/);
 });
 
 const edition = { fy: 2027, label: 'FY2027' };
@@ -42,7 +45,9 @@ test('assumption rows: MDH add-on through the end date, rate drift, inactive cou
   assert.deepEqual(find(rows, /^Payments priced/), ['Payments priced at FY2027 rates', 'Runs about 6.6% above FY2024 cost reports, by design']);
   assert.match(find(rows, /Medicare-dependent/)[0], /^Medicare-dependent add-on included for Oct–Dec 2026 only, assuming MDH status ends December 31, 2026, as current law says \(2 hospitals\)$/);
   assert.match(find(rows, /Medicare-dependent/)[1], /up to about 33% for some$/);
-  assert.deepEqual(find(rows, /no longer active/), ['1 hospital CMS lists as no longer active is still shown', 'CMS will not pay them under this ID, so their cut is unlikely to be collected']);
+  assert.deepEqual(find(rows, /no longer active/), ['1 hospital CMS lists as no longer active is still shown', 'CMS will not pay them under this ID, so any cut they have is unlikely to be collected']);
+  // Some inactive hospitals have no cut (factor 1.0), so the row must not say each one has one.
+  assert.doesNotMatch(find(rows, /no longer active/)[1], /their cut/);
   assert.deepEqual(find(rows, /impact file/), ['1 hospital missing from the impact file gets no estimate', 'Totals note the count instead of adding $0']);
   assert.equal(find(rows, /^Medicare volume/)[0], 'Medicare volume taken from FY2025');
 });

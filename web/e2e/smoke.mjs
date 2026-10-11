@@ -254,6 +254,23 @@ for (const width of [1280, 360]) {
   await page.close();
 }
 
+// 14b. Only that Methods case scrolls to the top: on the front page, Back from a section to plain # leaves the scroll
+// where it was, and the wordmark still goes to the top.
+{
+  const { page } = await open('');
+  await page.locator('.nav a[data-nav="map"]').click();
+  await page.waitForTimeout(500);
+  const atMap = await page.evaluate(() => window.scrollY);
+  await page.goBack();
+  await page.waitForTimeout(600);
+  const y = await page.evaluate(() => window.scrollY);
+  check(atMap > 500 && Math.abs(y - atMap) < 5, `Back from #map to the front page moved the scroll from ${Math.round(atMap)} to ${Math.round(y)}px`);
+  await page.locator('.wordmark').click();
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => window.scrollY) < 5, 'wordmark from the front page did not return to the top');
+  await page.close();
+}
+
 await browser.close();
 if (failures.length) {
   console.log(`FAIL (${failures.length})\n- ${failures.join('\n- ')}`);

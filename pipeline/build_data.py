@@ -3,11 +3,13 @@
 Usage: python3 -I pipeline/build_data.py
 Hard-fails on schema drift, duplicate CCNs, out-of-range PAFs, a Table 15 disagreement, an Excel workbook
 value that does not round to the tab-delimited file's, stored values that no longer reproduce every PAF or that
-the site would print differently from CMS's 4-decimal values, or a missing content/dollar_check.json; prints a
-coverage report.
+the site would print differently from CMS's 4-decimal values, or a missing or malformed content/dollar_check.json;
+prints a coverage report.
 """
 import csv
 import json
+import math
+import re
 import sys
 from collections import namedtuple
 from datetime import date, timedelta
@@ -56,7 +58,9 @@ SUPP_SHEET = "FR FY 2027"  # the workbook sheet that "supp" is the tab-delimited
 # ERRs, DRG ratios, peer medians, and the neutrality modifier are written with at least this many decimals: the fewest
 # that still reproduce every FY2027 PAF from the JSON (5 leaves 7 hospitals 0.0001 off). The build fails if it stops
 # sufficing. A value gets more decimals, up to MAX_DECIMALS, when the site's toFixed(4) of it would otherwise differ
-# from CMS's published 4-decimal value (1.02485 prints as 1.0249; CMS shows the full 1.0248497... as 1.0248).
+# from CMS's published 4-decimal value (1.02485 prints as 1.0249; CMS shows the full 1.0248497... as 1.0248). An exact
+# tie that no rounding fixes (the double 0.06145 sits below the tie, so prints 0.0614; Excel shows CMS's 0.0615) is
+# stored one unit of its last decimal toward CMS's value (0.061451).
 DECIMALS = 6
 MAX_DECIMALS = 12
 
@@ -111,14 +115,21 @@ def to_fixed4(v):
 
 
 def stored(v, published, label):
-    """v as hrrp.json stores it: rounded to the fewest decimals, from DECIMALS up to MAX_DECIMALS, at which the site's
-    toFixed(4) prints CMS's 4-decimal `published` value; None stays None. SystemExit when no precision does."""
+    """v as hrrp.json stores it, so that the site's toFixed(4) prints CMS's 4-decimal `published` value; None stays None.
+    The first candidate that prints right: v rounded to DECIMALS, DECIMALS + 1, ... MAX_DECIMALS decimals; then, for an
+    exact tie no rounding fixes, each of those moved one unit of its last decimal toward `published`. SystemExit when
+    none does. A moved value is off v by up to 1.5 units of its last decimal; the replication gate still checks the PAFs."""
     if v is None:
         return None
-    for places in range(DECIMALS, MAX_DECIMALS + 1):
-        if to_fixed4(round(v, places)) == Decimal(repr(published)):
-            return round(v, places)
-    raise SystemExit(f"{label}: {v!r} does not print as CMS's {published} at any precision up to {MAX_DECIMALS} decimals")
+    want = Decimal(repr(published))
+    places = range(DECIMALS, MAX_DECIMALS + 1)
+    plain = [Decimal(repr(round(v, d))) for d in places]
+    nudged = [r + Decimal(1 if to_fixed4(float(r)) < want else -1).scaleb(-d) for d, r in zip(places, plain)]
+    for c in (*plain, *nudged):
+        if to_fixed4(float(c)) == want:
+            return float(c)
+    raise SystemExit(f"{label}: {v!r} does not print as CMS's {published} at any precision up to {MAX_DECIMALS} decimals, "
+                     "even moved one unit of the last decimal")
 
 
 def _values(s):
@@ -135,11 +146,12 @@ def precision_mismatches(full, published):
             if rnd(a, 4, half_up=True) != b]
 
 
-def as_stored(ccn, s, pub):
-    """A full-precision supplemental record (s) with its formula inputs stored as hrrp.json writes them, each printing as
+def as_stored(ccn, s, pub, nm, med):
+    """A full-precision supplemental record (s) with its formula inputs stored as hrrp.json writes them: the stored
+    neutrality modifier (nm) and peer-group medians ({condition: median}), and its ERRs and DRG ratios each printing as
     in CMS's tab-delimited record (pub); see stored()."""
-    return {**s, "nm": stored(s["nm"], pub["nm"], f"{ccn} nm"),
-            "c": {k: {**c, **{f: stored(c[f], pub["c"][k][f], f"{ccn} {k}.{f}") for f in ("err", "med", "ratio")}}
+    return {**s, "nm": nm,
+            "c": {k: {**c, "med": med[k], **{f: stored(c[f], pub["c"][k][f], f"{ccn} {k}.{f}") for f in ("err", "ratio")}}
                   for k, c in s["c"].items()}}
 
 
@@ -216,12 +228,13 @@ def report_mdh(hospitals, addons, share, shortfall):
         print(f"  a full year of MDH status would leave estimates up to {shortfall[c]:.1f}% short ({c})")
 
 
-def group_constant(rows, value, label):
-    """The single value `value(row)` shared by every row; SystemExit if rows disagree."""
-    vals = {value(r) for r in rows}
+def stored_constant(rows, full, published, label):
+    """The value `full(row)` that every row shares at full precision, stored as hrrp.json writes it (see stored()) with
+    any one row's 4-decimal `published(row)`; SystemExit if rows disagree."""
+    vals = {full(r) for r in rows}
     if len(vals) != 1:
         raise SystemExit(f"{label} is not constant: {sorted(vals, key=str)[:5]}")
-    return vals.pop()
+    return stored(vals.pop(), published(rows[0]), label)
 
 
 def load_content(name):
@@ -229,12 +242,44 @@ def load_content(name):
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
 
 
+def _is_date(v):
+    """True for a real calendar date written YYYY-MM-DD."""
+    if not (isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)):
+        return False
+    try:
+        date.fromisoformat(v)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+# content/dollar_check.json fields the site reads: (check, what the field must be).
+DOLLAR_CHECK_FIELDS = {
+    "asOf": (_is_date, "a YYYY-MM-DD date"),
+    "source": (lambda v: isinstance(v, str) and v.strip() != "", "a non-empty string"),
+    "costFy": (lambda v: isinstance(v, int) and not isinstance(v, bool), "an integer"),
+    **{f: (_is_number, "a number") for f in ("n", "rateDrift", "within10", "within15", "within15Small", "within15Large")},
+}
+DOLLAR_CHECK_ABOUT = ("It is a dated result of the October 2026 comparison of the dollar estimates with hospitals' Medicare cost "
+                      "reports, which Methods quotes. No script makes it: update it by hand when that comparison is redone.")
+
+
 def load_dollar_check(p=CONTENT / "dollar_check.json"):
-    """The cost-report check of the dollar estimates, which Methods quotes; SystemExit when the file is missing."""
+    """content/dollar_check.json, the cost-report comparison Methods quotes; SystemExit when the file is missing or a
+    field in DOLLAR_CHECK_FIELDS is missing or of the wrong type."""
     if not p.exists():
-        raise SystemExit(f"{p} is missing: the Methods page quotes its cost-report check of the dollar estimates. "
-                         "Restore it (or rerun the check) before building.")
-    return json.loads(p.read_text(encoding="utf-8"))
+        raise SystemExit(f"{p} is missing. {DOLLAR_CHECK_ABOUT} Restore it from git before building.")
+    dc = json.loads(p.read_text(encoding="utf-8"))
+    rec = dc if isinstance(dc, dict) else {}
+    bad = [f"{f} is missing" if f not in rec else f"{f} should be {want}, not {rec[f]!r}"
+           for f, (ok, want) in DOLLAR_CHECK_FIELDS.items() if not ok(rec.get(f))]
+    if bad:
+        raise SystemExit(f"{p}: {'; '.join(bad)}. {DOLLAR_CHECK_ABOUT}")
+    return dc
 
 
 STRAY_KM = 40  # a ZIP/county point farther than this outside the impact-file county is replaced by that county's centroid
@@ -367,17 +412,16 @@ def build():
     drift = precision_mismatches(supp, pub)
     if drift:
         raise SystemExit(f"Excel workbook and tab-delimited file disagree on {len(drift)} values: {drift[:10]}")
-    kept = {c: as_stored(c, s, pub[c]) for c, s in supp.items()}
-    replication_gate(kept)
-
-    # One value across the group, at full precision and as stored: (full, stored)[1]
-    nm = group_constant(supp, lambda c: (supp[c]["nm"], kept[c]["nm"]), "neutrality modifier")[1]
+    # One value across the group at full precision, stored once
+    nm = stored_constant(list(supp), lambda c: supp[c]["nm"], lambda c: pub[c]["nm"], "neutrality modifier")
     peer_cut, peer_med = [], {}
     for p in range(1, 6):
         grp = [c for c in supp if supp[c]["peer"] == p]
         peer_cut.append([rnd(f(supp[c]["dual"] for c in grp), 4, half_up=True) for f in (min, max)])
-        peer_med[str(p)] = {k: group_constant(grp, lambda c, k=k: (supp[c]["c"][k]["med"], kept[c]["c"][k]["med"]),
-                                              f"peer {p} {k} median")[1] for k in parse.CONDITIONS}
+        peer_med[str(p)] = {k: stored_constant(grp, lambda c, k=k: supp[c]["c"][k]["med"], lambda c, k=k: pub[c]["c"][k]["med"],
+                                              f"peer {p} {k} median") for k in parse.CONDITIONS}
+    kept = {c: as_stored(c, s, pub[c], nm, peer_med[str(s["peer"])]) for c, s in supp.items()}
+    replication_gate(kept)
 
     mdh_share = year_share(FY, MDH_END)
     ref = Ref(zcta, counties, load_geocodes(), cbsa_names, rates, mdh_share, [], {})

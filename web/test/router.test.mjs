@@ -33,12 +33,19 @@ test('a Methods section is the methods view with a scroll target; unknown ones a
   assert.equal(link('methods'), '#methods');
 });
 
-test('scroll after a route change: a section, the saved spot on Back, else the top', () => {
+test('scroll after a route change: a section, the saved spot on Back, the top of a new page, else left alone', () => {
   const methods = parseHash('#methods');
-  // Methods nav while on #methods-dollars: same page, section cleared, so back to the top.
-  assert.deepEqual(scrollTarget(methods, { changed: false, back: false, saved: 900 }), { y: 0 });
+  // Methods nav (or Back) from #methods-dollars: same page, section cleared, so back to the top.
+  assert.deepEqual(scrollTarget(methods, { changed: false, back: false, saved: 900, fromSection: 'methods-dollars' }), { y: 0 });
+  assert.deepEqual(scrollTarget(methods, { changed: false, back: true, fromSection: 'methods-dollars' }), { y: 0 });
+  assert.equal(scrollTarget(methods, { changed: false, back: false, fromSection: null }), null);
   assert.deepEqual(scrollTarget(parseHash('#methods-dollars'), { changed: false, back: false }), { section: 'methods-dollars' });
-  assert.deepEqual(scrollTarget(parseHash('#'), { changed: false, back: false }), { y: 0 }); // wordmark from #map
+  // Home keeps its old handling: section links scroll to the section; the wordmark and Back/Forward to plain # are left
+  // to the browser, even when leaving a home section.
+  assert.deepEqual(scrollTarget(parseHash('#map'), { changed: false, back: true, fromSection: 'history' }), { section: 'map' });
+  assert.equal(scrollTarget(parseHash('#'), { changed: false, back: false, fromSection: 'map' }), null); // wordmark from #map
+  assert.equal(scrollTarget(parseHash('#'), { changed: false, back: true, fromSection: 'map' }), null); // Back from #map
+  assert.deepEqual(scrollTarget(parseHash('#'), { changed: true, back: false, fromSection: 'methods-dollars' }), { y: 0 });
   assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: true, saved: 2400 }), { y: 2400 });
   assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: false, saved: 2400 }), { y: 0 });
   assert.deepEqual(scrollTarget(parseHash('#state-ut'), { changed: true, back: true, saved: undefined }), { y: 0 });

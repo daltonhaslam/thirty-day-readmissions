@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadData, meanCutByYear, capMarks } from '../src/js/data.js';
-import { shareTake } from '../src/js/views/home.js';
+import { shareTake, SHARE_CHART } from '../src/js/views/home.js';
 
 const D = loadData(JSON.parse(readFileSync(new URL('../src/data/hrrp.json', import.meta.url))));
 
@@ -39,6 +39,13 @@ test('history share-penalized caption: what each bar counts, and why this year d
   // When the two round alike there is nothing to explain.
   const same = { ...D, nation: { ...D.nation, pctPen: D.nationalByFy[D.meta.fy].pctPen } };
   assert.doesNotMatch(shareTake(same), /headline/);
+});
+
+test('history share-penalized chart labels hold for every year, and the accessible label names the early exclusions', () => {
+  assert.deepEqual([SHARE_CHART.title, SHARE_CHART.series], ['Share of hospitals penalized', 'Penalized']);
+  assert.equal(SHARE_CHART.label, 'Share of hospitals penalized by fiscal year; FY2013–FY2018 exclude Maryland, Puerto Rico, and hospitals with no data');
+  // FY2013–FY2018 bars do not count every hospital in the file, so no label may say they do.
+  for (const s of Object.values(SHARE_CHART)) assert.doesNotMatch(s, /\ball\b|in the file|each year's CMS file/);
 });
 
 test('cap marks come from each year\'s cap; narrow labels keep "cap" only on the last', () => {

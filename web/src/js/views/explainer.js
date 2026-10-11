@@ -9,8 +9,13 @@ import { omnibox } from '../ui/omnibox.js';
 import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
-// Line 4: line 2 minus line 3 as printed, so the worksheet's lines tie. Line 6 still uses the full-precision excess.
-export const excessShown = (err, med) => (Number(f4(err)) - Number(f4(med))).toFixed(4);
+// Line 4 for a counted condition: CMS's unrounded excess (line 2 minus line 3) to four decimals, or "< 0.0001" when it
+// is above zero but prints as 0.0000.
+export const excessText = (err, med) => {
+  const s = (err - med).toFixed(4);
+  return s === '0.0000' ? '< 0.0001' : `+${s}`;
+};
+export const WORKSHEET_NOTE = 'Ratios, medians, and weights are printed to four decimals; lines 4 and 6 use CMS\'s unrounded values, so the last digit can differ from a hand calculation.';
 
 // The worksheet's last check: does line 9 match CMS's factor.
 export function factorCheck(hosp, recomputed) {
@@ -43,7 +48,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
       h('td', { class: 'num' }, n ? fmtInt(n) : '—'),
       h('td', { class: 'num' }, f4(c?.err)),
       h('td', { class: 'num' }, f4(med)),
-      h('td', { class: 'num' }, counted ? `+${excessShown(c.err, med)}` : why),
+      h('td', { class: 'num' }, counted ? excessText(c.err, med) : why),
       h('td', { class: 'num' }, f4(c?.ratio)),
       h('td', { class: 'num strong' }, counted ? `${(r.byCond[k] * 100).toFixed(3)}%` : '0'));
   });
@@ -63,6 +68,7 @@ export function worksheet(D, hosp, { compact = false } = {}) {
         h('th', { scope: 'col', class: 'num' }, 'Line 4', h('br'), 'Excess (2 − 3)'), h('th', { scope: 'col', class: 'num' }, 'Line 5', h('br'), 'Payment weight'),
         h('th', { scope: 'col', class: 'num' }, 'Line 6', h('br'), 'C × 4 × 5'))),
       h('tbody', {}, rows))),
+    h('p', { class: 'ws__note muted small' }, WORKSHEET_NOTE),
     h('ol', { class: 'ws__totals' },
       h('li', {}, h('span', {}, 'Line 7 · Sum of line 6'), h('b', {}, `${(r.sum * 100).toFixed(3)}%`)),
       h('li', {}, h('span', {}, 'Line 8 · Line 7, capped at 3%, rounded'), h('b', {}, fmtPct(Math.round(r.reduction * 1e4) / 100))),

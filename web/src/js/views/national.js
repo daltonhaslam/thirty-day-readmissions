@@ -3,7 +3,7 @@ import { figure } from '../ui/figure.js';
 import { barRows } from '../charts/bars.js';
 import { stripPlot } from '../charts/strip.js';
 import { rampVar } from '../charts/scale.js';
-import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, plural, bedBand, BED_BANDS } from '../model.js';
+import { CONDS, PEERS, CAP_PCT, TEACH_LABEL, isMeasured, summarize, median, fmtInt, fmtPct, fmtMoney, plural, noneMeasured, bedBand, BED_BANDS } from '../model.js';
 import { link } from '../router.js';
 import { dollarsNote } from './util.js';
 
@@ -82,12 +82,15 @@ const DIMENSIONS = [
   ['Ownership', (x) => x.own, ['Nonprofit', 'For-profit', 'Government']],
 ];
 
+// A type-of-hospital row's note: its size and share penalized among those measured, or noneMeasured() when none is.
+export const typeNote = (sm) => `${plural(sm.n, 'hospital')} · ${sm.pctPen == null ? noneMeasured(sm) : `${fmtPct(sm.pctPen, 0)} of measured penalized`}`;
+
 export function typeFigure(D, list) {
   const blocks = DIMENSIONS.map(([title, keyOf, order]) => {
     const rows = order.map((label) => {
       const grp = list.filter((x) => keyOf(x) === label);
       const sm = summarize(grp);
-      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: `${fmtInt(sm.n)} hospitals · ${sm.pctPen == null ? 'none measured' : `${fmtPct(sm.pctPen, 0)} of measured penalized`}`, n: sm.n };
+      return { label, value: sm.meanRed, display: fmtPct(sm.meanRed), note: typeNote(sm), n: sm.n };
     }).filter((r) => r.n > 0);
     return h('div', {}, h('div', { class: 'cap muted sub' }, title), barRows(rows, { max: 0.8 }));
   });

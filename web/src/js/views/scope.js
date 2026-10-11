@@ -6,7 +6,7 @@ import { usMap, dotLegend } from '../charts/usmap.js';
 import { trendChart } from '../charts/trend.js';
 import { barRows } from '../charts/bars.js';
 import { greenbarTable } from '../ui/table.js';
-import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, plural, upFirst, PEERS } from '../model.js';
+import { summarize, scopeFilter, fmtInt, fmtPct, fmtMoney, mean, ordinal, vsLabel, noEstimateNote, noneMeasured, plural, upFirst, PEERS } from '../model.js';
 import { summaryColumns, summaryCsvColumns } from './columns.js';
 import { conditionFigure } from './national.js';
 import { explorer } from './explorer.js';
@@ -64,6 +64,10 @@ function scopeTrend(D, list) {
   return el;
 }
 
+// The deck's share penalized: of the hospitals measured on at least one condition, or noneMeasured() when none is.
+export const deckShare = (S) => (S.pctPen == null ? noneMeasured(S)
+  : `${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition`);
+
 // The Penalized KPI's note: measured count and the gap to the nation, or no comparison when nothing here is measured.
 export function penalizedNote(S, N) {
   return `of ${fmtInt(S.nMeasured)} measured${S.pctPen == null ? '' : ` · ${vsLabel(S.pctPen, N.pctPen, 0, 'pts')}`}`;
@@ -78,9 +82,7 @@ export function renderScope(D, route, state = {}) {
   const N = D.nation;
   const rank = rankOf(D, sc.kind, S.meanRed);
   const noEstNote = noEstimateNote(list);
-  const share = S.pctPen == null ? `${S.n === 1 ? 'it is not' : 'none is'} measured on any condition`
-    : `${fmtPct(S.pctPen, 0)} of the ${fmtInt(S.nMeasured)} measured on at least one condition`;
-  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${share}. `
+  const deck = `${fmtInt(S.nPen)} of ${plural(S.n, 'hospital')} ${S.nPen === 1 ? 'takes' : 'take'} a cut in ${D.edition.label}: ${deckShare(S)}. `
     + `The average cut, counting ${S.n === 1 ? 'its one hospital' : `all ${plural(S.n, 'hospital')}`}, is ${fmtPct(S.meanRed)}`
     + `${rank ? `, ${rank.rank === 1 ? 'the largest' : `the ${ordinal(rank.rank)}-largest`} among the ${rank.of - (D.stateSummary.has('DC') ? 1 : 0)} states${D.stateSummary.has('DC') ? ' and DC' : ''} in the program` : ''}. `;
   const total = ['Estimated total: ', fmtMoney(S.penTotal), estTag(), noEstNote ? ` (${noEstNote})` : '', '.'];

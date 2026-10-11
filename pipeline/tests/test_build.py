@@ -449,9 +449,19 @@ class PrecisionTest(unittest.TestCase):
 
     def test_stored_values_are_rounded_to_decimals(self):
         import build_data
-        s = build_data.as_stored("010001", self.FULL["010001"], self.PUBLISHED["010001"])
-        self.assertEqual((s["nm"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]), (round(0.96284743999129252, build_data.DECIMALS),
-                                                                             round(1.08989959713565, build_data.DECIMALS), 601))
+        s = build_data.as_stored("010001", self.FULL["010001"], self.PUBLISHED["010001"], 0.962847, {"HF": 0.992834})
+        self.assertEqual((s["nm"], s["c"]["HF"]["med"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]),
+                         (0.962847, 0.992834, round(1.08989959713565, build_data.DECIMALS), 601))
+
+    def test_group_constants_are_checked_at_full_precision_then_stored_once(self):
+        import build_data
+        full = {"a": 0.96284743999129252, "b": 0.96284743999129252}
+        self.assertEqual(build_data.stored_constant(["a", "b"], full.get, lambda c: 0.9628, "nm"), 0.962847)
+        self.assertEqual(build_data.stored_constant(["a"], lambda c: 0.06145, lambda c: 0.0615, "peer 1 HF median"), 0.061451)
+        with self.assertRaisesRegex(SystemExit, "peer 2 HF median is not constant"):
+            build_data.stored_constant(["a", "b"], {"a": 0.9928, "b": 0.99280001}.get, lambda c: 0.9928, "peer 2 HF median")
+        with self.assertRaisesRegex(SystemExit, "peer 3 AMI median is not constant: \\[\\]"):
+            build_data.stored_constant([], full.get, lambda c: 0.9628, "peer 3 AMI median")
 
     def test_stored_values_get_more_decimals_until_the_site_prints_cms_value(self):
         import build_data
@@ -460,8 +470,23 @@ class PrecisionTest(unittest.TestCase):
         self.assertEqual(build_data.stored(0.06145012, 0.0615, "x"), 0.0614501)  # 0.06145 would print 0.0614
         self.assertEqual(build_data.stored(1.08989959713565, 1.0899, "x"), 1.0899)
         self.assertIsNone(build_data.stored(None, None, "x"))
-        with self.assertRaisesRegex(SystemExit, "010001 AMI.err: 1.02485 does not print as CMS's 1.0248"):
-            build_data.stored(1.02485, 1.0248, "010001 AMI.err")
+        with self.assertRaisesRegex(SystemExit, "010001 AMI.err: 1.0251 does not print as CMS's 1.0248"):
+            build_data.stored(1.0251, 1.0248, "010001 AMI.err")
+
+    def test_an_exact_tie_no_rounding_fixes_moves_one_unit_toward_cms_value(self):
+        import build_data
+        from decimal import Decimal
+        # The double 0.06145 is 0.061449999...: Excel (15 digits) shows 0.06145 and CMS 0.0615, but every rounding of it
+        # is 0.06145 again, which toFixed(4) prints 0.0614.
+        self.assertEqual({round(0.06145, d) for d in range(build_data.DECIMALS, build_data.MAX_DECIMALS + 1)}, {0.06145})
+        self.assertEqual(build_data.rnd(0.06145, 4, half_up=True), 0.0615)
+        v = build_data.stored(0.06145, 0.0615, "x")
+        self.assertEqual((v, str(build_data.to_fixed4(v))), (0.061451, "0.0615"))
+        # The same just above a tie that CMS rounded down: 1.02484999999999 rounds to 1.02485, which prints 1.0249.
+        v = build_data.stored(1.02484999999999, 1.0248, "x")
+        self.assertEqual((v, str(build_data.to_fixed4(v))), (1.024849, "1.0248"))
+        # Plain rounding at any precision still wins over a move.
+        self.assertEqual(build_data.stored(0.06145012, 0.0615, "x"), 0.0614501)
 
     def test_replication_gate_names_every_hospital_and_both_causes(self):
         import build_data
@@ -480,11 +505,46 @@ class PrecisionTest(unittest.TestCase):
 
 
 class DollarCheckTest(unittest.TestCase):
+    GOOD = {"asOf": "2026-10-11", "source": "Medicare cost reports", "costFy": 2024, "n": 2845, "rateDrift": 1.066,
+            "within10": 73.4, "within15": 85.0, "within15Small": 73.7, "within15Large": 89.6, "note": "optional"}
+
+    def load(self, rec):
+        import build_data
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "dollar_check.json"
+            p.write_text(json.dumps(rec), encoding="utf-8")
+            return build_data.load_dollar_check(p)
+
     def test_a_missing_dollar_check_fails_the_build(self):
         import build_data
-        with self.assertRaisesRegex(SystemExit, r"dollar_check\.json is missing"):
+        with self.assertRaisesRegex(SystemExit, r"dollar_check\.json is missing\. It is a dated result of the October 2026 "
+                                    r"comparison .* No script makes it: update it by hand when that comparison is redone\."):
             build_data.load_dollar_check(Path(__file__).parent / "fixtures" / "dollar_check.json")
         self.assertEqual(build_data.load_dollar_check()["costFy"], 2024)
+
+    def test_a_complete_record_loads_as_written(self):
+        self.assertEqual(self.load(self.GOOD), self.GOOD)
+        self.assertEqual(self.load({**self.GOOD, "n": 2845.0, "within15": 85})["within15"], 85)
+
+    def test_a_missing_field_fails_the_build_naming_it(self):
+        rec = {k: v for k, v in self.GOOD.items() if k not in ("within15Large", "asOf")}
+        with self.assertRaises(SystemExit) as e:
+            self.load(rec)
+        msg = str(e.exception)
+        self.assertIn("asOf is missing; within15Large is missing.", msg)
+        self.assertIn("update it by hand when that comparison is redone", msg)
+        with self.assertRaisesRegex(SystemExit, "asOf is missing; source is missing; costFy is missing"):
+            self.load([])
+
+    def test_a_malformed_field_fails_the_build_naming_it(self):
+        for field, bad, want in [("asOf", "Oct 2026", "a YYYY-MM-DD date"), ("asOf", "2026-02-30", "a YYYY-MM-DD date"),
+                                 ("source", "", "a non-empty string"), ("source", 7, "a non-empty string"),
+                                 ("costFy", "2024", "an integer"), ("costFy", 2024.0, "an integer"), ("costFy", True, "an integer"),
+                                 ("n", None, "a number"), ("rateDrift", "1.066", "a number"), ("within15", True, "a number"),
+                                 ("within10", float("nan"), "a number")]:
+            with self.subTest(field=field, bad=bad), self.assertRaisesRegex(SystemExit, f"{field} should be {want}, not "):
+                self.load({**self.GOOD, field: bad})
 
 
 @unittest.skipUnless((RAW / "hrrp_supplemental_fy2027").exists() and OUT.exists(), "raw data not fetched")

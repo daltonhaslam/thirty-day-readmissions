@@ -52,12 +52,13 @@ export function go(view, key) {
   window.location.hash = link(view, key);
 }
 
-// Where to scroll after a route change: { section } brings that section into view; otherwise { y }, the saved offset
-// on Back/Forward to another page, else the top. A same-page change that drops the section (Methods from
-// #methods-dollars) also goes to the top.
-export function scrollTarget(route, { changed, back, saved }) {
+// Where to scroll after a route change: { section } brings that section into view; on a new page, { y }, the saved
+// offset on Back/Forward, else the top; on the same page, null (leave the scroll alone, as the browser placed it), except
+// that plain #methods reached from a Methods section goes to the top, since no element is named "methods" to scroll to.
+export function scrollTarget(route, { changed, back, saved, fromSection }) {
   if (route.section) return { section: route.section };
-  return { y: changed && back && saved != null ? saved : 0 };
+  if (changed) return { y: back && saved != null ? saved : 0 };
+  return route.view === 'methods' && fromSection ? { y: 0 } : null;
 }
 
 export function onRoute(cb) {

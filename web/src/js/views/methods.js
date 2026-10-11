@@ -66,7 +66,7 @@ export function assumptionRows(D) {
     ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent', 'They were paid on global budgets; low-medium confidence'],
     ['New hospitals use partial-year volume', 'Likely understated'],
     nInactive ? [`${plural(nInactive, 'hospital')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
-      'CMS will not pay them under this ID, so their cut is unlikely to be collected'] : null,
+      'CMS will not pay them under this ID, so any cut they have is unlikely to be collected'] : null,
     nNoEst ? [`${plural(nNoEst, 'hospital')} missing from the impact file ${nNoEst === 1 ? 'gets' : 'get'} no estimate`,
       'Totals note the count instead of adding $0'] : null,
   ].filter(Boolean);

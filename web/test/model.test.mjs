@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   CONDS, contrib, summarize, percentileRank, scopeFilter, applyFilters, bedBand,
-  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo, plural, upFirst, penalizedOfMeasured,
+  fmtPct, fmtMoney, fmtInt, toCSV, noEstimateNote, roundTo, plural, upFirst, penalizedOfMeasured, noneMeasured,
 } from '../src/js/model.js';
 
 // CMS methodology infographic, Hospital A (peer group 4, NM 0.9458)
@@ -83,7 +83,22 @@ test('summarize: share penalized is of hospitals measured on at least one condit
   const none = summarize([{ red: 0, c: {} }, { red: 0, c: { HF: { n: 24, err: 1.3 } } }]);
   assert.deepEqual([none.n, none.nMeasured, none.pctPen], [2, 0, null]);
   assert.equal(fmtPct(none.pctPen, 0), '—');
-  assert.equal(penalizedOfMeasured(none), 'none measured');
+  assert.equal(penalizedOfMeasured(none), 'none measured on any condition');
+});
+
+test('one "none measured" wording for the map tooltip, the area deck, and the type-of-hospital figure', async () => {
+  const { deckShare } = await import('../src/js/views/scope.js');
+  const { typeNote } = await import('../src/js/views/national.js');
+  const none = summarize([{ red: 0, c: {} }, { red: 0, c: { HF: { n: 24, err: 1.3 } } }]);
+  const one = summarize([{ red: 0, c: {} }]);
+  assert.deepEqual([noneMeasured(none), noneMeasured(one)], ['none measured on any condition', 'not measured on any condition']);
+  assert.equal(deckShare(none), 'none measured on any condition');
+  assert.equal(deckShare(one), 'not measured on any condition');
+  assert.equal(typeNote(none), '2 hospitals · none measured on any condition');
+  assert.equal(typeNote(one), '1 hospital · not measured on any condition');
+  const some = summarize([{ red: 0.2, c: MEASURED }, { red: 0, c: MEASURED }]);
+  assert.equal(deckShare(some), '50% of the 2 measured on at least one condition');
+  assert.equal(typeNote(some), '2 hospitals · 50% of measured penalized');
 });
 
 test('scope KPI: an all-unmeasured area shows no share and skips the comparison with the nation', async () => {

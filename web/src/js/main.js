@@ -18,6 +18,7 @@ renderShell(D, index);
 const main = document.getElementById('main');
 const SITE = SITE_NAME;
 let current = null;
+let currentSection = null;
 let fromHistory = false;
 // Per-route memory used only on Back/Forward: scroll position and view state (explorer filters, sort, page).
 const positions = new Map();
@@ -67,9 +68,10 @@ onRoute((route) => {
       if (h1) { h1.tabIndex = -1; h1.focus({ preventScroll: true }); }
     }
   }
-  const to = scrollTarget(route, { changed, back, saved: positions.get(key) });
-  if (to.section) document.getElementById(to.section)?.scrollIntoView({ block: 'start' });
-  else window.scrollTo(0, to.y);
+  const to = scrollTarget(route, { changed, back, saved: positions.get(key), fromSection: currentSection });
+  currentSection = route.section;
+  if (to?.section) document.getElementById(to.section)?.scrollIntoView({ block: 'start' });
+  else if (to) window.scrollTo(0, to.y);
   history.replaceState({ thirtyDays: key }, '');
   markNav(route.view === 'methods' ? 'methods' : route.section);
 });

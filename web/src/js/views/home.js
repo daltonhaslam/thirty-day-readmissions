@@ -106,14 +106,22 @@ export function shareTake(D) {
     + `${whyDiffers} KFF Health News reported somewhat lower counts for FY2015, FY2016 and FY2018 (2,610, 2,592 and 2,573); this chart counts every hospital with a cut in CMS's final file.`;
 }
 
+// The share-penalized history chart's title, bar label, and accessible label: true of every year, including the
+// FY2013–FY2018 bars, which leave out rows those files listed (the caption, shareTake, spells out the basis).
+export const SHARE_CHART = {
+  title: 'Share of hospitals penalized',
+  series: 'Penalized',
+  label: 'Share of hospitals penalized by fiscal year; FY2013–FY2018 exclude Maryland, Puerto Rico, and hospitals with no data',
+};
+
 function historyPart(D) {
   const nat = D.history.national;
   const years = nat.map((r) => r.fy);
   const ann = [...D.capMarks, { fy: 2019, label: 'peer groups' }, { fy: 2023, label: 'pneumonia paused', short: 'pneumonia out' }, { fy: 2027, label: 'MA added' }];
   const bands = [COVID_GAP];
   const pctEl = h('div');
-  trendChart(pctEl, { years, label: 'Share of all hospitals in each year\'s CMS file that were penalized, by fiscal year', yMax: 100, yFormat: (d) => `${d}%`, annotations: ann, bands,
-    series: [{ label: 'Penalized, of all in file', kind: 'bar', values: nat.map((r) => r.pctPen), fmt: (v) => fmtPct(v, 1), style: { fill: 'var(--p3)' },
+  trendChart(pctEl, { years, label: SHARE_CHART.label, yMax: 100, yFormat: (d) => `${d}%`, annotations: ann, bands,
+    series: [{ label: SHARE_CHART.series, kind: 'bar', values: nat.map((r) => r.pctPen), fmt: (v) => fmtPct(v, 1), style: { fill: 'var(--p3)' },
       tipExtra: (p) => [['Hospitals', `${fmtInt(D.nationalByFy[p.fy].nPen)} of ${fmtInt(D.nationalByFy[p.fy].n)}`]] }] });
   const avgEl = h('div');
   trendChart(avgEl, { years, label: 'Average payment reduction by fiscal year', yFormat: (d) => `${d}%`, annotations: ann, bands,
@@ -133,7 +141,7 @@ function historyPart(D) {
 
   return part({ no: partNo('history'), id: 'history', title: `${D.edition.yearsWord} years of penalties`, lede: `The program has penalized most hospitals every year since the cap reached 3%. Peer grouping in FY2019 and pandemic-era exclusions changed who gets penalized and by how much. In the charts, dashed lines mark rule changes. ${COVID_GAP_NOTE}` },
     h('div', { class: 'grid-2' },
-      figure({ title: 'Share penalized, of all hospitals in the file', take: shareTake(D),
+      figure({ title: SHARE_CHART.title, take: shareTake(D),
         source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: pctEl }),
       figure({ title: 'Average cut', take: 'Red line: among penalized hospitals. Plain line: across all hospitals, counting zeros.', source: `CMS HRRP Supplemental Data Files, ${D.edition.span}.`, body: avgEl })),
     h('div', { class: 'grid-2 grid-2--wide-left' },
