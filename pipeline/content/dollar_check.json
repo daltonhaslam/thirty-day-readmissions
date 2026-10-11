@@ -1,0 +1,11 @@
+{
+  "asOf": "2026-10-11",
+  "source": "Medicare cost reports (HCRIS) for cost-reporting periods beginning in FY2024, worksheet E part A lines 101-102",
+  "n": 2845,
+  "rateDrift": 1.066,
+  "within10": 73.4,
+  "within15": 85.0,
+  "within15Small": 73.7,
+  "within15Large": 89.6,
+  "note": "Share of hospitals whose modeled base payments fall within the stated percentage of their own cost report after removing the median 6.6% difference expected from two years of payment-rate growth. Small = under 100 certified beds."
+}

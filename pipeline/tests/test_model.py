@@ -70,6 +70,13 @@ class DollarTest(unittest.TestCase):
         self.assertIsNone(model.est_base_payment({"cases": None, "cmi": 1, "wi": 1, "cola": 1, "qual_red": False, "ehr_red": False}, RATES))
         self.assertIsNone(model.est_base_payment(None, RATES))
 
+    def test_mdh_addon_is_three_quarters_of_the_excess_times_the_share(self):
+        imp = {"cases": 100, "cmi": 1.5, "hsp": 10_000.0}
+        self.assertAlmostEqual(model.est_mdh_addon(imp, 1_200_000, 0.25), 0.75 * (1_500_000 - 1_200_000) * 0.25, places=6)
+        self.assertEqual(model.est_mdh_addon(imp, 1_600_000, 0.25), 0.0)  # federal payment already higher
+        self.assertEqual(model.est_mdh_addon({**imp, "hsp": None}, 1_200_000, 0.25), 0.0)
+        self.assertEqual(model.est_mdh_addon(imp, None, 0.25), 0.0)
+
     def test_penalty_dollars(self):
         self.assertAlmostEqual(model.est_penalty(1_000_000, 0.9966), 3400.0, places=6)
         self.assertIsNone(model.est_penalty(None, 0.99))

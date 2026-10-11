@@ -79,6 +79,42 @@ def smart_title(name):
     return " ".join(out)
 
 
+# Comparing two names for `alias`: abbreviations expanded, filler dropped, and words that say what kind of place a
+# hospital is (rather than which one) ignored.
+EXPAND = {"st": "saint", "ste": "sainte", "mt": "mount", "ft": "fort", "ctr": "center", "cntr": "center",
+          "centre": "center", "med": "medical", "mdl": "medical", "hosp": "hospital", "hosps": "hospitals",
+          "mem": "memorial", "meml": "memorial", "reg": "regional", "rgnl": "regional", "regl": "regional",
+          "hlth": "health", "hlthcr": "healthcare", "univ": "university", "comm": "community", "cmty": "community",
+          "sys": "system", "svcs": "services", "gen": "general", "co": "county", "cnty": "county"}
+FILLER = {"and", "the", "of", "at", "in", "for", "a", "an", "inc", "llc", "lp", "corp", "corporation", "dba", "campus"}
+GENERIC = {"hospital", "hospitals", "medical", "center", "centers", "health", "healthcare", "system", "regional",
+           "community", "memorial", "general", "county", "services", "university", "clinic", "clinics"}
+
+
+def _words(name):
+    words = (EXPAND.get(w, w) for w in re.findall(r"[a-z0-9]+", (name or "").lower().replace("'s", "s")))
+    return [w for w in words if w not in FILLER]
+
+
+def alias(shown, impact_name):
+    """The impact file's name (title-cased) when it tells a reader something the shown name does not, else None.
+
+    Material means fewer than half of the impact name's distinctive words appear in the shown name, as a word or
+    inside a run-together word for words of 4+ letters ('AdventHealthManchester'), and the two names are not the
+    same letters ('TJ Health' / 'T J Health'). E.g. Care Compare's 'Spectrum Health' gets 'Corewell Health Grand
+    Rapids Hospitals Butterworth'.
+    """
+    if not shown or not impact_name:
+        return None
+    mine, theirs = _words(shown), _words(impact_name)
+    distinct = [w for w in dict.fromkeys(theirs) if w not in GENERIC]
+    compact = "".join(mine)
+    found = sum(1 for w in distinct if w in mine or (len(w) >= 4 and w in compact))
+    if compact == "".join(theirs) or found >= len(distinct) / 2:
+        return None
+    return smart_title(" ".join(impact_name.split()))
+
+
 def display_name(hgi_name, impact_name):
     """Care Compare's name, title-cased by our rules (kept as-is if already mixed case); impact name as fallback.
 
