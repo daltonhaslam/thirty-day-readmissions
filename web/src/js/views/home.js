@@ -36,7 +36,7 @@ function hero(D, index, S) {
         field(3, 'Average cut, all hospitals', fmtPct(S.meanRed)),
         field(4, 'Average cut, penalized only', fmtPct(S.meanRedPen)),
         field(5, 'At the 3% maximum', fmtInt(S.nMax), { note: 'hospitals' }),
-        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: [`Modeled here. CMS's rule-time estimate: ${fmtMoney(D.meta.totals.cmsEst)}.`, noEstimateNote(D.hospitals) && ` ${noEstimateNote(D.hospitals)}.`].filter(Boolean).join('') }),
+        field(6, 'Estimated dollars', `≈ ${fmtMoney(D.meta.totals.modelPen)}`, { note: [`Modeled here. CMS's rule-time estimate, from preliminary data: ${fmtMoney(D.meta.totals.cmsEst)}.`, noEstimateNote(D.hospitals) && ` ${noEstimateNote(D.hospitals)}.`].filter(Boolean).join('') }),
         field(7, 'Data window', `${fmtDate(D.meta.perf[0])} – ${fmtDate(D.meta.perf[1])}`),
         field(8, 'Payment year', D.edition.payShort)),
       h('div', { class: 'hero__stamp' }, h('span', { class: 'stamp' }, `Final · posted ${fmtDate(D.meta.fileDate)}`))));

@@ -58,7 +58,7 @@ function whatIf(D, x, measured) {
     clear(out).append(
       field('W1', 'Hypothetical cut', fmtPct(red), { big: true, note: `Actual: ${fmtPct(x.red)}` }),
       field('W2', 'Payment adjustment factor', paf.toFixed(4), { note: `Actual: ${x.paf.toFixed(4)}` }),
-      field('W3', 'Estimated dollars', fmtMoney(dollars), { note: x.pen != null ? `Actual estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
+      field('W3', 'Estimated dollars', fmtMoney(dollars), { note: x.pen != null ? `Current estimate: ${fmtMoney(x.pen)}` : 'no volume data' }));
   };
   const sliders = measured.map((k) => {
     const id = `wi-${k}`;
