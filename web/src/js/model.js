@@ -134,7 +134,7 @@ export function fmtMoney(v) {
   if (a >= 999.5e6) return `$${(v / 1e9).toFixed(1)}B`;
   if (a >= 99.95e6) return `$${Math.round(v / 1e6)}M`;
   if (a >= 999.5e3) return `$${(v / 1e6).toFixed(1)}M`;
-  if (a >= 1e3) return `$${Math.round(v / 1e3)}K`;
+  if (a >= 999.5) return `$${Math.round(v / 1e3)}K`;
   return `$${Math.round(v)}`;
 }
 

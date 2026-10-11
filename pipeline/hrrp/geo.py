@@ -142,4 +142,4 @@ def km_outside(lat, lon, polys):
     """0 if the point is inside one of the county's polygons, else km to the nearest polygon edge."""
     if any(_in_ring(lat, lon, p[0]) and not any(_in_ring(lat, lon, h) for h in p[1:]) for p in polys):
         return 0.0
-    return min(_edge_km(lat, lon, p[0]) for p in polys)
+    return min(_edge_km(lat, lon, r) for p in polys for r in p)

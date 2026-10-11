@@ -4,7 +4,7 @@ import { breadcrumb, crumbsFor } from '../ui/breadcrumb.js';
 import { errRows } from '../charts/errRange.js';
 import { trendChart } from '../charts/trend.js';
 import { greenbarTable } from '../ui/table.js';
-import { CAP, CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
+import { CAP_PCT, CONDS, MIN_DISCHARGES, TEACH_LABEL, WEIGHT_MISSING, contrib, cutPct, condState, weightPublished, peerMedian, peerBands, verdict, rankPct, whatIfPaf, sliderRange, inSentence, fmtInt, fmtPct, fmtMoney } from '../model.js';
 import { hospitalColumns } from './columns.js';
 import { worksheet } from './explainer.js';
 import { link } from '../router.js';
@@ -105,8 +105,8 @@ export function renderHospital(D, id) {
   const condEl = h('div');
   errRows(condEl, { rows: conditionRows(D, x, bandsCache), label: `Readmission ratios by condition for ${x.name}` });
   const hist = historyChart(D, x);
-  const { sum } = contrib(x, D.meta);
-  const capNote = sum > CAP + 1e-9 ? ` These add to ${(sum * 100).toFixed(2)} points before the ${CAP_PCT}% cap.` : '';
+  const uncapped = (contrib(x, D.meta).sum * 100).toFixed(2);
+  const capNote = x.red >= CAP_PCT && +uncapped > CAP_PCT ? ` These add to ${uncapped} points before the ${CAP_PCT}% cap.` : '';
 
   const el = h('div', { class: 'wrap hosp' },
     breadcrumb(crumbsFor(D, { region: x.region, division: x.division, st: x.st, cbsa: x.cbsa }), x.name),

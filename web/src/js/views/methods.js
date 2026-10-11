@@ -42,7 +42,7 @@ export function renderMethods(D) {
         h('p', {}, 'For each of the six conditions with at least 25 cases, CMS compares the hospital\'s excess readmission ratio with its peer group\'s median. Each condition above the median contributes:'),
         h('pre', { class: 'formula' }, 'neutrality modifier × payment weight × (ratio − peer median)'),
         h('p', {}, `The contributions are added, capped at 3%, and subtracted from 1 to give the payment adjustment factor. This year the neutrality modifier is ${m.nm.toFixed(4)}. The cut applies to every traditional-Medicare base inpatient payment the hospital receives from ${E.payLong}.`),
-        h('p', {}, `Recomputing every hospital from the values CMS publishes reproduces its factor exactly for ${fmtInt(rep.exact)} hospitals and within 0.0001 for the other ${fmtInt(rep.rounding)}. CMS computes from unrounded ratios and weights. The text version of its file, which this site reads, rounds them to four decimals; the Excel version carries the unrounded values, and recomputing from those reproduces every factor.`),
+        h('p', {}, `Recomputing every hospital from the values CMS publishes reproduces its factor exactly for ${fmtInt(rep.exact)} hospitals and within 0.0001 for the other ${fmtInt(rep.rounding)}. CMS computes from unrounded ratios and weights. The text version of its file, which this site reads, rounds them to four decimals; the Excel version carries the unrounded values.`),
 
         h('h2', {}, 'Estimated dollars'),
         h('p', {}, 'CMS publishes each hospital\'s percentage, not a dollar amount. This site estimates the base payments the cut applies to, then multiplies by the cut:'),

@@ -43,7 +43,7 @@ Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.
 
 Recomputing every hospital from the values in CMS's tab-delimited supplemental file (rounded to four decimals)
 reproduces its adjustment factor exactly for 2,835 hospitals and within 0.0001 for the other 77; CMS's Excel
-version carries unrounded values, and recomputing from those reproduces all 2,912. Dollar figures are **estimates** modeled from the
+version carries unrounded values, and an independent recomputation from it (Oct 2026) matched all 2,912. Dollar figures are **estimates** modeled from the
 IPPS impact file; CMS publishes percentages only. See the Methods page for the formula and caveats.
 
 ## Rebuilding

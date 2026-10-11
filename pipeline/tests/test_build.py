@@ -70,7 +70,7 @@ class StrayPointTest(unittest.TestCase):
         self.assertEqual(geo.km_outside(0.5, 0.5, [SQUARE]), 0.0)
         self.assertAlmostEqual(geo.km_outside(0.5, 1.1, [SQUARE]), 11.1, delta=0.3)
         hole = [SQUARE[0], [(0.4, 0.4), (0.4, 0.6), (0.6, 0.6), (0.6, 0.4), (0.4, 0.4)]]
-        self.assertGreater(geo.km_outside(0.5, 0.5, [hole]), 0)
+        self.assertAlmostEqual(geo.km_outside(0.5, 0.5, [hole]), 11.1, delta=0.3)  # nearest edge is the hole's
 
     def test_inside_keeps_zip(self):
         self.assertEqual(self.locate((0.2, 0.3)), (0.2, 0.3, "zip", None))

@@ -105,6 +105,7 @@ test('formatters', () => {
   assert.equal(fmtMoney(341_500_000), '$342M');
   assert.equal(fmtMoney(48210), '$48K');
   assert.equal(fmtMoney(950), '$950');
+  assert.equal(fmtMoney(999.7), '$1K');
   assert.equal(fmtMoney(999_949), '$1.0M');
   assert.equal(fmtMoney(999_400), '$999K');
   assert.equal(fmtMoney(99_960_000), '$100M');
