@@ -33,6 +33,8 @@ class NamesTest(unittest.TestCase):
 
     def test_mc_prefix(self):
         self.assertEqual(names.smart_title("MCALLEN MEDICAL CENTER"), "McAllen Medical Center")
+        self.assertEqual(names.smart_title("LOUIS A WEISS MEMORIAL HOSPITAL"), "Louis A Weiss Memorial Hospital")
+        self.assertEqual(names.smart_title("LAS PALMAS MEDICAL CENTER A CAMPUS OF LPDS"), "Las Palmas Medical Center a Campus of LPDS")
 
     def test_falls_back_to_impact_name_when_hgi_missing(self):
         self.assertEqual(names.display_name(None, "Some Hospital"), "Some Hospital")

@@ -23,6 +23,8 @@ TITLE_ABBR = {"CTR", "CTRS", "HLTH", "HLTHCR", "MDL", "SVCS", "RGNL", "BLVD", "M
 # Words kept lower case wherever they appear ("dba" = doing business as)
 LOWER = {"DBA"}
 SMALL = {"of", "and", "the", "at", "in", "for", "on", "by", "to", "a"}
+# A lone "A" is an initial ("Louis A Weiss") unless an article noun follows ("a Part of HCA", "a Campus of ...")
+ARTICLE_NOUNS = {"part", "campus", "division", "member", "department", "facility", "subsidiary", "unit"}
 VOWELS = set("AEIOUY")
 
 
@@ -75,7 +77,8 @@ def smart_title(name):
     out = []
     for i, t in enumerate(tokens):
         after_sep = i > 0 and tokens[i - 1].endswith(SEPARATORS)
-        out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep))
+        initial = t.upper() == "A" and 0 < i < len(tokens) - 1 and tokens[i + 1].lower() not in ARTICLE_NOUNS
+        out.append(_word(t, lower_small=0 < i < len(tokens) - 1 and not after_sep and not initial))
     return " ".join(out)
 
 
