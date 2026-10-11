@@ -1,11 +1,13 @@
 """Join the raw CMS/Census files into the site's data contract: web/src/data/hrrp.json.
 
 Usage: python3 -I pipeline/build_data.py
-Hard-fails on schema drift, duplicate CCNs, out-of-range PAFs, or a Table 15 disagreement;
+Hard-fails on schema drift, duplicate CCNs, out-of-range PAFs, a Table 15 disagreement, an Excel workbook
+value that does not round to the tab-delimited file's, or stored values that no longer reproduce every PAF;
 prints a coverage report.
 """
 import json
 import sys
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -27,6 +29,7 @@ HIST_FIRST_FY, HIST_LAST_FY = 2013, FY - 1
 HIST_FILE = HIST / "hrrp_paf_history_fy2013_2026.csv"
 HIST_SUMMARY = HIST / "hrrp_history_summary.csv"
 FILES = {
+    "supp_xlsx": ("hrrp_supplemental_fy2027", "extracted/FY2027_HRRP_Supplemental_File.xlsx"),
     "supp": ("hrrp_supplemental_fy2027", "extracted/FY2027_HRRP_Supplemental_File - FR FY 2027 Tab.txt"),
     "t15": ("hrrp_table15_fy2027", "extracted/Section 508 version of FY2027_HRRP_Table_15.txt"),
     "impact": ("ipps_impact_fy2027", "extracted/FY 2027 IPPS Impact File - Correction Notice.txt"),
@@ -37,6 +40,10 @@ FILES = {
     "counties": ("us_atlas_counties", "counties-10m.json"),
     "states": ("us_atlas_states", "states-10m.json"),
 }
+SUPP_SHEET = "FR FY 2027"  # the workbook sheet that "supp" is the tab-delimited export of
+# ERRs, DRG ratios, peer medians, and the neutrality modifier are written with this many decimals: the fewest that
+# still reproduce every FY2027 PAF from the JSON (5 leaves 7 hospitals 0.0001 off). The build fails if it stops sufficing.
+DECIMALS = 6
 
 CONDITION_INFO = {
     "AMI": ("Heart attack", "Acute myocardial infarction (AMI)"),
@@ -75,6 +82,35 @@ def ownership(detail, own_code):
 
 def r4(v):
     return None if v is None else round(v, 4)
+
+
+def rd(v):
+    return None if v is None else round(v, DECIMALS)
+
+
+def cms_round(v, places=4):
+    """Round half up, as CMS's published 4-decimal values are (Python's round() would give 0.15625 -> 0.1562)."""
+    return None if v is None else float(Decimal(repr(v)).quantize(Decimal(1).scaleb(-places), ROUND_HALF_UP))
+
+
+def _values(s):
+    """(field, value) pairs of one supplemental-file record, conditions flattened as 'HF.err'."""
+    yield from ((f, s[f]) for f in ("paf", "dual", "peer", "nm"))
+    yield from ((f"{k}.{f}", v) for k, c in s["c"].items() for f, v in c.items())
+
+
+def precision_mismatches(full, published):
+    """(ccn, field) where a full-precision workbook value, rounded as CMS rounds, differs from the 4-decimal export."""
+    if set(full) != set(published):
+        return sorted((c, "missing") for c in set(full) ^ set(published))
+    return [(c, f) for c in sorted(full) for (f, a), (_, b) in zip(_values(full[c]), _values(published[c]))
+            if cms_round(a) != b]
+
+
+def as_stored(s):
+    """A supplemental record with its formula inputs rounded as hrrp.json stores them."""
+    return {**s, "nm": rd(s["nm"]),
+            "c": {k: {**c, "err": rd(c["err"]), "med": rd(c["med"]), "ratio": rd(c["ratio"])} for k, c in s["c"].items()}}
 
 
 def group_constant(rows, value, label):
@@ -144,16 +180,16 @@ def hospital_record(ccn, s, imp, g, zcta, counties, cbsa_names, rates, moved):
         "ownDetail": g.get("ownership"),
         "star": g.get("star"),
         "types": sorted(set(PTYPES.get(imp.get("ptype"), [])) | ({"MDH"} if imp.get("mdh") else set())),
-        "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": s["dual"], "peer": s["peer"],
+        "paf": s["paf"], "red": round((1 - s["paf"]) * 100, 2), "dual": cms_round(s["dual"]), "peer": s["peer"],
         "base": round(base) if base is not None else None,
         "pen": round(pen) if pen is not None else None,
-        "c": {k: {f: c[f] for f in ("n", "err", "flag", "ratio")}
+        "c": {k: {"n": c["n"], "err": rd(c["err"]), "flag": c["flag"], "ratio": rd(c["ratio"])}
               for k, c in s["c"].items() if not (c["n"] is None and c["err"] is None)},
     }
 
 
 def build():
-    supp = parse.read_supplemental(path("supp"))
+    supp = parse.read_supplemental(path("supp_xlsx"), SUPP_SHEET)
     t15 = parse.read_table15(path("t15"), FY)
     impact = parse.read_impact(path("impact"), FY, GROUPER)
     hgi = parse.read_hgi(path("hgi"))
@@ -168,13 +204,19 @@ def build():
     out_of_range = [c for c, s in supp.items() if not 1 - model.CAP <= s["paf"] <= 1.0]
     if out_of_range:
         raise SystemExit(f"PAF out of range for {out_of_range[:10]}")
+    drift = precision_mismatches(supp, parse.read_supplemental(path("supp")))
+    if drift:
+        raise SystemExit(f"Excel workbook and tab-delimited file disagree on {len(drift)} values: {drift[:10]}")
+    short = [c for c, s in supp.items() if model.replication_status(as_stored(s)) != "exact"]
+    if short:
+        raise SystemExit(f"{DECIMALS} decimals do not reproduce the PAF of {len(short)} hospitals {short[:10]}: raise DECIMALS")
 
     nm = group_constant(supp.values(), lambda s: s["nm"], "neutrality modifier")
     peer_cut, peer_med = [], {}
     for p in range(1, 6):
         grp = [s for s in supp.values() if s["peer"] == p]
-        peer_cut.append([min(s["dual"] for s in grp), max(s["dual"] for s in grp)])
-        peer_med[str(p)] = {k: group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median")
+        peer_cut.append([cms_round(min(s["dual"] for s in grp)), cms_round(max(s["dual"] for s in grp))])
+        peer_med[str(p)] = {k: rd(group_constant(grp, lambda s, k=k: s["c"][k]["med"], f"peer {p} {k} median"))
                             for k in parse.CONDITIONS}
 
     moved = []
@@ -202,7 +244,7 @@ def build():
     whats_new = load_content("whats_new.json") or {}
     return {
         "meta": {
-            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": nm,
+            "fy": FY, "fileDate": FILE_DATE, "perf": PERF, "nm": rd(nm),
             "peerCutoffs": peer_cut, "peerMedians": peer_med, "rates": rates,
             "totals": {"modelBase": sum(x["base"] or 0 for x in hospitals),
                        "modelPen": sum(x["pen"] or 0 for x in hospitals),

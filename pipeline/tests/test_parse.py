@@ -1,10 +1,51 @@
+import csv
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from hrrp import parse
 
 FIX = Path(__file__).resolve().parent / "fixtures"
+MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PKG = "http://schemas.openxmlformats.org/package/2006/relationships"
+
+
+def _ref(j, r):
+    return (chr(64 + j // 26) if j >= 26 else "") + chr(65 + j % 26) + str(r)
+
+
+def write_xlsx(path, sheets, doctype="", sheet_xml=None):
+    """A minimal .xlsx: text cells as shared strings, numeric text as numbers, empty cells skipped.
+
+    `sheet_xml` replaces the generated <sheetData> body of every sheet.
+    """
+    shared, books, rels = [], [], []
+    with zipfile.ZipFile(path, "w") as zf:
+        for i, (name, rows) in enumerate(sheets.items(), 1):
+            xml_rows = []
+            for r, row in enumerate(rows, 1):
+                cells = []
+                for j, v in enumerate(row):
+                    if not v:
+                        continue
+                    try:
+                        float(v)
+                        cells.append(f'<c r="{_ref(j, r)}"><v>{v}</v></c>')
+                    except ValueError:
+                        shared.append(v)
+                        cells.append(f'<c r="{_ref(j, r)}" t="s"><v>{len(shared) - 1}</v></c>')
+                xml_rows.append(f'<row r="{r}">{"".join(cells)}</row>')
+            body = sheet_xml or "".join(xml_rows)
+            zf.writestr(f"xl/worksheets/sheet{i}.xml", f'{doctype}<worksheet xmlns="{MAIN}"><sheetData>{body}</sheetData></worksheet>')
+            books.append(f'<sheet name="{escape(name)}" sheetId="{i}" r:id="rId{i}"/>')
+            rels.append(f'<Relationship Id="rId{i}" Type="{REL}/worksheet" Target="/xl/worksheets/sheet{i}.xml"/>')
+        rels.append(f'<Relationship Id="rIdS" Type="{REL}/sharedStrings" Target="sharedStrings.xml"/>')
+        zf.writestr("xl/workbook.xml", f'<workbook xmlns="{MAIN}" xmlns:r="{REL}"><sheets>{"".join(books)}</sheets></workbook>')
+        zf.writestr("xl/_rels/workbook.xml.rels", f'<Relationships xmlns="{PKG}">{"".join(rels)}</Relationships>')
+        zf.writestr("xl/sharedStrings.xml", f'<sst xmlns="{MAIN}">{"".join(f"<si><t>{escape(t)}</t></si>" for t in shared)}</sst>')
 
 
 class NumTest(unittest.TestCase):
@@ -48,6 +89,43 @@ class SupplementalTest(unittest.TestCase):
             p.write_text(text, encoding="latin1")
             with self.assertRaises(parse.SchemaError):
                 parse.read_supplemental(p)
+
+
+class WorkbookTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name, "w.xlsx")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_supplemental_sheet_reads_like_its_tab_delimited_export(self):
+        with open(FIX / "supp.txt", newline="", encoding="latin1") as f:
+            rows = list(csv.reader(f, delimiter="\t"))
+        write_xlsx(self.path, {"Notes": [["Hospital CCN", "not this table"]], "FR FY 2027": rows})
+        self.assertEqual(parse.read_supplemental(self.path, "FR FY 2027"), parse.read_supplemental(FIX / "supp.txt"))
+
+    def test_numbers_keep_full_precision_and_cells_land_in_their_columns(self):
+        write_xlsx(self.path, {"S": [["a", "", "0.18243374902572096"], ["", "b"]]})
+        rows = parse._xlsx_rows(self.path, "S")
+        self.assertEqual(rows, [["a", "", "0.18243374902572096"], ["", "b"]])
+        self.assertEqual(parse.num(rows[0][2]), 0.18243374902572096)
+
+    def test_inline_strings_and_two_letter_columns(self):
+        write_xlsx(self.path, {"S": []}, sheet_xml='<row r="1"><c r="B1" t="inlineStr"><is><t>hi</t></is></c>'
+                                                   '<c r="AB1"><v>7</v></c></row>')
+        row = parse._xlsx_rows(self.path, "S")[0]
+        self.assertEqual((len(row), row[1], row[27]), (28, "hi", "7"))
+
+    def test_missing_sheet_raises(self):
+        write_xlsx(self.path, {"S": [["a"]]})
+        with self.assertRaises(parse.SchemaError):
+            parse._xlsx_rows(self.path, "T")
+
+    def test_dtd_is_refused(self):
+        write_xlsx(self.path, {"S": [["a"]]}, doctype='<!DOCTYPE x [<!ENTITY a "aaaa">]>')
+        with self.assertRaises(parse.SchemaError):
+            parse._xlsx_rows(self.path, "S")
 
 
 class ImpactTest(unittest.TestCase):

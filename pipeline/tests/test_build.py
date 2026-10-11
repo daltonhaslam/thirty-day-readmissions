@@ -1,4 +1,5 @@
 import json
+import math
 import unittest
 from pathlib import Path
 
@@ -109,10 +110,25 @@ class ContractTest(unittest.TestCase):
 
     def test_replication_and_geocode_coverage(self):
         rep = self.d["meta"]["replication"]
-        self.assertEqual(rep["mismatches"], [])
-        self.assertGreaterEqual(rep["exact"] / rep["total"], 0.95)
+        self.assertEqual((rep["exact"], rep["rounding"], rep["mismatches"]), (rep["total"], 0, []))
         with_geo = sum(1 for x in self.h if x["lat"] is not None)
         self.assertGreaterEqual(with_geo / len(self.h), 0.97)
+
+    def test_site_arithmetic_reproduces_every_paf_from_the_json(self):
+        """web/src/js/model.js contrib(): float sum in condition order, paf = round4(1 - round4(min(sum, cap)))."""
+        def round4(v):  # JavaScript Math.round(v * 1e4) / 1e4: nearest, ties toward +infinity
+            x = v * 1e4
+            return (math.floor(x) + (x - math.floor(x) >= 0.5)) / 1e4
+        meta, off = self.d["meta"], []
+        for x in self.h:
+            total = 0
+            for k in ("AMI", "COPD", "HF", "PN", "CABG", "THA_TKA"):
+                c, med = x["c"].get(k), meta["peerMedians"][str(x["peer"])][k]
+                if c and (c["n"] or 0) >= 25 and c["err"] is not None and c["ratio"] is not None:
+                    total += meta["nm"] * c["ratio"] * max(c["err"] - med, 0)
+            if abs(round4(1 - round4(min(total, 0.03))) - x["paf"]) > 1e-9:
+                off.append(x["id"])
+        self.assertEqual(off, [])
 
     def test_hospital_with_no_flags_has_no_penalty(self):
         zero = [x for x in self.h if all(c["flag"] == 0 for c in x["c"].values())]
@@ -241,7 +257,37 @@ class FreshBuildTest(unittest.TestCase):
         for ccn, county in [("020012", "Fairbanks North Star"), ("230216", "St. Clair"), ("140013", "Peoria")]:
             self.assertEqual((self.by_id[ccn]["geo"], self.by_id[ccn]["county"]), ("county", county), ccn)
 
-    def test_replication_reports_exact_and_rounding_matches_separately(self):
+    def test_replication_counts_add_up(self):
         rep = self.built["meta"]["replication"]
         self.assertEqual(rep["exact"] + rep["rounding"] + len(rep["mismatches"]), rep["total"])
-        self.assertGreater(rep["rounding"], 0)
+
+
+class PrecisionTest(unittest.TestCase):
+    """build_data's checks that the Excel workbook and the tab-delimited export hold the same table."""
+    FULL = {"010001": {"paf": 0.9863, "dual": 0.15625, "peer": 1, "nm": 0.96284743999129252,
+                       "c": {"HF": {"n": 601, "err": 1.08989959713565, "med": 0.99283380046303704, "flag": 1,
+                                    "ratio": 0.032458421638130501}}}}
+    PUBLISHED = {"010001": {"paf": 0.9863, "dual": 0.1563, "peer": 1, "nm": 0.9628,
+                            "c": {"HF": {"n": 601, "err": 1.0899, "med": 0.9928, "flag": 1, "ratio": 0.0325}}}}
+
+    def test_cms_rounds_half_up(self):
+        import build_data
+        self.assertEqual((build_data.cms_round(0.15625), build_data.cms_round(0.98625), build_data.cms_round(None)),
+                         (0.1563, 0.9863, None))
+
+    def test_matching_tables_pass(self):
+        import build_data
+        self.assertEqual(build_data.precision_mismatches(self.FULL, self.PUBLISHED), [])
+
+    def test_mis_mapped_column_is_caught(self):
+        import build_data
+        hf = self.PUBLISHED["010001"]["c"]["HF"]
+        swapped = {"010001": {**self.PUBLISHED["010001"], "c": {"HF": {**hf, "err": hf["med"], "med": hf["err"]}}}}
+        self.assertEqual(build_data.precision_mismatches(self.FULL, swapped), [("010001", "HF.err"), ("010001", "HF.med")])
+        self.assertEqual(build_data.precision_mismatches(self.FULL, {}), [("010001", "missing")])
+
+    def test_stored_values_are_rounded_to_decimals(self):
+        import build_data
+        s = build_data.as_stored(self.FULL["010001"])
+        self.assertEqual((s["nm"], s["c"]["HF"]["err"], s["c"]["HF"]["n"]), (round(0.96284743999129252, build_data.DECIMALS),
+                                                                             round(1.08989959713565, build_data.DECIMALS), 601))

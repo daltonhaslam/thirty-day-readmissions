@@ -1,10 +1,12 @@
 """Parsers for the CMS and Census source files.
 
-Every reader goes through `_read_table`, which finds the header row by its first cell (not by
+Every reader goes through `_table`, which finds the header row by its first cell (not by
 line number), pads and strips rows, and raises SchemaError when an expected column is missing,
 so a CMS layout change cannot silently produce wrong numbers.
 """
 import csv
+import zipfile
+import xml.etree.ElementTree as ET
 
 # Condition key -> label used in CMS supplemental file headers (order = display order)
 SUPP_LABELS = {"AMI": "ami", "COPD": "copd", "HF": "hf", "PN": "pneumonia", "CABG": "cabg", "THA_TKA": "tha/tka"}
@@ -41,13 +43,79 @@ def _rows(path, delimiter="\t", encoding="latin1"):
         return list(csv.reader(f, delimiter=delimiter))
 
 
+_XL = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_XL_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+XLSX_MAX_PART = 100_000_000  # bytes; a larger XML part is refused rather than inflated
+
+
+def _xlsx_part(zf, name):
+    """One parsed XML part of a workbook. Refuses DTDs (the standard library parser expands entities) and huge parts."""
+    info = zf.getinfo(name)
+    if info.file_size > XLSX_MAX_PART:
+        raise SchemaError(f"{zf.filename}: part {name} is {info.file_size:,} bytes")
+    data = zf.read(info)
+    if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
+        raise SchemaError(f"{zf.filename}: part {name} declares a DTD")
+    return ET.fromstring(data)
+
+
+def _col_index(ref):
+    """0-based column of a cell reference: 'A12' -> 0, 'AB3' -> 27."""
+    n = 0
+    for ch in ref:
+        if not "A" <= ch <= "Z":
+            break
+        n = n * 26 + ord(ch) - 64
+    return n - 1
+
+
+def _xlsx_rows(path, sheet):
+    """Rows (lists of strings) of worksheet `sheet` in an .xlsx workbook, read with zipfile + ElementTree.
+
+    Shared and inline strings are resolved; a numeric cell keeps its stored text, which Excel writes at full
+    double precision ('0.18243374902572096'); a skipped cell is ''.
+    """
+    with zipfile.ZipFile(path) as zf:
+        rids = {s.get("name"): s.get(_XL_REL) for s in _xlsx_part(zf, "xl/workbook.xml").iter(_XL + "sheet")}
+        if sheet not in rids:
+            raise SchemaError(f"{path}: no worksheet named {sheet!r} (found {sorted(rids)})")
+        rels = {r.get("Id"): r for r in _xlsx_part(zf, "xl/_rels/workbook.xml.rels")}
+        part = lambda r: "xl/" + r.get("Target").removeprefix("/xl/")  # noqa: E731
+        shared = []
+        for r in rels.values():
+            if r.get("Type", "").endswith("/sharedStrings"):
+                shared = ["".join(t.text or "" for t in si.findall(_XL + "t") + si.findall(f"{_XL}r/{_XL}t"))
+                          for si in _xlsx_part(zf, part(r)).iter(_XL + "si")]
+        rows = []
+        for row in _xlsx_part(zf, part(rels[rids[sheet]])).iter(_XL + "row"):
+            out = []
+            for c in row.iter(_XL + "c"):
+                j = _col_index(c.get("r")) if c.get("r") else len(out)
+                if j < len(out):
+                    raise SchemaError(f"{path}: cell {c.get('r')} out of order")
+                kind, v = c.get("t"), c.find(_XL + "v")
+                if kind == "inlineStr":
+                    val = "".join(t.text or "" for t in c.iter(_XL + "t"))
+                else:
+                    val = "" if v is None or v.text is None else v.text
+                    if kind == "s":
+                        val = shared[int(val)]
+                out += [""] * (j - len(out)) + [val]
+            rows.append(out)
+        return rows
+
+
 def _read_table(path, anchor, columns, delimiter="\t", encoding="latin1"):
+    return _table(path, _rows(path, delimiter, encoding), anchor, columns)
+
+
+def _table(path, rows, anchor, columns):
     """Records (dicts keyed by `columns` keys, stripped strings) from the table whose header row starts with `anchor`.
 
     `columns` maps output key -> header text (matched case/space-insensitively). A header text ending in
     '*' matches any header that ends with the rest (for year-stamped names like 'FY 2025 CBSA').
+    `path` only labels errors; `rows` are the file's rows as lists of strings.
     """
-    rows = _rows(path, delimiter, encoding)
     target = _norm(anchor)
     for i, row in enumerate(rows):
         if row and _norm(row[0]) == target:
@@ -88,8 +156,12 @@ def _index_by_ccn(path, records, build):
     return out
 
 
-def read_supplemental(path):
-    """HRRP supplemental file -> {ccn: {paf, dual, peer, nm, c: {COND: {n, err, med, flag, ratio}}}}."""
+def read_supplemental(path, sheet=None):
+    """HRRP supplemental file -> {ccn: {paf, dual, peer, nm, c: {COND: {n, err, med, flag, ratio}}}}.
+
+    With `sheet`, `path` is CMS's Excel workbook and values keep full precision; without it, `path` is the
+    tab-delimited export of that sheet, rounded to 4 decimals.
+    """
     fields = {"n": "Number of eligible discharges for {}", "err": "ERR for {}", "med": "Peer group median ERR for {}",
               "flag": "Penalty indicator for {}", "ratio": "DRG payment ratio for {}"}
     columns = {"ccn": "Hospital CCN", "paf": "Payment adjustment factor", "dual": "Dual proportion",
@@ -103,7 +175,8 @@ def read_supplemental(path):
                       "flag": 1 if r[f"{k}.flag"].upper() == "Y" else 0, "ratio": num(r[f"{k}.ratio"])}
                   for k in CONDITIONS},
         }
-    return _index_by_ccn(path, _read_table(path, "Hospital CCN", columns), build)
+    rows = _xlsx_rows(path, sheet) if sheet else _rows(path)
+    return _index_by_ccn(path, _table(path, rows, "Hospital CCN", columns), build)
 
 
 def read_table15(path, fy):
