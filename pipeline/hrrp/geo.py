@@ -90,7 +90,8 @@ def county_key(st, name):
     return st, "".join(ch for ch in n if ch.isalnum())
 
 
-Counties = namedtuple("Counties", "centroid by_name shape name")
+# named: {(state, normalized name): the atlas spelling} ("DeKalb", "Fond du Lac"); None in hand-built test fixtures.
+Counties = namedtuple("Counties", "centroid by_name shape name named", defaults=(None,))
 
 
 def _polygons(g):
@@ -103,7 +104,7 @@ def read_counties(path):
     and each county's polygons ([outer ring, *hole rings] in lon/lat) and atlas name by FIPS."""
     topo = json.loads(Path(path).read_text(encoding="utf-8"))
     arcs = _decode_arcs(topo)
-    out = Counties({}, {}, {}, {})
+    out = Counties({}, {}, {}, {}, {})
     for g in topo["objects"]["counties"]["geometries"]:
         polys = [[_ring(arcs, r) for r in poly] for poly in _polygons(g)]
         if not polys:
@@ -114,6 +115,7 @@ def read_counties(path):
         st = STATE_FIPS.get(fips[:2])
         if st:
             out.by_name.setdefault(county_key(st, name), (lat, lon))
+            out.named.setdefault(county_key(st, name), name)
     return out
 
 

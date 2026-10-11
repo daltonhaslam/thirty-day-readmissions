@@ -14,13 +14,13 @@ test('worksheet check: matches, or differs by the gap', () => {
   assert.equal(factorCheck(h, 0.9949), '· differs by 0.0001');
 });
 
-test('worksheet line 4 is the unrounded excess to four decimals, and a sliver above zero reads "< 0.0001"', () => {
-  // 1.02484 - 0.99276 = 0.03208: CMS's unrounded excess, not 1.0248 - 0.9928 as lines 2 and 3 print.
+test('worksheet line 4 is the stored excess to four decimals, and a sliver above zero reads "< 0.0001"', () => {
+  // 1.02484 - 0.99276 = 0.03208: the stored excess, not 1.0248 - 0.9928 as lines 2 and 3 print.
   assert.equal(excessText(1.02484, 0.99276), '+0.0321');
   assert.equal(excessText(1.0899, 0.9928), '+0.0971');
   assert.equal(excessText(0.99284, 0.99281), '< 0.0001');
   assert.equal(excessText(0.9929, 0.99281), '+0.0001');
-  assert.equal(WORKSHEET_NOTE, 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use full-precision values, so the last digit can differ from a hand calculation.');
+  assert.equal(WORKSHEET_NOTE, 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use the site\'s stored values, kept to six or more decimals, so the last digit can differ from a hand calculation.');
 });
 
 const edition = { fy: 2027, label: 'FY2027' };
@@ -43,6 +43,8 @@ test('accuracy line dates the cost-report check, and stays harmless on a partial
 test('assumption rows: MDH add-on through the end date, rate drift, inactive count', () => {
   const rows = assumptionRows({ meta: meta(), edition, hospitals });
   assert.deepEqual(find(rows, /^Payments priced/), ['Payments priced at FY2027 rates', 'Runs about 6.6% above FY2024 cost reports, by design']);
+  const low = assumptionRows({ meta: { ...meta(), dollarCheck: { ...DOLLAR_CHECK, rateDrift: 0.97 } }, edition, hospitals });
+  assert.equal(find(low, /^Payments priced/)[1], 'Runs about 3.0% below FY2024 cost reports, by design');
   assert.match(find(rows, /Medicare-dependent/)[0], /^Medicare-dependent add-on included for Oct–Dec 2026 only, assuming MDH status ends December 31, 2026, as current law says \(2 hospitals\)$/);
   assert.match(find(rows, /Medicare-dependent/)[1], /up to about 33% for some$/);
   assert.deepEqual(find(rows, /no longer active/), ['1 hospital CMS lists as no longer active is still shown', 'CMS will not pay it under this ID, so any cut it has is unlikely to be collected']);

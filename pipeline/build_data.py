@@ -287,7 +287,7 @@ def _between(lo, hi):
 DOLLAR_CHECK_FIELDS = {
     "asOf": (_is_date, "a YYYY-MM-DD date"),
     "source": (lambda v: isinstance(v, str) and v.strip() != "", "a non-empty string"),
-    "costFy": (_is_int, "an integer"),
+    "costFy": (lambda v: _is_int(v) and 2013 <= v <= FY, f"a fiscal year from 2013 to {FY}"),
     "n": (lambda v: _is_int(v) and v > 0, "a positive integer"),
     "rateDrift": (_between(0.5, 2), "a number between 0.5 and 2"),
     **{f: (_between(0, 100), "a percentage between 0 and 100") for f in ("within10", "within15", "within15Small", "within15Large")},
@@ -406,8 +406,13 @@ def county_label(g, st, fips, counties, point=None):
     says so (point: the street-address point, if any); otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT")
     the impact-file county's atlas name, a city when its FIPS code is one."""
     key = geo.county_key(st, g.get("county"))
-    if key in counties.by_name or (key[0], key[1].removesuffix("city")) in counties.by_name or not counties.name.get(fips):
-        name = names.smart_title(g.get("county"))
+    city_key = (key[0], key[1].removesuffix("city"))
+    if key in counties.by_name or city_key in counties.by_name or not counties.name.get(fips):
+        atlas = counties.named if counties.named is not None else {
+            geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
+        # The atlas's spelling ("DeKalb", "Fond du Lac"); outside the independent-city states a county written as its
+        # city ("SALT LAKE CITY") is that county; Care Compare's "Richmond City" stays as written.
+        name = atlas.get(key) or (atlas.get(city_key) if st not in CITY_STATES else None) or names.smart_title(g.get("county"))
         return place_name(name, st, named_city(name, st, fips, point, counties))
     return place_name(counties.name[fips], st, independent_city(fips))
 
@@ -449,7 +454,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
         "county": (place_name(fips_county, st, independent_city(fips)) if fips_county
-                   else county_label(g, st, fips, ref.counties, point)) or None,
+                   else county_label(g, st, fips, ref.counties, point if gsrc == "address" else None)) or None,
         "zip": g.get("zip"),
         "lat": rnd(lat, 4), "lon": rnd(lon, 4), "geo": gsrc,
         "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),

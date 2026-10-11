@@ -84,7 +84,8 @@ class CountyLabelTest(unittest.TestCase):
     NAMES = {"11001": "District of Columbia", "51760": "Richmond", "51159": "Richmond", "51095": "James City",
              "51830": "Williamsburg", "51059": "Fairfax", "51600": "Fairfax", "51775": "Salem", "51683": "Manassas",
              "51153": "Prince William", "29189": "St. Louis", "29510": "St. Louis", "32510": "Carson City",
-             "06007": "Butte", "22033": "East Baton Rouge", "02090": "Fairbanks North Star", "46102": "Oglala Lakota"}
+             "06007": "Butte", "22033": "East Baton Rouge", "02090": "Fairbanks North Star", "46102": "Oglala Lakota",
+             "17037": "DeKalb", "55039": "Fond du Lac", "49035": "Salt Lake"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
                             shape={"51059": [SQUARE]}, name=NAMES)
 
@@ -100,6 +101,13 @@ class CountyLabelTest(unittest.TestCase):
         self.assertEqual(self.label("CA", "BUTTTE", "06007"), "Butte County")
         self.assertEqual(self.label("CA", "BUTTTE", "06999"), "Buttte County")  # no atlas county: Care Compare's name
         self.assertIsNone(self.label("CA", None, None))
+
+    def test_a_known_county_takes_the_atlas_spelling(self):
+        self.assertEqual(self.label("IL", "DE KALB", "17037"), "DeKalb County")
+        self.assertEqual(self.label("WI", "FOND DU LAC", "55039"), "Fond du Lac County")
+
+    def test_a_county_written_as_its_city_outside_the_independent_city_states_is_that_county(self):
+        self.assertEqual(self.label("UT", "SALT LAKE CITY", "49035"), "Salt Lake County")
 
     def test_known_county_and_virginia_city_keep_care_compares_wording(self):
         self.assertEqual(self.label("DC", "DISTRICT OF COLUMBIA", "11001"), "District of Columbia")
@@ -644,13 +652,13 @@ class DollarCheckTest(unittest.TestCase):
     def test_a_malformed_field_fails_the_build_naming_it(self):
         for field, bad, want in [("asOf", "Oct 2026", "a YYYY-MM-DD date"), ("asOf", "2026-02-30", "a YYYY-MM-DD date"),
                                  ("source", "", "a non-empty string"), ("source", 7, "a non-empty string"),
-                                 ("costFy", "2024", "an integer"), ("costFy", 2024.0, "an integer"), ("costFy", True, "an integer"),
+                                 ("costFy", "2024", "a fiscal year"), ("costFy", 2024.0, "a fiscal year"), ("costFy", True, "a fiscal year"), ("costFy", 24, "a fiscal year"),
                                  ("n", None, "a positive integer"), ("n", 2845.0, "a positive integer"),
                                  ("n", 0, "a positive integer"), ("n", -3, "a positive integer"), ("n", True, "a positive integer"),
                                  ("rateDrift", "1.066", "a number between 0.5 and 2"),
                                  ("within15", True, "a percentage between 0 and 100"),
                                  ("within10", float("nan"), "a percentage between 0 and 100")]:
-            with self.subTest(field=field, bad=bad), self.assertRaisesRegex(SystemExit, f"{field} should be {want}, not "):
+            with self.subTest(field=field, bad=bad), self.assertRaisesRegex(SystemExit, f"{field} should be {want}.*, not "):
                 self.load({**self.GOOD, field: bad})
 
     def test_an_out_of_range_field_fails_the_build_naming_it(self):

@@ -9,13 +9,13 @@ import { omnibox } from '../ui/omnibox.js';
 import { estTag } from './util.js';
 
 const f4 = (v) => (v == null ? '—' : v.toFixed(4));
-// Line 4 for a counted condition: CMS's unrounded excess (line 2 minus line 3) to four decimals, or "< 0.0001" when it
+// Line 4 for a counted condition: the stored excess (line 2 minus line 3) to four decimals, or "< 0.0001" when it
 // is above zero but prints as 0.0000.
 export const excessText = (err, med) => {
   const s = (err - med).toFixed(4);
   return s === '0.0000' ? '< 0.0001' : `+${s}`;
 };
-export const WORKSHEET_NOTE = 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use full-precision values, so the last digit can differ from a hand calculation.';
+export const WORKSHEET_NOTE = 'Ratios, medians, weights, and the neutrality modifier are printed to four decimals; lines 4 and 6 use the site\'s stored values, kept to six or more decimals, so the last digit can differ from a hand calculation.';
 
 // The worksheet's last check: does line 9 match CMS's factor.
 export function factorCheck(hosp, recomputed) {

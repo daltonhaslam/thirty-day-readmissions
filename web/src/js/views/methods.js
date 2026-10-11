@@ -56,7 +56,7 @@ export function assumptionRows(D) {
   const nNoEst = noEstimate(D.hospitals);
   return [
     [`Penalty = the ${E.label} cut (1 − adjustment factor) × the hospital's base DRG payments`, 'Mirrors how CMS applies the cut; the cut factor itself is CMS\'s exact value'],
-    [`Payments priced at ${E.label} rates`, `Runs about ${fmtPct((dc.rateDrift - 1) * 100, 1)} above FY${dc.costFy} cost reports, by design`],
+    [`Payments priced at ${E.label} rates`, `Runs about ${fmtPct(Math.abs(dc.rateDrift - 1) * 100, 1)} ${dc.rateDrift >= 1 ? 'above' : 'below'} FY${dc.costFy} cost reports, by design`],
     [`Medicare volume taken from FY${E.fy - 2}`, `Off in proportion if a hospital's ${E.label} volume differs`],
     ['Traditional Medicare only', 'Medicare Advantage enters the ratios but is not cut'],
     ['Sole community hospitals priced at the federal rate', 'What the law requires'],
