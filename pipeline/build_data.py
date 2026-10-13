@@ -439,10 +439,10 @@ def county_label(g, st, fips, counties, point=None, moved=None):
         label = place_name(counties.name[fips], st, independent_city(fips))
         if not known:
             return label, "unknown county; the impact-file county's name"
-        same = geo.county_key(st, counties.name[fips]) in (key, stem) and (
-            st not in CITY_STATES or ends_city == independent_city(fips))
-        if moved == "county" and not same:
-            return label, "Care Compare names another place and no street address settles it; took the impact file's"
+        if moved == "county":  # a far-off point, not an address: is the impact-file county the place Care Compare names?
+            places = atlas_fips(st, stem if ends_city else key, counties)  # where a county and a city share it, its word
+            if fips not in places or (len(places) > 1 and independent_city(fips) != ends_city):
+                return label, "Care Compare names another place and no street address settles it; took the impact file's"
         return label, None
     atlas = counties.named if counties.named is not None else {
         geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}

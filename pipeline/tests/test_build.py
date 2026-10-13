@@ -209,7 +209,7 @@ class StrayPointTest(unittest.TestCase):
         for zip_pt, src in [((0.2, 0.3), "zip"), ((0.5, 2.0), "county")]:
             *_, gsrc, fips_county = self.locate(zip_pt, point=(0.5, 2.0))  # the address point, ~111 km out, is set aside
             self.assertEqual(gsrc, src)
-            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, fips_county and gsrc),
+            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, gsrc if fips_county else None),
                              ("Squareville County", "unknown county; the impact-file county's name"))
 
     def test_fips_missing_from_atlas_keeps_zip(self):
@@ -331,6 +331,9 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("MO", "ST. LOUIS", "29510", moved="county"), ("St. Louis City", other))  # bare name: county
         self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", moved="county"), ("St. Louis City", None))  # same place
         self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035", moved="county"), ("Salt Lake County", None))
+        self.assertEqual(self.county("NV", "CARSON CITY", "32510", moved="county"), ("Carson City", None))  # a city by name
+        self.assertEqual(self.county("VA", "RICHMOND CITY", "51760", moved="county"), ("Richmond City", None))
+        self.assertEqual(self.county("VA", "RICHMOND", "51159", moved="county"), ("Richmond County", None))
         self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="address"), ("Cole County", None))  # the address decides
 
     def test_the_gate_lists_every_unchecked_county_and_fails_above_the_limit(self):
