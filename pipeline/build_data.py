@@ -429,8 +429,9 @@ def county_label(g, st, fips, counties, point=None, moved=None):
     key = geo.county_key(st, raw)
     stem = (key[0], key[1].removesuffix("city"))
     ends_city = key not in counties.by_name and stem != key  # "RICHMOND CITY", which the atlas has as "Richmond"
-    says_city = ends_city and stem in counties.by_name
-    if says_city:
+    base = stem if ends_city else key  # Care Compare's name without the "City" it ends in
+    says = "city" if ends_city else "county" if re.search(r"(?i)\scounty\W*$", raw or "") else None
+    if ends_city and stem in counties.by_name:
         places = atlas_fips(st, stem, counties)
         known = any(map(independent_city, places)) if st in CITY_STATES else fips in places
     else:
@@ -440,15 +441,16 @@ def county_label(g, st, fips, counties, point=None, moved=None):
         if not known:
             return label, "unknown county; the impact-file county's name"
         if moved == "county":  # a far-off point, not an address: is the impact-file county the place Care Compare names?
-            places = atlas_fips(st, stem if ends_city else key, counties)  # where a county and a city share it, its word
-            if fips not in places or (len(places) > 1 and independent_city(fips) != ends_city):
+            if fips not in atlas_fips(st, base, counties):
                 return label, "Care Compare names another place and no street address settles it; took the impact file's"
+            city, settled = named_city(base, says, st, fips, None, counties)
+            if not settled or city != independent_city(fips):
+                return label, "county or city? Care Compare and the impact file disagree and no street address settles it; took the impact file's"
         return label, None
     atlas = counties.named if counties.named is not None else {
         geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
-    name = atlas.get(stem if says_city else key) or names.smart_title(raw)
-    says = "city" if ends_city else "county" if re.search(r"(?i)\scounty\W*$", raw or "") else None
-    city, settled = named_city(stem if ends_city else key, says, st, fips, point, counties)
+    name = atlas.get(base) or names.smart_title(raw)
+    city, settled = named_city(base, says, st, fips, point, counties)
     if not known:
         doubt = "unknown county; Care Compare's name alone" if name else "no county"
     elif not settled:
