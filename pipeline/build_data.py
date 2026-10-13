@@ -375,28 +375,30 @@ def atlas_fips(st, key, counties):
     return sorted(f for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2]) == st and geo.county_key(st, n) == key)
 
 
-def named_city(name, st, fips, point, counties):
-    """True when Care Compare's county name is an independent city, False when a county, None when the evidence does
-    not settle it (the caller takes the county). The atlas place of that name in the state decides ("James City" is a
-    county; "Carson City" and a bare "Salem" are cities). Where a county and a city share the name ("Fairfax",
-    "St. Louis"), the one holding the hospital's street-address point decides, else the impact-file county (fips) if it
-    is either. Care Compare's "RICHMOND CITY", which the atlas has as "Richmond", is the city unless the street address
-    lies in the county of that name. Inova Fair Oaks (490101) is filed under Fairfax city, but its address is in
-    Fairfax County."""
-    if st not in CITY_STATES or not name:
-        return False
-    key = geo.county_key(st, name)
+def named_city(key, says, st, fips, point, counties):
+    """(city, settled) for Care Compare's county name, normalized (`key`, "X City" without its "City"): city is True for
+    an independent city; settled is False when the evidence conflicts or runs out, and the caller lists it. `says` is
+    Care Compare's own word, "city" ("RICHMOND CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the
+    county by Care Compare's style. Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by
+    that place ("James City" is a county; "Carson City" and "Salem" are cities). Where a county and a city share it
+    ("Fairfax", "St. Louis"), the one holding the street-address point decides, then Care Compare's word, then the
+    impact-file county (fips) if it is either; a bare name the impact file puts in the city, or that nothing decides,
+    is unsettled. Inova Fair Oaks (490101) is filed under Fairfax city, but its address is in Fairfax County."""
+    if st not in CITY_STATES:
+        return False, True
     same = atlas_fips(st, key, counties)
-    says_city = not same and bool(re.search(r"\scity$", name.strip(), re.I))
-    if says_city:
-        same = atlas_fips(st, (st, key[1].removesuffix("city")), counties)
-    if not same:
-        return says_city
+    claim = {"city": True, "county": False}.get(says)
+    if len(same) < 2:
+        city = independent_city(same[0]) if same else bool(claim)
+        return city, claim in (None, city)
     inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
-    if says_city:
-        return None if inside and not any(map(independent_city, inside)) else True
-    picked = inside or [f for f in same if f == fips] or (same if len(same) == 1 else None)
-    return independent_city(picked[0]) if picked else None
+    by_fips = independent_city(fips) if fips in same else None
+    if inside:
+        city = independent_city(inside[0])
+        return city, claim in (None, city)
+    if claim is not None:
+        return claim, by_fips in (None, claim)
+    return bool(by_fips), by_fips is False
 
 
 def place_name(name, st, city):
@@ -424,23 +426,27 @@ def county_label(g, st, fips, counties, point=None, moved=False):
     raw = g.get("county")
     key = geo.county_key(st, raw)
     stem = (key[0], key[1].removesuffix("city"))
-    known = key in counties.by_name
-    if not known and stem != key and stem in counties.by_name:
+    ends_city = key not in counties.by_name and stem != key  # "RICHMOND CITY", which the atlas has as "Richmond"
+    says_city = ends_city and stem in counties.by_name
+    if says_city:
         places = atlas_fips(st, stem, counties)
         known = any(map(independent_city, places)) if st in CITY_STATES else fips in places
+    else:
+        known = key in counties.by_name
     if moved or (not known and counties.name.get(fips)):
         return (place_name(counties.name[fips], st, independent_city(fips)),
                 None if known else "unknown county; the impact-file county's name")
     atlas = counties.named if counties.named is not None else {
         geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
-    name = atlas.get(key) or (atlas.get(stem) if known else None) or names.smart_title(raw)
-    city = named_city(raw, st, fips, point, counties)
-    if city is None:
-        doubt = "a county and a city share the name and the evidence does not settle which; took the county"
-    elif known:
-        doubt = None
+    name = atlas.get(stem if says_city else key) or names.smart_title(raw)
+    says = "city" if ends_city else "county" if re.search(r"(?i)\scounty\W*$", raw or "") else None
+    city, settled = named_city(stem if ends_city else key, says, st, fips, point, counties)
+    if not known:
+        doubt = "unknown county; Care Compare's name alone" if name else "no county"
+    elif not settled:
+        doubt = f"county or city? Care Compare, the street address, and the impact file do not settle it; took the {'city' if city else 'county'}"
     else:
-        doubt = "unknown county; Care Compare's spelling" if name else "no county"
+        doubt = None
     return place_name(name, st, city) or None, doubt
 
 
