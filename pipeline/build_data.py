@@ -414,15 +414,17 @@ def place_name(name, st, city):
     return f"{name} County"
 
 
-def county_label(g, st, fips, counties, point=None, moved=False):
+def county_label(g, st, fips, counties, point=None, moved=None):
     """(label, doubt): the hospital's county or independent city with its legal suffix (place_name), and why the rules
     could not check it, or None. The label is Care Compare's name in the atlas's spelling when the atlas knows it for
     that state ("DE KALB" is "DeKalb"), a city when named_city() says so (point: the street-address point, if the map
     kept it). Care Compare's "X City" for an atlas X is the independent city X in the states that have them
     ("RICHMOND CITY"), and elsewhere the county X when the impact file puts the hospital there ("SALT LAKE CITY"; not
     "SIOUX CITY", which is in Woodbury County). Otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT"), or when
-    locate() `moved` the hospital to the impact-file county, the label is that county's atlas name, a city when its
-    FIPS code is one. Doubts: Care Compare's name is missing or unknown, or named_city() could not settle county or city."""
+    locate() moved the hospital to the impact-file county (`moved`: its source, "address" for a street address inside
+    that county, "county" for a ZIP or county point far outside it), the label is that county's atlas name, a city
+    when its FIPS code is one. Doubts: Care Compare's name is missing or unknown; named_city() could not settle county
+    or city; or a far-off point, not a street address, moved a hospital from the place Care Compare names."""
     raw = g.get("county")
     key = geo.county_key(st, raw)
     stem = (key[0], key[1].removesuffix("city"))
@@ -434,8 +436,14 @@ def county_label(g, st, fips, counties, point=None, moved=False):
     else:
         known = key in counties.by_name
     if moved or (not known and counties.name.get(fips)):
-        return (place_name(counties.name[fips], st, independent_city(fips)),
-                None if known else "unknown county; the impact-file county's name")
+        label = place_name(counties.name[fips], st, independent_city(fips))
+        if not known:
+            return label, "unknown county; the impact-file county's name"
+        same = geo.county_key(st, counties.name[fips]) in (key, stem) and (
+            st not in CITY_STATES or ends_city == independent_city(fips))
+        if moved == "county" and not same:
+            return label, "Care Compare names another place and no street address settles it; took the impact file's"
+        return label, None
     atlas = counties.named if counties.named is not None else {
         geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
     name = atlas.get(stem if says_city else key) or names.smart_title(raw)
@@ -490,7 +498,8 @@ def hospital_record(ccn, s, imp, g, p, ref):
     lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, point)
     if fips_county:
         ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
-    county, doubt = county_label(g, st, fips, ref.counties, point if gsrc == "address" else None, bool(fips_county))
+    county, doubt = county_label(g, st, fips, ref.counties, point if gsrc == "address" else None,
+                                 gsrc if fips_county else None)
     if doubt:
         ref.unchecked.append((ccn, g.get("county"), county, doubt))
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None

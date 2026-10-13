@@ -96,7 +96,7 @@ class CountyLabelTest(unittest.TestCase):
                             shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
                             name=NAMES)
 
-    def county(self, st, county, fips, point=None, moved=False):
+    def county(self, st, county, fips, point=None, moved=None):
         import build_data
         return build_data.county_label({"county": county}, st, fips, self.COUNTIES, point, moved)
 
@@ -209,7 +209,7 @@ class StrayPointTest(unittest.TestCase):
         for zip_pt, src in [((0.2, 0.3), "zip"), ((0.5, 2.0), "county")]:
             *_, gsrc, fips_county = self.locate(zip_pt, point=(0.5, 2.0))  # the address point, ~111 km out, is set aside
             self.assertEqual(gsrc, src)
-            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, bool(fips_county)),
+            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, fips_county and gsrc),
                              ("Squareville County", "unknown county; the impact-file county's name"))
 
     def test_fips_missing_from_atlas_keeps_zip(self):
@@ -321,8 +321,17 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("TX", "NARNIA", None), ("Narnia County", spelling))
         self.assertEqual(self.county("TX", None, "48201"), ("Harris County", impact))
         self.assertEqual(self.county("TX", None, None), (None, "no county"))
-        self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved=True), ("East Baton Rouge Parish", impact))
-        self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved=True), ("Williamsburg City", None))  # known, moved
+        self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved="address"), ("East Baton Rouge Parish", impact))
+        self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved="address"), ("Williamsburg City", None))  # address
+
+    def test_a_far_off_point_moving_a_hospital_from_care_compares_place_is_listed(self):
+        other = "Care Compare names another place and no street address settles it; took the impact file's"
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29189", moved="county"), ("St. Louis County", other))
+        self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="county"), ("Cole County", other))
+        self.assertEqual(self.county("MO", "ST. LOUIS", "29510", moved="county"), ("St. Louis City", other))  # bare name: county
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", moved="county"), ("St. Louis City", None))  # same place
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035", moved="county"), ("Salt Lake County", None))
+        self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="address"), ("Cole County", None))  # the address decides
 
     def test_the_gate_lists_every_unchecked_county_and_fails_above_the_limit(self):
         import build_data
