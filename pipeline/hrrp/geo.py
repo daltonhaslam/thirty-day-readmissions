@@ -86,8 +86,11 @@ def _centroid(ring):
 
 def county_key(st, name):
     """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'SAINT-LOUIS COUNTY' == 'St. Louis', 'DONA ANA' == 'Doña Ana'."""
-    n = "".join(ch for ch in unicodedata.normalize("NFKD", name or "") if not unicodedata.combining(ch)).lower().strip()
-    n = re.sub(r"\bsaint(e?)\b", r"st\1", n)
+    n = (name or "").lower().strip()
+    if not n.isascii():
+        n = "".join(ch for ch in unicodedata.normalize("NFKD", n) if not unicodedata.combining(ch))
+    if "saint" in n:
+        n = re.sub(r"\bsaint(e?)\b", r"st\1", n)
     for suffix in (" county", " parish", " city and borough", " borough", " census area", " municipality"):
         n = n.removesuffix(suffix)
     return st, "".join(ch for ch in n if ch.isalnum())
