@@ -1,7 +1,10 @@
+import contextlib
+import io
 import json
 import math
 import re
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from hrrp import geo, names
@@ -85,13 +88,20 @@ class CountyLabelTest(unittest.TestCase):
              "51830": "Williamsburg", "51059": "Fairfax", "51600": "Fairfax", "51775": "Salem", "51683": "Manassas",
              "51153": "Prince William", "29189": "St. Louis", "29510": "St. Louis", "32510": "Carson City",
              "06007": "Butte", "22033": "East Baton Rouge", "02090": "Fairbanks North Star", "46102": "Oglala Lakota",
-             "17037": "DeKalb", "55039": "Fond du Lac", "49035": "Salt Lake"}
+             "17037": "DeKalb", "55039": "Fond du Lac", "49035": "Salt Lake", "13089": "DeKalb", "17043": "DuPage",
+             "17099": "LaSalle", "22059": "LaSalle", "29186": "Ste. Genevieve", "35013": "Doña Ana", "48201": "Harris",
+             "09003": "Hartford", "51019": "Bedford", "29051": "Cole", "29099": "Jefferson", "19193": "Woodbury",
+             "19167": "Sioux", "49011": "Davis", "51161": "Roanoke", "51770": "Roanoke", "51510": "Alexandria"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
-                            shape={"51059": [SQUARE]}, name=NAMES)
+                            shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
+                            name=NAMES)
+
+    def county(self, st, county, fips, point=None, moved=None):
+        import build_data
+        return build_data.county_label({"county": county}, st, fips, self.COUNTIES, point, moved)
 
     def label(self, st, county, fips, point=None):
-        import build_data
-        return build_data.county_label({"county": county}, st, fips, self.COUNTIES, point)
+        return self.county(st, county, fips, point)[0]
 
     def test_unknown_care_compare_county_falls_back_to_the_impact_file_county(self):
         self.assertEqual(self.label("DC", "THE DISTRICT", "11001"), "District of Columbia")
@@ -194,9 +204,162 @@ class StrayPointTest(unittest.TestCase):
     def test_far_outside_uses_fips_centroid_and_name(self):
         self.assertEqual(self.locate((0.5, 2.0)), (0.5, 0.5, "county", "Squareville"))  # ~111 km out
 
+    def test_a_stray_address_point_is_no_evidence_for_the_county(self):
+        import build_data
+        for zip_pt, src in [((0.2, 0.3), "zip"), ((0.5, 2.0), "county")]:
+            *_, gsrc, fips_county = self.locate(zip_pt, point=(0.5, 2.0))  # the address point, ~111 km out, is set aside
+            self.assertEqual(gsrc, src)
+            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, fips_county and gsrc),
+                             ("Squareville County", "unknown county; the impact-file county's name"))
+
     def test_fips_missing_from_atlas_keeps_zip(self):
         self.assertEqual(self.locate((5.0, 5.0), {"fips": "09110"}), (5.0, 5.0, "zip", None))
         self.assertEqual(self.locate((5.0, 5.0), {"fips": "99002"}), (5.0, 5.0, "zip", None))  # centroid known, no shape
+
+
+class CountyKeyTest(unittest.TestCase):
+    def test_spacing_punctuation_saint_and_accents_do_not_matter(self):
+        for a, b in [("DE KALB", "DeKalb"), ("  DE   KALB  ", "DeKalb"), ("DE-KALB", "DeKalb"), ("LA SALLE", "LaSalle"),
+                     ("SAINT LOUIS", "St. Louis"), ("SAINT-LOUIS COUNTY", "St. Louis"), ("ST.LOUIS", "St. Louis"),
+                     ("SAINTE GENEVIEVE", "Ste. Genevieve"), ("DONA ANA", "Doña Ana"), ("FOND DU LAC ", "Fond du Lac")]:
+            self.assertEqual(geo.county_key("ZZ", a), geo.county_key("ZZ", b), a)
+
+    def test_saint_is_only_a_whole_word(self):
+        self.assertEqual(geo.county_key("ZZ", "TOUSSAINT"), ("ZZ", "toussaint"))
+        self.assertEqual(geo.county_key("ZZ", None), ("ZZ", ""))
+
+
+# (state, Care Compare's county, impact-file FIPS, label) that the rules check (no doubt): the known cases, misspellings,
+# and the collisions. CountyDoubtTest runs them on CountyLabelTest's fixture, RealAtlasCountyTest on the pinned atlas.
+CHECKED_COUNTIES = [
+    ("IL", "DE KALB", "17037", "DeKalb County"), ("IL", "DEKALB  ", "17037", "DeKalb County"), ("IL", "De-Kalb", "17037", "DeKalb County"),
+    ("GA", "DE KALB", "13089", "DeKalb County"), ("IL", "DU PAGE", "17043", "DuPage County"),
+    ("WI", "FOND DU LAC", "55039", "Fond du Lac County"), ("NM", "DONA ANA", "35013", "Doña Ana County"),
+    ("IL", "LA SALLE", "17099", "LaSalle County"), ("IL", "LA  SALLE", "17099", "LaSalle County"),
+    ("LA", "LA SALLE", "22059", "LaSalle Parish"), ("LA", "LA SALLE", "17099", "LaSalle Parish"),  # the state decides
+    ("MO", "ST. LOUIS", "29189", "St. Louis County"), ("MO", "SAINT LOUIS", "29189", "St. Louis County"),
+    ("MO", "ST. LOUIS COUNTY", "29189", "St. Louis County"), ("VA", "RICHMONDCITY", "51760", "Richmond City"),
+    ("VA", "RICHMOND CITY.", "51760", "Richmond City"), ("VA", "RICHMOND-CITY", "51760", "Richmond City"),
+    ("MO", "SAINT-LOUIS", "29189", "St. Louis County"), ("MO", "ST LOUIS", "29189", "St. Louis County"),
+    ("MO", "ST. LOUIS CITY", "29510", "St. Louis City"),
+    ("MO", "SAINT LOUIS CITY", "29510", "St. Louis City"), ("MO", "STE. GENEVIEVE", "29186", "Ste. Genevieve County"),
+    ("MO", "SAINTE GENEVIEVE", "29186", "Ste. Genevieve County"), ("LA", "EAST BATON ROUGE", "22033", "East Baton Rouge Parish"),
+    ("AK", "FAIRBANKS NORTH STAR BOROUGH", "02090", "Fairbanks North Star"), ("VA", "RICHMOND CITY", "51760", "Richmond City"),
+    ("VA", "JAMES CITY", "51830", "James City County"), ("NV", "CARSON CITY", "32510", "Carson City"),
+    ("VA", "FAIRFAX", "51059", "Fairfax County"), ("VA", "ROANOKE CITY", "51770", "Roanoke City"),
+    ("UT", "SALT LAKE CITY", "49035", "Salt Lake County"), ("DC", "DISTRICT OF COLUMBIA", "11001", "District of Columbia"),
+    ("CT", "HARTFORD", "09110", "Hartford County"),  # a planning-region FIPS the atlas lacks; Care Compare's county is known
+]
+
+
+class HospitalCountyTest(unittest.TestCase):
+    """build_data.hospital_record: the county label sees the street-address point only when the map kept it."""
+    def record(self, point):
+        import build_data
+        ref = build_data.Ref({"11111": (0.5, 1.7)}, CountyLabelTest.COUNTIES, {"490999": point}, {}, {}, 0.25, [], {}, [])
+        x = build_data.hospital_record("490999", {"paf": 1.0, "dual": 0.1, "peer": 1, "c": {}},
+                                       {"fips": "51510", "urgeo": "OURBAN", "irb": 0},
+                                       {"county": "FAIRFAX", "zip": "11111", "st": "VA"}, {}, ref)
+        return x["geo"], x["county"], ref.unchecked
+
+    # Fairfax County is the unit square; the impact file's Alexandria city is the square 1.2 degrees east; the ZIP point
+    # is in Alexandria. Care Compare says a bare "FAIRFAX".
+    def test_a_kept_address_point_settles_county_or_city(self):
+        self.assertEqual(self.record((0.5, 0.9)), ("address", "Fairfax County", []))  # ~33 km from Alexandria: kept
+
+    def test_a_set_aside_address_point_is_no_evidence(self):
+        geo_src, county, unchecked = self.record((0.5, 0.1))  # in Fairfax County, ~122 km from Alexandria: set aside
+        self.assertEqual((geo_src, county), ("zip", "Fairfax County"))
+        self.assertRegex(unchecked[0][3], "do not settle it")  # had the stray point counted, it would be settled
+
+
+class CountyDoubtTest(unittest.TestCase):
+    """build_data.county_label's doubt and county_gate: a county the rules cannot check is listed, never silently guessed."""
+    county = CountyLabelTest.county
+    COUNTIES = CountyLabelTest.COUNTIES
+
+    def test_known_names_misspellings_and_collisions_are_checked(self):
+        for st, cc, fips, want in CHECKED_COUNTIES:
+            self.assertEqual(self.county(st, cc, fips), (want, None), (st, cc, fips))
+        # The street address in Fairfax County decides over the impact file's Fairfax city.
+        self.assertEqual(self.county("VA", "FAIRFAX", "51600", point=(0.5, 0.5)), ("Fairfax County", None))
+
+    def test_county_or_city_conflicts_and_gaps_are_listed(self):
+        for st, cc, fips, point, want in [
+                ("MO", "ST. LOUIS", "29999", None, "St. Louis County"),  # bare name, nothing decides: the county
+                ("VA", "FAIRFAX", "51510", None, "Fairfax County"),
+                ("VA", "FAIRFAX", "51600", None, "Fairfax City"),  # bare name, only the impact file says city
+                ("MO", "ST. LOUIS", "29510", None, "St. Louis City"),
+                ("VA", "ROANOKE", "51770", None, "Roanoke City"),
+                ("VA", "ROANOKE CITY", "51161", None, "Roanoke City"),
+                ("MO", "ST. LOUIS CITY", "29189", None, "St. Louis City"),  # Care Compare says city, the impact file county
+                ("MO", "ST. LOUIS COUNTY", "29510", None, "St. Louis County"),  # and the reverse
+                ("VA", "FAIRFAX COUNTY", "51600", None, "Fairfax County"),
+                ("MO", "ST. LOUIS CITY", "29189", (0.5, 0.5), "St. Louis County")]:  # the street address is in the county
+            label, doubt = self.county(st, cc, fips, point)
+            self.assertEqual(label, want, (st, cc, fips))
+            self.assertRegex(doubt, "do not settle it", (st, cc, fips))
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", (5.0, 5.0)), ("St. Louis City", None))  # address in neither
+        self.assertEqual(self.county("MO", "ST. LOUIS", "29189", (0.5, 0.5)), ("St. Louis County", None))
+
+    def test_x_city_needs_an_independent_city_x_or_elsewhere_the_impact_files_county_x(self):
+        impact = "unknown county; the impact-file county's name"
+        self.assertEqual(self.county("VA", "BEDFORD CITY", "51019"), ("Bedford County", impact))  # no longer a city
+        self.assertEqual(self.county("MO", "JEFFERSON CITY", "29051"), ("Cole County", impact))  # a city in Cole County
+        self.assertEqual(self.county("IA", "SIOUX CITY", "19193"), ("Woodbury County", impact))  # not Sioux County
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49011"), ("Davis County", impact))  # the impact file disagrees
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035"), ("Salt Lake County", None))
+        alone = "unknown county; Care Compare's name alone"  # no atlas county for the impact file either
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", None), ("Salt Lake County", alone))
+        self.assertEqual(self.county("IA", "SIOUX CITY", None), ("Sioux County", alone))
+        self.assertEqual(self.county("VA", "BEDFORD CITY", None), ("Bedford County", alone))
+        self.assertEqual(self.county("MD", "ELLICOTT CITY", None), ("Ellicott City", alone))
+
+    def test_an_unknown_or_missing_county_says_where_its_label_came_from(self):
+        impact, spelling = "unknown county; the impact-file county's name", "unknown county; Care Compare's name alone"
+        self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", impact))
+        self.assertEqual(self.county("TX", "NARNIA", None), ("Narnia County", spelling))
+        self.assertEqual(self.county("TX", None, "48201"), ("Harris County", impact))
+        self.assertEqual(self.county("TX", None, None), (None, "no county"))
+        self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved="address"), ("East Baton Rouge Parish", impact))
+        self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved="address"), ("Williamsburg City", None))  # address
+
+    def test_a_far_off_point_moving_a_hospital_from_care_compares_place_is_listed(self):
+        other = "Care Compare names another place and no street address settles it; took the impact file's"
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29189", moved="county"), ("St. Louis County", other))
+        self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="county"), ("Cole County", other))
+        self.assertEqual(self.county("MO", "ST. LOUIS", "29510", moved="county"), ("St. Louis City", other))  # bare name: county
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", moved="county"), ("St. Louis City", None))  # same place
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035", moved="county"), ("Salt Lake County", None))
+        self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="address"), ("Cole County", None))  # the address decides
+
+    def test_the_gate_lists_every_unchecked_county_and_fails_above_the_limit(self):
+        import build_data
+        rows = [("090001", "THE DISTRICT", "District of Columbia", "unknown county"), ("420117", None, "Williamsburg County", "x")]
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            build_data.county_gate(rows, 2)
+        self.assertIn("(2, at most 2): 090001 'THE DISTRICT' -> District of Columbia (unknown county); 420117 None", out.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(SystemExit, r"^2 county names .* than 1: 090001, 420117\."):
+            build_data.county_gate(rows, 1)
+
+
+@unittest.skipUnless((RAW / "us_atlas_counties" / "counties-10m.json").exists(), "raw data not fetched")
+class RealAtlasCountyTest(unittest.TestCase):
+    """CHECKED_COUNTIES against the pinned us-atlas, whose spellings Care Compare's must reach."""
+    county = CountyLabelTest.county
+
+    @classmethod
+    def setUpClass(cls):
+        cls.COUNTIES = geo.read_counties(RAW / "us_atlas_counties" / "counties-10m.json")
+
+    def test_known_names_misspellings_and_collisions_are_checked(self):
+        for st, cc, fips, want in CHECKED_COUNTIES:
+            if fips != "09110":
+                self.assertEqual(self.county(st, cc, fips), (want, None), (st, cc, fips))
+        impact = "unknown county; the impact-file county's name"
+        self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", impact))
+        self.assertEqual(self.county("IA", "SIOUX CITY", "19193"), ("Woodbury County", impact))
+        self.assertEqual(self.county("MO", "JEFFERSON CITY", "29051"), ("Cole County", impact))
 
 
 @unittest.skipUnless(OUT.exists(), "run pipeline/build_data.py first")
@@ -369,7 +532,9 @@ class FreshBuildTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import build_data
-        cls.built = json.loads(json.dumps(build_data.build(), ensure_ascii=False))
+        with mock.patch.object(build_data, "county_gate", wraps=build_data.county_gate) as gate:
+            cls.built = json.loads(json.dumps(build_data.build(), ensure_ascii=False))
+        cls.unchecked = gate.call_args[0][0]
         cls.committed = json.loads(OUT.read_text(encoding="utf-8"))
         cls.by_id = {x["id"]: x for x in cls.built["hospitals"]}
 
@@ -408,6 +573,23 @@ class FreshBuildTest(unittest.TestCase):
         self.assertFalse([x["id"] for x in hosp if x["st"] == "VA" and x["county"] == "Richmond County"])
         self.assertEqual(sum(1 for x in hosp if x["county"] and not x["county"].endswith(("County", "Parish", "City"))),
                          sum(1 for x in hosp if x["st"] in ("AK", "DC", "PR")))
+
+    def test_county_names_the_rules_cannot_check_are_pinned(self):
+        # The build fails above build_data.MAX_UNCHECKED_COUNTIES. When a Care Compare refresh changes this list,
+        # check each new label in the build report, then update both pins.
+        import build_data
+        want = {"090001": "THE DISTRICT", "090003": "THE DISTRICT", "090004": "THE DISTRICT", "090005": "THE DISTRICT",
+                "090008": "THE DISTRICT", "090011": "THE DISTRICT",
+                "190020": "E. BATON ROUGE", "190064": "E. BATON ROUGE", "190065": "E. BATON ROUGE", "190202": "E. BATON ROUGE",
+                "190251": "E. BATON ROUGE", "190316": "E. BATON ROUGE",
+                "190053": "JEFFRSON DAVIS", "280061": "SCOTT BLUFF",
+                "420117": None,  # no Care Compare record
+                "490063": "FAIRFAX", "490122": "FAIRFAX"}  # county or city: neither the address nor the impact file says
+        self.assertEqual(build_data.MAX_UNCHECKED_COUNTIES, len(want))
+        self.assertEqual({c: raw for c, raw, *_ in self.unchecked}, want)
+        self.assertEqual({c: self.by_id[c]["county"] for c in ("090008", "190020", "190053", "280061", "420117", "490063")},
+                         {"090008": "District of Columbia", "190020": "East Baton Rouge Parish", "190053": "Jefferson Davis Parish",
+                          "280061": "Scotts Bluff County", "420117": "Williamsburg County", "490063": "Fairfax County"})
 
     def test_beds_come_from_certified_counts(self):
         for ccn, n in [("360375", 30), ("220052", 205), ("240010", 2059)]:

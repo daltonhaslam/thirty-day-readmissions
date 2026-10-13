@@ -370,21 +370,35 @@ def independent_city(fips):
     return bool(fips) and geo.STATE_FIPS.get(fips[:2]) in CITY_STATES and int(fips[2:]) >= 500
 
 
-def named_city(name, st, fips, point, counties):
-    """True when Care Compare's county name is an independent city. Care Compare writes one "RICHMOND CITY", so a name
-    ending in "City" that the atlas does not have whole ("Richmond City", "Manassas City") is one. Otherwise the atlas
-    place of that name in the state decides ("James City" is a county; "Carson City" and a bare "Salem" are cities);
-    where a county and a city share the name ("Fairfax", "St. Louis"), the one holding the hospital's street-address
-    point, else the impact-file county (fips) if it is either, else the county. Inova Fair Oaks (490101) is filed under
-    Fairfax city, but its address is in Fairfax County."""
-    if st not in CITY_STATES or not name:
-        return False
-    key = geo.county_key(st, name)
-    same = sorted(f for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2]) == st and geo.county_key(st, n) == key)
-    if not same:
-        return bool(re.search(r" city$", name, re.I))
+def atlas_fips(st, key, counties):
+    """The FIPS codes of the atlas places in state `st` whose name has this geo.county_key."""
+    return sorted(f for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2]) == st and geo.county_key(st, n) == key)
+
+
+def named_city(key, says, st, fips, point, counties):
+    """(city, settled) for Care Compare's county name, normalized (`key`, "X City" without its "City"): city is True for
+    an independent city; settled is False when the evidence conflicts or runs out, and the caller lists it. `says` is
+    Care Compare's own word, "city" ("RICHMOND CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the
+    county by Care Compare's style. Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by
+    that place ("James City" is a county; "Carson City" and "Salem" are cities). Where a county and a city share it
+    ("Fairfax", "St. Louis"), the one holding the street-address point decides, then Care Compare's word, then the
+    impact-file county (fips) if it is either; a bare name the impact file puts in the city, or that nothing decides,
+    is unsettled. Inova Fair Oaks (490101) is filed under Fairfax city, but its address is in Fairfax County."""
+    if st not in CITY_STATES:
+        return False, True
+    same = atlas_fips(st, key, counties)
+    claim = {"city": True, "county": False}.get(says)
+    if len(same) < 2:
+        city = independent_city(same[0]) if same else bool(claim)
+        return city, claim in (None, city)
     inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
-    return independent_city((inside or [f for f in same if f == fips] or same)[0])
+    by_fips = independent_city(fips) if fips in same else None
+    if inside:
+        city = independent_city(inside[0])
+        return city, claim in (None, city)
+    if claim is not None:
+        return claim, by_fips in (None, claim)
+    return bool(by_fips), by_fips is False
 
 
 def place_name(name, st, city):
@@ -396,31 +410,77 @@ def place_name(name, st, city):
     if st == "LA":
         return f"{name} Parish"
     if city:
-        return name if re.search(r" city$", name, re.I) else f"{name} City"
+        return name if re.search(r"\scity$", name, re.I) else f"{name} City"
     return f"{name} County"
 
 
-def county_label(g, st, fips, counties, point=None):
-    """The hospital's county or independent city with its legal suffix (place_name). Care Compare's name, title-cased,
-    when the atlas knows it for that state (Virginia's "Richmond City" matches "Richmond"), a city when named_city()
-    says so (point: the street-address point, if any); otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT")
-    the impact-file county's atlas name, a city when its FIPS code is one."""
-    key = geo.county_key(st, g.get("county"))
-    city_key = (key[0], key[1].removesuffix("city"))
-    if key in counties.by_name or city_key in counties.by_name or not counties.name.get(fips):
-        atlas = counties.named if counties.named is not None else {
-            geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
-        # The atlas's spelling ("DeKalb", "Fond du Lac"); outside the independent-city states a county written as its
-        # city ("SALT LAKE CITY") is that county; Care Compare's "Richmond City" stays as written.
-        name = atlas.get(key) or (atlas.get(city_key) if st not in CITY_STATES else None) or names.smart_title(g.get("county"))
-        return place_name(name, st, named_city(name, st, fips, point, counties))
-    return place_name(counties.name[fips], st, independent_city(fips))
+def county_label(g, st, fips, counties, point=None, moved=None):
+    """(label, doubt): the hospital's county or independent city with its legal suffix (place_name), and why the rules
+    could not check it, or None. The label is Care Compare's name in the atlas's spelling when the atlas knows it for
+    that state ("DE KALB" is "DeKalb"), a city when named_city() says so (point: the street-address point, if the map
+    kept it). Care Compare's "X City" for an atlas X is the independent city X in the states that have them
+    ("RICHMOND CITY"), and elsewhere the county X when the impact file puts the hospital there ("SALT LAKE CITY"; not
+    "SIOUX CITY", which is in Woodbury County). Otherwise (typos such as "E. BATON ROUGE", or "THE DISTRICT"), or when
+    locate() moved the hospital to the impact-file county (`moved`: its source, "address" for a street address inside
+    that county, "county" for a ZIP or county point far outside it), the label is that county's atlas name, a city
+    when its FIPS code is one. Doubts: Care Compare's name is missing or unknown; named_city() could not settle county
+    or city; or a far-off point, not a street address, moved a hospital from the place Care Compare names."""
+    raw = g.get("county")
+    key = geo.county_key(st, raw)
+    stem = (key[0], key[1].removesuffix("city"))
+    ends_city = key not in counties.by_name and stem != key  # "RICHMOND CITY", which the atlas has as "Richmond"
+    says_city = ends_city and stem in counties.by_name
+    if says_city:
+        places = atlas_fips(st, stem, counties)
+        known = any(map(independent_city, places)) if st in CITY_STATES else fips in places
+    else:
+        known = key in counties.by_name
+    if moved or (not known and counties.name.get(fips)):
+        label = place_name(counties.name[fips], st, independent_city(fips))
+        if not known:
+            return label, "unknown county; the impact-file county's name"
+        same = geo.county_key(st, counties.name[fips]) in (key, stem) and (
+            st not in CITY_STATES or ends_city == independent_city(fips))
+        if moved == "county" and not same:
+            return label, "Care Compare names another place and no street address settles it; took the impact file's"
+        return label, None
+    atlas = counties.named if counties.named is not None else {
+        geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
+    name = atlas.get(stem if says_city else key) or names.smart_title(raw)
+    says = "city" if ends_city else "county" if re.search(r"(?i)\scounty\W*$", raw or "") else None
+    city, settled = named_city(stem if ends_city else key, says, st, fips, point, counties)
+    if not known:
+        doubt = "unknown county; Care Compare's name alone" if name else "no county"
+    elif not settled:
+        doubt = f"county or city? Care Compare, the street address, and the impact file do not settle it; took the {'city' if city else 'county'}"
+    else:
+        doubt = None
+    return place_name(name, st, city) or None, doubt
+
+
+# Care Compare refreshes add and re-spell county names. Each county the rules cannot check (county_label's doubt) is
+# listed in the build report; more than this many fails the build, so a new one is looked at before it ships.
+# tests/test_build.py pins the CCNs.
+MAX_UNCHECKED_COUNTIES = 17
+
+
+def county_gate(unchecked, limit):
+    """Print every unchecked county ((ccn, Care Compare's county, label, doubt)); SystemExit when there are more than
+    `limit`."""
+    lines = [f"{c} {raw!r} -> {label} ({doubt})" for c, raw, label, doubt in unchecked]
+    print(f"county names the rules cannot check ({len(unchecked)}, at most {limit}): " + ("; ".join(lines) or "none"))
+    if len(unchecked) > limit:
+        raise SystemExit(f"{len(unchecked)} county names the rules cannot check, more than {limit}: "
+                         f"{', '.join(c for c, *_ in unchecked)}. Check each label in the report above, then teach "
+                         "geo.county_key or county_label the new spelling, or raise MAX_UNCHECKED_COUNTIES and the "
+                         "CCNs pinned in tests/test_build.py.")
 
 
 # Lookups shared by every hospital record. Collected for the build report: `moved`, (ccn, Care Compare county,
 # impact-file county, geo source) where the impact-file county replaced Care Compare's; `addons`, {ccn: (federal
-# base, MDH add-on, add-on had MDH status lasted the whole year)}.
-Ref = namedtuple("Ref", "zcta counties points cbsa_names rates mdh_share moved addons")
+# base, MDH add-on, add-on had MDH status lasted the whole year)}; `unchecked`, (ccn, Care Compare county, label,
+# doubt) for each county the rules could not check (county_label).
+Ref = namedtuple("Ref", "zcta counties points cbsa_names rates mdh_share moved addons unchecked")
 
 
 # Left out of a hospital record when None: most hospitals have no alias, certified beds ("cr" marks the cost-report
@@ -438,6 +498,10 @@ def hospital_record(ccn, s, imp, g, p, ref):
     lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, point)
     if fips_county:
         ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
+    county, doubt = county_label(g, st, fips, ref.counties, point if gsrc == "address" else None,
+                                 gsrc if fips_county else None)
+    if doubt:
+        ref.unchecked.append((ccn, g.get("county"), county, doubt))
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
     shown = names.display_name(g.get("name"), imp.get("name"))
@@ -453,8 +517,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
         "alias": names.alias(shown, imp.get("name")),
         "city": names.smart_title(g.get("city")) or None,
         "st": st,
-        "county": (place_name(fips_county, st, independent_city(fips)) if fips_county
-                   else county_label(g, st, fips, ref.counties, point if gsrc == "address" else None)) or None,
+        "county": county,
         "zip": g.get("zip"),
         "lat": rnd(lat, 4), "lon": rnd(lon, 4), "geo": gsrc,
         "cbsa": cbsa, "cbsaName": ref.cbsa_names.get(cbsa),
@@ -510,7 +573,7 @@ def build():
     replication_gate(kept)
 
     mdh_share = year_share(FY, MDH_END)
-    ref = Ref(zcta, counties, load_geocodes(), cbsa_names, rates, mdh_share, [], {})
+    ref = Ref(zcta, counties, load_geocodes(), cbsa_names, rates, mdh_share, [], {}, [])
     hospitals = [hospital_record(ccn, kept[ccn], impact.get(ccn) or {}, hgi.get(ccn) or {}, pos.get(ccn) or {}, ref)
                  for ccn in sorted(supp)]
     n_extra, n_shown = extra_places(hospitals, peer_med, nm)
@@ -524,12 +587,13 @@ def build():
             print(f"{what} ({len(hits)}): {'; '.join(hits)}")
     set_aside = [x["id"] for x in hospitals if x["id"] in ref.points and x["geo"] != "address"]
     print(f"geocoded addresses {len(ref.points)}; set aside (> {STRAY_KM} km outside the impact-file county): {set_aside}")
+    county_gate(ref.unchecked, MAX_UNCHECKED_COUNTIES)
     report_pos(hospitals, impact, pos)
     shortfall = mdh_shortfall(ref.addons)
     report_mdh(hospitals, ref.addons, mdh_share, shortfall)
-    unchecked = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
-    if unchecked:
-        print(f"{unchecked} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
+    no_shape = sum(1 for c in supp if (impact.get(c) or {}).get("fips") not in (None, *counties.shape))
+    if no_shape:
+        print(f"{no_shape} hospitals have an impact-file county missing from the atlas (e.g. CT planning regions); "
               "their map points are not checked")
     geocode = {k: sum(1 for x in hospitals if x["geo"] == (None if k == "none" else k)) for k in ("address", "zip", "county", "none")}
 

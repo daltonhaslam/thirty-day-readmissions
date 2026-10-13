@@ -1,6 +1,8 @@
 """State → census region/division, and county centroids decoded from us-atlas TopoJSON."""
 import json
 import math
+import re
+import unicodedata
 from collections import namedtuple
 from pathlib import Path
 
@@ -83,8 +85,12 @@ def _centroid(ring):
 
 
 def county_key(st, name):
-    """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'ST. LOUIS COUNTY' == 'St. Louis'."""
-    n = (name or "").lower().replace("saint ", "st ")
+    """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'SAINT-LOUIS COUNTY' == 'St. Louis', 'DONA ANA' == 'Doña Ana'."""
+    n = (name or "").lower().strip()
+    if not n.isascii():
+        n = "".join(ch for ch in unicodedata.normalize("NFKD", n) if not unicodedata.combining(ch))
+    if "saint" in n:
+        n = re.sub(r"\bsaint(e?)\b", r"st\1", n)
     for suffix in (" county", " parish", " city and borough", " borough", " census area", " municipality"):
         n = n.removesuffix(suffix)
     return st, "".join(ch for ch in n if ch.isalnum())
