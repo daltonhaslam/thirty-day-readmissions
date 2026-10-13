@@ -91,7 +91,8 @@ class CountyLabelTest(unittest.TestCase):
              "17037": "DeKalb", "55039": "Fond du Lac", "49035": "Salt Lake", "13089": "DeKalb", "17043": "DuPage",
              "17099": "LaSalle", "22059": "LaSalle", "29186": "Ste. Genevieve", "35013": "Doña Ana", "48201": "Harris",
              "09003": "Hartford", "51019": "Bedford", "29051": "Cole", "29099": "Jefferson", "19193": "Woodbury",
-             "19167": "Sioux", "49011": "Davis", "51161": "Roanoke", "51770": "Roanoke", "51510": "Alexandria"}
+             "19167": "Sioux", "49011": "Davis", "51161": "Roanoke", "51770": "Roanoke", "51510": "Alexandria",
+             "32005": "Douglas", "48201": "Harris"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
                             shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
                             name=NAMES)
@@ -209,7 +210,7 @@ class StrayPointTest(unittest.TestCase):
         for zip_pt, src in [((0.2, 0.3), "zip"), ((0.5, 2.0), "county")]:
             *_, gsrc, fips_county = self.locate(zip_pt, point=(0.5, 2.0))  # the address point, ~111 km out, is set aside
             self.assertEqual(gsrc, src)
-            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, fips_county and gsrc),
+            self.assertEqual(build_data.county_label(self.HOSP, "ZZ", "99001", self.COUNTIES, None, gsrc if fips_county else None),
                              ("Squareville County", "unknown county; the impact-file county's name"))
 
     def test_fips_missing_from_atlas_keeps_zip(self):
@@ -326,11 +327,21 @@ class CountyDoubtTest(unittest.TestCase):
 
     def test_a_far_off_point_moving_a_hospital_from_care_compares_place_is_listed(self):
         other = "Care Compare names another place and no street address settles it; took the impact file's"
-        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29189", moved="county"), ("St. Louis County", other))
-        self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="county"), ("Cole County", other))
-        self.assertEqual(self.county("MO", "ST. LOUIS", "29510", moved="county"), ("St. Louis City", other))  # bare name: county
-        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", moved="county"), ("St. Louis City", None))  # same place
-        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035", moved="county"), ("Salt Lake County", None))
+        which = "county or city? Care Compare and the impact file disagree and no street address settles it; took the impact file's"
+        for st, cc, fips, want, doubt in [
+                ("MO", "JEFFERSON", "29051", "Cole County", other),
+                ("NV", "CARSON CITY", "32005", "Douglas County", other),
+                ("TX", "HARRIS", "06007", "Butte County", other),  # an impact-file county in another state
+                ("MO", "ST. LOUIS CITY", "29189", "St. Louis County", which),
+                ("MO", "ST. LOUIS", "29510", "St. Louis City", which),  # bare name: Care Compare's county
+                ("VA", "RICHMOND CITY", "51159", "Richmond County", which),
+                ("VA", "RICHMOND", "51760", "Richmond City", which),
+                ("MO", "ST. LOUIS CITY", "29510", "St. Louis City", None),  # the same place
+                ("UT", "SALT LAKE CITY", "49035", "Salt Lake County", None),
+                ("NV", "CARSON CITY", "32510", "Carson City", None),  # a city by its whole name
+                ("VA", "RICHMOND CITY", "51760", "Richmond City", None),
+                ("VA", "RICHMOND", "51159", "Richmond County", None)]:
+            self.assertEqual(self.county(st, cc, fips, moved="county"), (want, doubt), (st, cc, fips))
         self.assertEqual(self.county("MO", "JEFFERSON", "29051", moved="address"), ("Cole County", None))  # the address decides
 
     def test_the_gate_lists_every_unchecked_county_and_fails_above_the_limit(self):
