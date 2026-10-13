@@ -90,9 +90,10 @@ class CountyLabelTest(unittest.TestCase):
              "06007": "Butte", "22033": "East Baton Rouge", "02090": "Fairbanks North Star", "46102": "Oglala Lakota",
              "17037": "DeKalb", "55039": "Fond du Lac", "49035": "Salt Lake", "13089": "DeKalb", "17043": "DuPage",
              "17099": "LaSalle", "22059": "LaSalle", "29186": "Ste. Genevieve", "35013": "Doña Ana", "48201": "Harris",
-             "09003": "Hartford"}
+             "09003": "Hartford", "51019": "Bedford", "29051": "Cole", "29099": "Jefferson", "19193": "Woodbury",
+             "19167": "Sioux", "49011": "Davis"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
-                            shape={"51059": [SQUARE]}, name=NAMES)
+                            shape={"51059": [SQUARE], "29189": [SQUARE]}, name=NAMES)
 
     def county(self, st, county, fips, point=None, moved=False):
         import build_data
@@ -260,16 +261,28 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("VA", "FAIRFAX", "51600", point=(0.5, 0.5)), ("Fairfax County", None))
 
     def test_a_name_a_county_and_a_city_share_that_nothing_decides_is_the_county_with_a_doubt(self):
-        for st, cc, fips, want in [("MO", "ST. LOUIS", "29999", "St. Louis County"), ("VA", "FAIRFAX", "51510", "Fairfax County")]:
-            label, doubt = self.county(st, cc, fips)
+        for st, cc, fips, point, want in [("MO", "ST. LOUIS", "29999", None, "St. Louis County"),
+                                          ("VA", "FAIRFAX", "51510", None, "Fairfax County"),
+                                          ("MO", "ST. LOUIS CITY", "29189", (0.5, 0.5), "St. Louis County")]:  # address in the county
+            label, doubt = self.county(st, cc, fips, point)
             self.assertEqual(label, want)
             self.assertRegex(doubt, "share the name")
+        self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29189", (5.0, 5.0)), ("St. Louis City", None))  # address in neither
+
+    def test_x_city_needs_an_independent_city_x_or_elsewhere_the_impact_files_county_x(self):
+        impact = "unknown county; the impact-file county's name"
+        self.assertEqual(self.county("VA", "BEDFORD CITY", "51019"), ("Bedford County", impact))  # no longer a city
+        self.assertEqual(self.county("MO", "JEFFERSON CITY", "29051"), ("Cole County", impact))  # a city in Cole County
+        self.assertEqual(self.county("IA", "SIOUX CITY", "19193"), ("Woodbury County", impact))  # not Sioux County
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49011"), ("Davis County", impact))  # the impact file disagrees
+        self.assertEqual(self.county("UT", "SALT LAKE CITY", "49035"), ("Salt Lake County", None))
 
     def test_an_unknown_or_missing_county_says_where_its_label_came_from(self):
         impact, spelling = "unknown county; the impact-file county's name", "unknown county; Care Compare's spelling"
         self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", impact))
         self.assertEqual(self.county("TX", "NARNIA", None), ("Narnia County", spelling))
         self.assertEqual(self.county("TX", None, "48201"), ("Harris County", impact))
+        self.assertEqual(self.county("TX", None, None), (None, "no county"))
         self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved=True), ("East Baton Rouge Parish", impact))
         self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved=True), ("Williamsburg City", None))  # known, moved
 
@@ -296,7 +309,10 @@ class RealAtlasCountyTest(unittest.TestCase):
         for st, cc, fips, want in CHECKED_COUNTIES:
             if fips != "09110":
                 self.assertEqual(self.county(st, cc, fips), (want, None), (st, cc, fips))
-        self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", "unknown county; the impact-file county's name"))
+        impact = "unknown county; the impact-file county's name"
+        self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", impact))
+        self.assertEqual(self.county("IA", "SIOUX CITY", "19193"), ("Woodbury County", impact))
+        self.assertEqual(self.county("MO", "JEFFERSON CITY", "29051"), ("Cole County", impact))
 
 
 @unittest.skipUnless(OUT.exists(), "run pipeline/build_data.py first")
