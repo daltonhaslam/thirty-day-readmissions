@@ -377,21 +377,24 @@ def atlas_fips(st, key, counties):
 
 def named_city(key, says, st, fips, point, counties):
     """(city, settled) for Care Compare's county name, normalized (`key`, "X City" without its "City"): city is True for
-    an independent city, and None for an "X City" that names no atlas place, which may be either; settled is False when
-    the evidence conflicts or runs out, and the caller lists it. `says` is Care Compare's own word, "city" ("RICHMOND
-    CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the county by Care Compare's style. Only MD, MO,
-    NV, and VA have independent cities. A name the atlas has once goes by that place ("James City" is a county; "Carson
-    City" and "Salem" are cities). Where a county and a city share it ("Fairfax", "St. Louis"), Care Compare's word
-    decides when the impact-file county (fips) agrees, so an address point just over the line cannot override both;
-    else the one holding the street-address point decides, then Care Compare's word, then the impact-file county if it
-    is either. A bare name the impact file puts in the city, or that nothing decides, is unsettled. Inova Fair Oaks
-    (490101) is filed under Fairfax city, but its address is in Fairfax County."""
+    an independent city, and None in any state for an "X City" that names no atlas place, which may be either; settled
+    is False when the evidence conflicts or runs out, and the caller lists it. `says` is Care Compare's own word, "city"
+    ("RICHMOND CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the county by Care Compare's style.
+    Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by that place ("James City" is a
+    county; "Carson City" and "Salem" are cities). Where a county and a city share it ("Fairfax", "St. Louis"), Care
+    Compare's word (a bare name's county included) decides when the impact-file county (fips) agrees, so an address
+    point just over the line cannot override both; else the one holding the street-address point decides, then Care
+    Compare's word, then the impact-file county if it is either. With no address to decide, a bare name the impact file
+    puts in the city, or one nothing decides, is unsettled. Inova Fair Oaks (490101) is filed under Fairfax city, but
+    its address is in Fairfax County."""
+    claim = {"city": True, "county": False}.get(says)
+    if claim and key not in counties.by_name:
+        return None, False
     if st not in CITY_STATES:
         return False, True
     same = atlas_fips(st, key, counties)
-    claim = {"city": True, "county": False}.get(says)
     if not same:
-        return (None, False) if claim else (False, True)
+        return False, True
     if len(same) == 1:
         city = independent_city(same[0])
         return city, claim in (None, city)
@@ -411,7 +414,7 @@ def place_name(name, st, city):
     """`name` with its legal suffix, as the hospital page shows it: "Butte County", "East Baton Rouge Parish", an
     independent city (`city`) as "Richmond City" (Care Compare's style), and no suffix in AK, DC, and PR, on a name
     that already ends in County or Parish, or when county or city is unknown (`city` None)."""
-    if not name or st in NO_SUFFIX or re.search(r"[\W_](county|parish)$", name, re.I):
+    if not name or st in NO_SUFFIX or re.search(r"[\W_](county|parish)\W*$", name, re.I):
         return name
     if st == "LA":
         return f"{name} Parish"
@@ -455,7 +458,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
             if not settled or city != independent_city(fips):
                 return label, "county or city? Care Compare and the impact file disagree and no street address settles it; took the impact file's"
         return label, None
-    name = counties.named.get(base) or re.sub(r"[\W_]+$", "", names.smart_title(raw) or "")  # "Narnia County." loses its "."
+    name = counties.named.get(base) or re.sub(r"[\s.,;:_-]+$", "", names.smart_title(raw) or "")  # "Narnia County." loses its "."
     city, settled = named_city(base, says, st, fips, point, counties)
     if not known:
         doubt = f"unknown {'county or city' if city is None else 'county'}; Care Compare's name alone" if name else "no county"

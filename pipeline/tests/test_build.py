@@ -364,12 +364,14 @@ class CountyDoubtTest(unittest.TestCase):
         either = "unknown county or city; Care Compare's name alone"  # an independent-city state, and no atlas place X
         self.assertEqual(self.county("MD", "ELLICOTT CITY", None), ("Ellicott City", either))
         self.assertEqual(self.county("MO", "KANSAS CITY", None), ("Kansas City", either))
+        self.assertEqual(self.county("TX", "TEXAS CITY", None), ("Texas City", either))  # not "Texas City County"
         self.assertEqual(self.county("MO", "NARNIA", None), ("Narnia County", alone))  # a bare name: the county
 
     def test_named_city_does_not_guess_city_for_an_x_city_the_atlas_lacks(self):
         import build_data
         for says, want in [("city", (None, False)), ("county", (False, True)), (None, (False, True))]:
             self.assertEqual(build_data.named_city(("MO", "kansas"), says, "MO", None, None, self.COUNTIES), want, says)
+            self.assertEqual(build_data.named_city(("TX", "texas"), says, "TX", None, None, self.COUNTIES), want, says)
 
     def test_an_unknown_or_missing_county_says_where_its_label_came_from(self):
         impact, spelling = "unknown county; the impact-file county's name", "unknown county; Care Compare's name alone"
@@ -379,6 +381,7 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("TX", None, None), (None, "no county"))
         self.assertEqual(self.county("TX", "NARNIA COUNTY.", None), ("Narnia County", spelling))  # not "County. County"
         self.assertEqual(self.county("TX", "NARNIA-COUNTY", None), ("Narnia-County", spelling))
+        self.assertEqual(self.county("TX", "NARNIA (COUNTY)", None), ("Narnia (County)", spelling))  # keeps its ")"
         self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved="address"), ("East Baton Rouge Parish", impact))
         self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved="address"), ("Williamsburg City", None))  # address
 
