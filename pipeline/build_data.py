@@ -377,7 +377,8 @@ def atlas_fips(st, key, counties):
 
 def named_city(key, says, st, fips, point, counties):
     """(city, settled) for Care Compare's county name, normalized (`key`, "X City" without its "City"): city is True for
-    an independent city; settled is False when the evidence conflicts or runs out, and the caller lists it. `says` is
+    an independent city, and None for an "X City" that names no atlas place, which may be either; settled is False when
+    the evidence conflicts or runs out, and the caller lists it. `says` is
     Care Compare's own word, "city" ("RICHMOND CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the
     county by Care Compare's style. Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by
     that place ("James City" is a county; "Carson City" and "Salem" are cities). Where a county and a city share it
@@ -388,8 +389,10 @@ def named_city(key, says, st, fips, point, counties):
         return False, True
     same = atlas_fips(st, key, counties)
     claim = {"city": True, "county": False}.get(says)
-    if len(same) < 2:
-        city = independent_city(same[0]) if same else bool(claim)
+    if not same:
+        return (None, False) if claim else (False, True)
+    if len(same) == 1:
+        city = independent_city(same[0])
         return city, claim in (None, city)
     inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
     by_fips = independent_city(fips) if fips in same else None
@@ -403,12 +406,14 @@ def named_city(key, says, st, fips, point, counties):
 
 def place_name(name, st, city):
     """`name` with its legal suffix, as the hospital page shows it: "Butte County", "East Baton Rouge Parish", an
-    independent city (`city`) as "Richmond City" (Care Compare's style), and no suffix in AK, DC, and PR or on a name
-    that already ends in County or Parish."""
+    independent city (`city`) as "Richmond City" (Care Compare's style), and no suffix in AK, DC, and PR, on a name
+    that already ends in County or Parish, or when county or city is unknown (`city` None)."""
     if not name or st in NO_SUFFIX or re.search(r"[\W_](county|parish)$", name, re.I):
         return name
     if st == "LA":
         return f"{name} Parish"
+    if city is None:
+        return name
     if city:
         return name if re.search(r"\scity$", name, re.I) else f"{name} City"
     return f"{name} County"
@@ -450,7 +455,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
     name = counties.named.get(base) or re.sub(r"[\W_]+$", "", names.smart_title(raw) or "")  # "Narnia County." loses its "."
     city, settled = named_city(base, says, st, fips, point, counties)
     if not known:
-        doubt = "unknown county; Care Compare's name alone" if name else "no county"
+        doubt = f"unknown {'county or city' if city is None else 'county'}; Care Compare's name alone" if name else "no county"
     elif not settled:
         doubt = f"county or city? Care Compare, the street address, and the impact file do not settle it; took the {'city' if city else 'county'}"
     else:

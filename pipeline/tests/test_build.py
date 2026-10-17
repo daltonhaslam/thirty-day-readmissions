@@ -165,6 +165,8 @@ class CountyLabelTest(unittest.TestCase):
         self.assertEqual(build_data.place_name("Anchorage", "AK", False), "Anchorage")
         self.assertEqual(build_data.place_name("", "TX", False), "")
         self.assertEqual(build_data.place_name("Narnia-County", "TX", False), "Narnia-County")
+        self.assertEqual(build_data.place_name("Kansas City", "MO", None), "Kansas City")  # county or city unknown
+        self.assertEqual(build_data.place_name("Narnia", "MO", None), "Narnia")
 
     def test_independent_city_fips(self):
         import build_data
@@ -341,7 +343,15 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("UT", "SALT LAKE CITY", None), ("Salt Lake County", alone))
         self.assertEqual(self.county("IA", "SIOUX CITY", None), ("Sioux County", alone))
         self.assertEqual(self.county("VA", "BEDFORD CITY", None), ("Bedford County", alone))
-        self.assertEqual(self.county("MD", "ELLICOTT CITY", None), ("Ellicott City", alone))
+        either = "unknown county or city; Care Compare's name alone"  # an independent-city state, and no atlas place X
+        self.assertEqual(self.county("MD", "ELLICOTT CITY", None), ("Ellicott City", either))
+        self.assertEqual(self.county("MO", "KANSAS CITY", None), ("Kansas City", either))
+        self.assertEqual(self.county("MO", "NARNIA", None), ("Narnia County", alone))  # a bare name: the county
+
+    def test_named_city_does_not_guess_city_for_an_x_city_the_atlas_lacks(self):
+        import build_data
+        for says, want in [("city", (None, False)), ("county", (False, True)), (None, (False, True))]:
+            self.assertEqual(build_data.named_city(("MO", "kansas"), says, "MO", None, None, self.COUNTIES), want, says)
 
     def test_an_unknown_or_missing_county_says_where_its_label_came_from(self):
         impact, spelling = "unknown county; the impact-file county's name", "unknown county; Care Compare's name alone"
