@@ -316,6 +316,8 @@ class CountyDoubtTest(unittest.TestCase):
                 ("MO", "ST. LOUIS CITY", "29189", None, "St. Louis City"),  # Care Compare says city, the impact file county
                 ("MO", "ST. LOUIS COUNTY", "29510", None, "St. Louis County"),  # and the reverse
                 ("VA", "FAIRFAX COUNTY", "51600", None, "Fairfax County"),
+                ("VA", "FAIRFAX-COUNTY", "51600", None, "Fairfax County"),  # Care Compare's word, however punctuated
+                ("MO", "ST. LOUIS COUNTY.", "29510", None, "St. Louis County"),
                 ("MO", "ST. LOUIS CITY", "29189", (0.5, 0.5), "St. Louis County")]:  # the street address is in the county
             label, doubt = self.county(st, cc, fips, point)
             self.assertEqual(label, want, (st, cc, fips))

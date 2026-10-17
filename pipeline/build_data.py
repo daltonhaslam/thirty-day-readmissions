@@ -430,7 +430,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
     stem = (key[0], key[1].removesuffix("city"))
     ends_city = key not in counties.by_name and stem != key  # "RICHMOND CITY", which the atlas has as "Richmond"
     base = stem if ends_city else key  # Care Compare's name without the "City" it ends in
-    says = "city" if ends_city else "county" if re.search(r"(?i)\scounty\W*$", raw or "") else None
+    says = "city" if ends_city else "county" if "county" in geo.drop_suffixes((raw or "").lower())[1] else None
     if ends_city and stem in counties.by_name:
         places = atlas_fips(st, stem, counties)
         known = any(map(independent_city, places)) if st in CITY_STATES else fips in places
