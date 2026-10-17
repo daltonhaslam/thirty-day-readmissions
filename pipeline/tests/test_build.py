@@ -365,6 +365,7 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("MD", "ELLICOTT CITY", None), ("Ellicott City", either))
         self.assertEqual(self.county("MO", "KANSAS CITY", None), ("Kansas City", either))
         self.assertEqual(self.county("TX", "TEXAS CITY", None), ("Texas City", either))  # not "Texas City County"
+        self.assertEqual(self.county("LA", "MORGAN CITY", None), ("Morgan City", either))  # not "Morgan City Parish"
         self.assertEqual(self.county("MO", "NARNIA", None), ("Narnia County", alone))  # a bare name: the county
 
     def test_named_city_does_not_guess_city_for_an_x_city_the_atlas_lacks(self):
@@ -382,6 +383,8 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("TX", "NARNIA COUNTY.", None), ("Narnia County", spelling))  # not "County. County"
         self.assertEqual(self.county("TX", "NARNIA-COUNTY", None), ("Narnia-County", spelling))
         self.assertEqual(self.county("TX", "NARNIA (COUNTY)", None), ("Narnia (County)", spelling))  # keeps its ")"
+        for raw in ("NARNIA COUNTY*", "NARNIA COUNTY'", "NARNIA (", "NARNIA COUNTY /"):
+            self.assertEqual(self.county("TX", raw, None), ("Narnia County", spelling), raw)
         self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved="address"), ("East Baton Rouge Parish", impact))
         self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved="address"), ("Williamsburg City", None))  # address
 

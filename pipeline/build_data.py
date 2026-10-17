@@ -414,12 +414,10 @@ def place_name(name, st, city):
     """`name` with its legal suffix, as the hospital page shows it: "Butte County", "East Baton Rouge Parish", an
     independent city (`city`) as "Richmond City" (Care Compare's style), and no suffix in AK, DC, and PR, on a name
     that already ends in County or Parish, or when county or city is unknown (`city` None)."""
-    if not name or st in NO_SUFFIX or re.search(r"[\W_](county|parish)\W*$", name, re.I):
+    if not name or city is None or st in NO_SUFFIX or re.search(r"[\W_](county|parish)\W*$", name, re.I):
         return name
     if st == "LA":
         return f"{name} Parish"
-    if city is None:
-        return name
     if city:
         return name if re.search(r"\scity$", name, re.I) else f"{name} City"
     return f"{name} County"
@@ -458,7 +456,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
             if not settled or city != independent_city(fips):
                 return label, "county or city? Care Compare and the impact file disagree and no street address settles it; took the impact file's"
         return label, None
-    name = counties.named.get(base) or re.sub(r"[\s.,;:_-]+$", "", names.smart_title(raw) or "")  # "Narnia County." loses its "."
+    name = counties.named.get(base) or re.sub(r"[^\w)\]]+$", "", names.smart_title(raw) or "")  # "Narnia County." loses its "."
     city, settled = named_city(base, says, st, fips, point, counties)
     if not known:
         doubt = f"unknown {'county or city' if city is None else 'county'}; Care Compare's name alone" if name else "no county"
