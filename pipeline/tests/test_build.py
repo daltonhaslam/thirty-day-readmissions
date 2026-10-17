@@ -301,6 +301,19 @@ class HospitalCountyTest(unittest.TestCase):
         self.assertEqual((geo_src, county), ("zip", "Fairfax County"))
         self.assertRegex(unchecked[0][3], "do not settle it")  # had the stray point counted, it would be settled
 
+    def test_place_hospital_records_a_move_and_an_unchecked_county_for_the_build_report(self):
+        import build_data
+        hosp, imp = {"county": "FAIRFAX", "zip": "11111"}, {"fips": "51510"}
+        ref = build_data.Ref({"11111": (0.5, 1.7)}, CountyLabelTest.COUNTIES, {"490999": (0.5, 1.7)}, {}, {}, 0.25, [], {}, [])
+        # The street address is inside the impact file's Alexandria city, not the Fairfax Care Compare names.
+        self.assertEqual(build_data.place_hospital("490999", hosp, imp, "VA", ref), (0.5, 1.7, "address", "Alexandria City"))
+        self.assertEqual((ref.moved, ref.unchecked), ([("490999", "FAIRFAX", "Alexandria", "address")], []))
+        ref = build_data.Ref({"11111": (0.5, 1.7)}, CountyLabelTest.COUNTIES, {"490999": (0.5, 0.1)}, {}, {}, 0.25, [], {}, [])
+        # A set-aside address point: the ZIP point, and county or city unsettled.
+        lat, lon, gsrc, county = build_data.place_hospital("490999", hosp, imp, "VA", ref)
+        self.assertEqual((lat, lon, gsrc, county, ref.moved), (0.5, 1.7, "zip", "Fairfax County", []))
+        self.assertEqual([(c, raw, label) for c, raw, label, _ in ref.unchecked], [("490999", "FAIRFAX", "Fairfax County")])
+
 
 class CountyDoubtTest(unittest.TestCase):
     """build_data.county_label's doubt and county_gate: a county the rules cannot check is listed, never silently guessed."""

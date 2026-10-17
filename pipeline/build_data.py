@@ -491,6 +491,21 @@ def county_gate(unchecked, limit):
 Ref = namedtuple("Ref", "zcta counties points cbsa_names rates mdh_share moved addons unchecked")
 
 
+def place_hospital(ccn, g, imp, st, ref):
+    """(lat, lon, geo source, county label) for one hospital: locate()'s map point, then county_label() with the street
+    address as evidence only when the map kept it, and the move when locate() replaced Care Compare's county. Records
+    the move in ref.moved and an unchecked county in ref.unchecked."""
+    point = ref.points.get(ccn)
+    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, point)
+    if fips_county:
+        ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
+    county, doubt = county_label(g, st, imp.get("fips"), ref.counties, point if gsrc == "address" else None,
+                                 gsrc if fips_county else None)
+    if doubt:
+        ref.unchecked.append((ccn, g.get("county"), county, doubt))
+    return lat, lon, gsrc, county
+
+
 # Left out of a hospital record when None: most hospitals have no alias, certified beds ("cr" marks the cost-report
 # fallback), and an active Medicare agreement.
 OPTIONAL = ("alias", "bedsSrc", "inactive")
@@ -502,14 +517,7 @@ def hospital_record(ccn, s, imp, g, p, ref):
     fips = imp.get("fips")
     st = g.get("st") or geo.STATE_FIPS.get((fips or "")[:2])
     region, division = geo.region_of(st)
-    point = ref.points.get(ccn)
-    lat, lon, gsrc, fips_county = locate(g, imp, st, ref.zcta, ref.counties, point)
-    if fips_county:
-        ref.moved.append((ccn, g.get("county"), fips_county, gsrc))
-    county, doubt = county_label(g, st, fips, ref.counties, point if gsrc == "address" else None,
-                                 gsrc if fips_county else None)
-    if doubt:
-        ref.unchecked.append((ccn, g.get("county"), county, doubt))
+    lat, lon, gsrc, county = place_hospital(ccn, g, imp, st, ref)
     cbsa = imp.get("cbsa_geo") if len(imp.get("cbsa_geo") or "") == 5 else None
     nbeds, beds_src = beds(imp.get("beds"), p.get("beds"))
     shown = names.display_name(g.get("name"), imp.get("name"))
