@@ -142,7 +142,17 @@ def read_counties(path):
         st = STATE_FIPS.get(fips[:2])
         if st:
             out.by_name.setdefault(county_key(st, name), (lat, lon))
-            out.named.setdefault(county_key(st, name), name)
+    out.named.update(spellings(out.name))
+    return out
+
+
+def spellings(name):
+    """Counties.named from {fips: atlas name}: each (state, normalized name)'s atlas spelling, the first one winning."""
+    out = {}
+    for fips, n in name.items():
+        st = STATE_FIPS.get(fips[:2])
+        if st:
+            out.setdefault(county_key(st, n), n)
     return out
 
 
