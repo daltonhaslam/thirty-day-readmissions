@@ -96,8 +96,8 @@ def county_key(st, name):
     return st, "".join(ch for ch in n if ch.isalnum())
 
 
-# named: {(state, normalized name): the atlas spelling} ("DeKalb", "Fond du Lac"); None in hand-built test fixtures.
-Counties = namedtuple("Counties", "centroid by_name shape name named", defaults=(None,))
+# named: {(state, normalized name): the atlas spelling} ("DeKalb", "Fond du Lac").
+Counties = namedtuple("Counties", "centroid by_name shape name named")
 
 
 def _polygons(g):

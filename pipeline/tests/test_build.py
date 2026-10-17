@@ -81,6 +81,15 @@ class GeoTest(unittest.TestCase):
 SQUARE = [[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]  # ~111 km square county at the equator
 
 
+def atlas_spellings(name):
+    """geo.Counties.named for a hand-built fixture's {fips: atlas name}, indexed as geo.read_counties does."""
+    out = {}
+    for f, n in name.items():
+        if geo.STATE_FIPS.get(f[:2]):
+            out.setdefault(geo.county_key(geo.STATE_FIPS[f[:2]], n), n)
+    return out
+
+
 class CountyLabelTest(unittest.TestCase):
     """build_data.county_label: Care Compare's county when the atlas knows it, else the impact-file county's name; either
     with its legal suffix."""
@@ -95,7 +104,7 @@ class CountyLabelTest(unittest.TestCase):
              "32005": "Douglas", "48201": "Harris"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
                             shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
-                            name=NAMES)
+                            name=NAMES, named=atlas_spellings(NAMES))
 
     def county(self, st, county, fips, point=None, moved=None):
         import build_data
@@ -165,7 +174,7 @@ class CountyLabelTest(unittest.TestCase):
 class StrayPointTest(unittest.TestCase):
     """build_data.locate: a ZIP point far outside the impact-file county falls back to that county's centroid."""
     COUNTIES = geo.Counties(centroid={"99001": (0.5, 0.5), "99002": (9.0, 9.0)}, by_name={},
-                            shape={"99001": [SQUARE]}, name={"99001": "Squareville"})
+                            shape={"99001": [SQUARE]}, name={"99001": "Squareville"}, named={})
     HOSP = {"zip": "11111", "county": "Wrongshire"}
     IMP = {"fips": "99001"}
 

@@ -447,9 +447,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
             if not settled or city != independent_city(fips):
                 return label, "county or city? Care Compare and the impact file disagree and no street address settles it; took the impact file's"
         return label, None
-    atlas = counties.named if counties.named is not None else {
-        geo.county_key(geo.STATE_FIPS.get(f[:2]), n): n for f, n in counties.name.items() if geo.STATE_FIPS.get(f[:2])}
-    name = atlas.get(base) or names.smart_title(raw)
+    name = counties.named.get(base) or names.smart_title(raw)
     city, settled = named_city(base, says, st, fips, point, counties)
     if not known:
         doubt = "unknown county; Care Compare's name alone" if name else "no county"
