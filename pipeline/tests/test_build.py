@@ -164,6 +164,7 @@ class CountyLabelTest(unittest.TestCase):
         self.assertEqual(build_data.place_name("Orleans", "LA", False), "Orleans Parish")
         self.assertEqual(build_data.place_name("Anchorage", "AK", False), "Anchorage")
         self.assertEqual(build_data.place_name("", "TX", False), "")
+        self.assertEqual(build_data.place_name("Narnia-County", "TX", False), "Narnia-County")
 
     def test_independent_city_fips(self):
         import build_data
@@ -234,6 +235,14 @@ class CountyKeyTest(unittest.TestCase):
                      ("SAINTE GENEVIEVE", "Ste. Genevieve"), ("DONA ANA", "Doña Ana"), ("FOND DU LAC ", "Fond du Lac")]:
             self.assertEqual(geo.county_key("ZZ", a), geo.county_key("ZZ", b), a)
 
+    def test_a_legal_suffix_after_a_hyphen_or_before_punctuation_is_dropped(self):
+        for raw, want in [("ST. LOUIS COUNTY.", "stlouis"), ("HARRIS-COUNTY", "harris"), ("HARRIS COUNTY,", "harris"),
+                          ("HARRIS - COUNTY", "harris"), ("HARRIS_COUNTY", "harris"), ("ORLEANS PARISH.", "orleans"),
+                          ("JUNEAU CITY-AND-BOROUGH", "juneau"), ("BETHEL CENSUS-AREA.", "bethel"),
+                          ("NORTH SLOPE BOROUGH;", "northslope"), ("ANCHORAGE-MUNICIPALITY", "anchorage"),
+                          ("COUNTY", "county"), ("HARRISCOUNTY", "harriscounty"), ("MIAMI-DADE", "miamidade")]:
+            self.assertEqual(geo.county_key("ZZ", raw), ("ZZ", want), raw)
+
     def test_saint_is_only_a_whole_word(self):
         self.assertEqual(geo.county_key("ZZ", "TOUSSAINT"), ("ZZ", "toussaint"))
         self.assertEqual(geo.county_key("ZZ", None), ("ZZ", ""))
@@ -259,6 +268,8 @@ CHECKED_COUNTIES = [
     ("VA", "FAIRFAX", "51059", "Fairfax County"), ("VA", "ROANOKE CITY", "51770", "Roanoke City"),
     ("UT", "SALT LAKE CITY", "49035", "Salt Lake County"), ("DC", "DISTRICT OF COLUMBIA", "11001", "District of Columbia"),
     ("CT", "HARTFORD", "09110", "Hartford County"),  # a planning-region FIPS the atlas lacks; Care Compare's county is known
+    ("MO", "ST. LOUIS COUNTY.", "29189", "St. Louis County"), ("TX", "HARRIS-COUNTY", "48201", "Harris County"),
+    ("MO", "ST. LOUIS COUNTY.", None, "St. Louis County"), ("TX", "HARRIS-COUNTY", None, "Harris County"),  # no FIPS
 ]
 
 
@@ -331,6 +342,8 @@ class CountyDoubtTest(unittest.TestCase):
         self.assertEqual(self.county("TX", "NARNIA", None), ("Narnia County", spelling))
         self.assertEqual(self.county("TX", None, "48201"), ("Harris County", impact))
         self.assertEqual(self.county("TX", None, None), (None, "no county"))
+        self.assertEqual(self.county("TX", "NARNIA COUNTY.", None), ("Narnia County", spelling))  # not "County. County"
+        self.assertEqual(self.county("TX", "NARNIA-COUNTY", None), ("Narnia-County", spelling))
         self.assertEqual(self.county("LA", "E. BATON ROUGE", "22033", moved="address"), ("East Baton Rouge Parish", impact))
         self.assertEqual(self.county("VA", "JAMES CITY", "51830", moved="address"), ("Williamsburg City", None))  # address
 

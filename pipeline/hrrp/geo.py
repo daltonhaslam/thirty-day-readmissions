@@ -84,15 +84,30 @@ def _centroid(ring):
     return abs(a) / 2, cx / (3 * a), cy / (3 * a)
 
 
+# Legal suffixes county_key drops, each once and in this order, after a space, hyphen, or other punctuation and before
+# any trailing punctuation ("ST. LOUIS COUNTY.", "HARRIS-COUNTY"); "COUNTY" alone is a name.
+SUFFIXES = {s: re.compile(r"[\W_]+" + r"[\W_]+".join(s.split()) + r"[\W_]*$")
+            for s in ("county", "parish", "city and borough", "borough", "census area", "municipality")}
+
+
+def drop_suffixes(n):
+    """(lowercase n without its legal suffixes, the suffixes dropped): "st. louis county." is ("st. louis", ["county"])."""
+    dropped = []
+    for suffix, pattern in SUFFIXES.items():
+        n, hit = pattern.subn("", n)
+        if hit:
+            dropped.append(suffix)
+    return n, dropped
+
+
 def county_key(st, name):
-    """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'SAINT-LOUIS COUNTY' == 'St. Louis', 'DONA ANA' == 'Doña Ana'."""
+    """Normalized (state, county) key: 'DE KALB' == 'DeKalb', 'SAINT-LOUIS COUNTY.' == 'St. Louis', 'DONA ANA' == 'Doña Ana'."""
     n = (name or "").lower().strip()
     if not n.isascii():
         n = "".join(ch for ch in unicodedata.normalize("NFKD", n) if not unicodedata.combining(ch))
     if "saint" in n:
         n = re.sub(r"\bsaint(e?)\b", r"st\1", n)
-    for suffix in (" county", " parish", " city and borough", " borough", " census area", " municipality"):
-        n = n.removesuffix(suffix)
+    n, _ = drop_suffixes(n)
     return st, "".join(ch for ch in n if ch.isalnum())
 
 
