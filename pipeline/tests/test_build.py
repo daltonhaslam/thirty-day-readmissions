@@ -365,8 +365,7 @@ class RealAtlasCountyTest(unittest.TestCase):
 
     def test_known_names_misspellings_and_collisions_are_checked(self):
         for st, cc, fips, want in CHECKED_COUNTIES:
-            if fips != "09110":
-                self.assertEqual(self.county(st, cc, fips), (want, None), (st, cc, fips))
+            self.assertEqual(self.county(st, cc, fips), (want, None), (st, cc, fips))
         impact = "unknown county; the impact-file county's name"
         self.assertEqual(self.county("TX", "NARNIA", "48201"), ("Harris County", impact))
         self.assertEqual(self.county("IA", "SIOUX CITY", "19193"), ("Woodbury County", impact))
