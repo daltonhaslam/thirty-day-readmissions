@@ -111,6 +111,12 @@ def county_key(st, name):
     return st, "".join(ch for ch in n if ch.isalnum())
 
 
+def city_stem(key):
+    """A county_key without the "city" it ends in: Care Compare's "RICHMOND CITY" is the atlas's "Richmond"."""
+    st, n = key
+    return st, n.removesuffix("city")
+
+
 # named: {(state, normalized name): the atlas spelling} ("DeKalb", "Fond du Lac").
 Counties = namedtuple("Counties", "centroid by_name shape name named")
 

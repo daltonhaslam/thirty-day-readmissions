@@ -243,6 +243,11 @@ class CountyKeyTest(unittest.TestCase):
                           ("COUNTY", "county"), ("HARRISCOUNTY", "harriscounty"), ("MIAMI-DADE", "miamidade")]:
             self.assertEqual(geo.county_key("ZZ", raw), ("ZZ", want), raw)
 
+    def test_city_stem_drops_the_city_a_key_ends_in(self):
+        for raw, want in [("RICHMOND CITY", "richmond"), ("RICHMOND-CITY.", "richmond"), ("CARSON CITY", "carson"),
+                          ("RICHMOND", "richmond"), ("CITY", ""), ("ELLICOTT CITY COUNTY", "ellicott")]:
+            self.assertEqual(geo.city_stem(geo.county_key("VA", raw)), ("VA", want), raw)
+
     def test_saint_is_only_a_whole_word(self):
         self.assertEqual(geo.county_key("ZZ", "TOUSSAINT"), ("ZZ", "toussaint"))
         self.assertEqual(geo.county_key("ZZ", None), ("ZZ", ""))

@@ -344,7 +344,7 @@ def locate(g, imp, st, zcta, counties, point=None):
     if point:
         out = geo.km_outside(*point, counties.shape[fips]) if fips in counties.shape else None
         if out is None or out <= STRAY_KM:
-            same = out != 0 or key[1].removesuffix("city") == geo.county_key(st, counties.name[fips])[1].removesuffix("city")
+            same = out != 0 or geo.city_stem(key) == geo.city_stem(geo.county_key(st, counties.name[fips]))
             return (*point, "address", None if same else counties.name[fips])
     if g.get("zip") in zcta:
         pt, src = zcta[g["zip"]], "zip"
@@ -427,7 +427,7 @@ def county_label(g, st, fips, counties, point=None, moved=None):
     or city; or a far-off point, not a street address, moved a hospital from the place Care Compare names."""
     raw = g.get("county")
     key = geo.county_key(st, raw)
-    stem = (key[0], key[1].removesuffix("city"))
+    stem = geo.city_stem(key)
     ends_city = key not in counties.by_name and stem != key  # "RICHMOND CITY", which the atlas has as "Richmond"
     base = stem if ends_city else key  # Care Compare's name without the "City" it ends in
     says = "city" if ends_city else "county" if "county" in geo.drop_suffixes((raw or "").lower())[1] else None
