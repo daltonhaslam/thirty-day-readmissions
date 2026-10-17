@@ -378,13 +378,14 @@ def atlas_fips(st, key, counties):
 def named_city(key, says, st, fips, point, counties):
     """(city, settled) for Care Compare's county name, normalized (`key`, "X City" without its "City"): city is True for
     an independent city, and None for an "X City" that names no atlas place, which may be either; settled is False when
-    the evidence conflicts or runs out, and the caller lists it. `says` is
-    Care Compare's own word, "city" ("RICHMOND CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the
-    county by Care Compare's style. Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by
+    the evidence conflicts or runs out, and the caller lists it. `says` is Care Compare's own word, "city" ("RICHMOND
+    CITY") or "county" ("ST. LOUIS COUNTY"), else None; a bare name is the county by Care Compare's style. Only MD, MO, NV, and VA have independent cities. A name the atlas has once goes by
     that place ("James City" is a county; "Carson City" and "Salem" are cities). Where a county and a city share it
-    ("Fairfax", "St. Louis"), the one holding the street-address point decides, then Care Compare's word, then the
-    impact-file county (fips) if it is either; a bare name the impact file puts in the city, or that nothing decides,
-    is unsettled. Inova Fair Oaks (490101) is filed under Fairfax city, but its address is in Fairfax County."""
+    ("Fairfax", "St. Louis"), Care Compare's word (a bare name is the county) decides when the impact-file county (fips)
+    agrees, so an address point just over the line does not override both. Otherwise the one holding the street-address
+    point decides, then Care Compare's word, then the impact-file county if it is either; a bare name the impact file
+    puts in the city, or that nothing decides, is unsettled. Inova Fair Oaks (490101) is filed under Fairfax city, but
+    its address is in Fairfax County."""
     if st not in CITY_STATES:
         return False, True
     same = atlas_fips(st, key, counties)
@@ -394,14 +395,16 @@ def named_city(key, says, st, fips, point, counties):
     if len(same) == 1:
         city = independent_city(same[0])
         return city, claim in (None, city)
-    inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
     by_fips = independent_city(fips) if fips in same else None
+    if by_fips is not None and by_fips == bool(claim):
+        return by_fips, True
+    inside = [f for f in same if point and f in counties.shape and geo.km_outside(*point, counties.shape[f]) == 0]
     if inside:
         city = independent_city(inside[0])
         return city, claim in (None, city)
     if claim is not None:
-        return claim, by_fips in (None, claim)
-    return bool(by_fips), by_fips is False
+        return claim, by_fips is None
+    return bool(by_fips), False
 
 
 def place_name(name, st, city):

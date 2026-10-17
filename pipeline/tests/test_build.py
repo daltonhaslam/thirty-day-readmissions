@@ -103,7 +103,8 @@ class CountyLabelTest(unittest.TestCase):
              "19167": "Sioux", "49011": "Davis", "51161": "Roanoke", "51770": "Roanoke", "51510": "Alexandria",
              "32005": "Douglas", "48201": "Harris"}
     COUNTIES = geo.Counties(centroid={}, by_name={geo.county_key(geo.STATE_FIPS[f[:2]], n): (0, 0) for f, n in NAMES.items()},
-                            shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
+                            shape={"51059": [SQUARE], "29189": [SQUARE], "51510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]],
+                                   "29510": [[[(x + 1.2, y) for x, y in SQUARE[0]]]]},
                             name=NAMES, named=atlas_spellings(NAMES))
 
     def county(self, st, county, fips, point=None, moved=None):
@@ -331,6 +332,19 @@ class CountyDoubtTest(unittest.TestCase):
             self.assertRegex(doubt, "do not settle it", (st, cc, fips))
         self.assertEqual(self.county("MO", "ST. LOUIS CITY", "29510", (5.0, 5.0)), ("St. Louis City", None))  # address in neither
         self.assertEqual(self.county("MO", "ST. LOUIS", "29189", (0.5, 0.5)), ("St. Louis County", None))
+
+    def test_an_address_over_the_line_does_not_override_care_compare_and_the_impact_file_when_they_agree(self):
+        # St. Louis County (29189) and Fairfax County (51059) are the unit square; St. Louis city (29510) is the square
+        # 1.2 degrees east. A bare name is Care Compare's county.
+        for st, cc, fips, point, want in [
+                ("MO", "ST. LOUIS CITY", "29510", (0.5, 0.5), "St. Louis City"),  # the address is in the county
+                ("MO", "ST. LOUIS COUNTY", "29189", (0.5, 1.7), "St. Louis County"),  # the address is in the city
+                ("MO", "ST. LOUIS", "29189", (0.5, 1.7), "St. Louis County"),
+                # They disagree: the address breaks the tie.
+                ("MO", "ST. LOUIS CITY", "29189", (0.5, 1.7), "St. Louis City"),
+                ("MO", "ST. LOUIS", "29510", (0.5, 0.5), "St. Louis County"),
+                ("VA", "FAIRFAX", "51600", (0.5, 0.5), "Fairfax County")]:  # Inova Fair Oaks
+            self.assertEqual(self.county(st, cc, fips, point), (want, None), (st, cc, fips, point))
 
     def test_x_city_needs_an_independent_city_x_or_elsewhere_the_impact_files_county_x(self):
         impact = "unknown county; the impact-file county's name"
