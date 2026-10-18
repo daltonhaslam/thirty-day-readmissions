@@ -1,6 +1,6 @@
 # Overnight A2: round-3 county-label follow-ups (2026-10-17)
 
-Branch `claude/round3-followups` (draft PR, not merged). Source: `Paid-And-Penalized-Planning/docs/handoffs/2026-10-13-now3-results.md`,
+Branch `claude/round3-followups`, PR #1, merged to `main` as `f621754` on 2026-10-17. Source: `Paid-And-Penalized-Planning/docs/handoffs/2026-10-13-now3-results.md`,
 "Round-3 review findings, not fixed". No data refreshed; `pipeline/sources.json` untouched.
 
 **Output: byte-identical.** I built before starting and after every commit, then diffed SHA-256 manifests. The final

@@ -67,27 +67,17 @@ Meta:
 includes the 2026-10-13 county-name guard, `f6a250a`..`d747d38`). The raw-input release `fy2027-raw-inputs` is
 published. Not re-run in this audit: the test suites. No record that `/security-review` or `/verify` ran.
 
-**Open: round-3 review follow-ups on the county-name guard (none changes published output).**
-Source: `Paid-And-Penalized-Planning/docs/handoffs/2026-10-13-now3-results.md`. Item 4 was fixed in `65479c2`.
+**Done 2026-10-17: round-3 review follow-ups on the county-name guard** (PR #1, merged as `f621754`; published files
+byte-identical). Items 1-3 and 5-9 from `Paid-And-Penalized-Planning/docs/handoffs/2026-10-13-now3-results.md` (item 4
+was `65479c2`); no current hospital hit cases 1-3. Record: `planning-docs/build-records/2026-10-17-overnight-a2-report.md`.
 
-| # | Item | Where (all still present) |
-|---|---|---|
-| 1 | Suffix with punctuation ("ST. LOUIS COUNTY.", "HARRIS-COUNTY") is not stripped; label malformed but listed | `pipeline/hrrp/geo.py:94` (`county_key` suffix loop) |
-| 2 | Address point just over a county/city line overrides Care Compare and the impact file when both agree | `pipeline/build_data.py:343-348` (`locate`, address branch; `same` at 347) |
-| 3 | Unknown "X CITY" in MD/MO/NV/VA with no atlas FIPS shown as a city | `pipeline/build_data.py:392` (`named_city`, `bool(claim)`) |
-| 5 | `RealAtlasCountyTest` skips the CT 09110 case though it passes | `pipeline/tests/test_build.py:368` |
-| 6 | "X City" stem rule duplicated | `pipeline/build_data.py:347` (`locate`) and `:430` (`county_label`) |
-| 7 | `says` duplicates `county_key`'s suffix stripping | `pipeline/build_data.py:433` vs `pipeline/hrrp/geo.py:94` |
-| 8 | `hospital_record` glue could move into `locate` | `pipeline/build_data.py:500-506` |
-| 9 | Test-only atlas fallback in `county_label` | `pipeline/build_data.py:450-451` |
-
-Also open: `/security-review` and `/verify` have no record of running; "tick the report's checklist" lives in an
+Open: `/security-review` and `/verify` have no record of running on the 10-11 audit work; "tick the report's checklist" lives in an
 external artifact.
 
 **External triggers.**
 - The October Care Compare refresh had not landed as of 2026-10-17. When it does (the CMS watcher creates a Todoist
   task): refresh the Hospital General Information file, rebuild, and read the county gate report. The build fails
-  above `MAX_UNCHECKED_COUNTIES = 17` (`pipeline/build_data.py:466`). Round-3 items 1-3 matter most then.
+  above `MAX_UNCHECKED_COUNTIES = 17` (`pipeline/build_data.py`).
 - Medicare-dependent hospital status sunsets 2026-12-31 (`MDH_END`, `pipeline/build_data.py:38`). If Congress extends
   it, change `MDH_END` and rebuild; the Oct-Dec add-on in the data assumes the sunset.
 - Later: early 2027 predicted/expected rates; Aug-Oct 2027 FY2028 rollover.
