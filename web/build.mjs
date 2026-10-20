@@ -1,13 +1,13 @@
 // Bundle JS (d3 subset included), inline CSS + data, and write two outputs:
 //   ../docs/index.html   full document served by Vercel
 //   dist/artifact.html   body-only fragment for a claude.ai artifact preview
-// Env: FEEDBACK_URL overrides the feedback endpoint (tests); BUILD_OUT_DIR writes index.html elsewhere;
+// Env: BUILD_OUT_DIR writes index.html elsewhere;
 // HRRP_DATA builds from another data file (previewing a pipeline change; use with BUILD_OUT_DIR).
 import { build, transform } from 'esbuild';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { SITE_NAME, SITE_URL, FEEDBACK_URL, FONTS_HREF } from './src/js/site.js';
+import { SITE_NAME, SITE_URL, FONTS_HREF } from './src/js/site.js';
 import { cardImageUrl } from './og-card.mjs';
 
 const here = (p) => new URL(p, import.meta.url);
@@ -19,11 +19,8 @@ const darkDecls = /:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/.exec(token
 if (!darkDecls) throw new Error('tokens.css: dark media block not found');
 const css = (await transform([tokens, `:root[data-theme="dark"] {${darkDecls}}`, ...['base', 'components', 'charts'].map((n) => read(`src/styles/${n}.css`))].join('\n'),
   { loader: 'css', minify: true })).code;
-const bundle = async (endpoint) => (await build({ entryPoints: [fileURLToPath(here('src/js/main.js'))], bundle: true, format: 'iife',
-  minify: true, write: false, target: 'es2020', legalComments: 'none', define: { __FEEDBACK_URL__: JSON.stringify(endpoint) } })).outputFiles[0].text;
-const js = await bundle(process.env.FEEDBACK_URL ?? FEEDBACK_URL);
-// The claude.ai preview can't reach Google's script host, so its copy has the form switched off.
-const previewJs = await bundle('');
+const js = (await build({ entryPoints: [fileURLToPath(here('src/js/main.js'))], bundle: true, format: 'iife',
+  minify: true, write: false, target: 'es2020', legalComments: 'none' })).outputFiles[0].text;
 const rawData = process.env.HRRP_DATA ? readFileSync(process.env.HRRP_DATA, 'utf8') : read('src/data/hrrp.json');
 const { fy } = JSON.parse(rawData).meta;
 // Escape every '<' so no data string can close the script element.
@@ -53,7 +50,7 @@ mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'index.html'), doc);
 if (!process.env.BUILD_OUT_DIR) {
   mkdirSync(here('dist/'), { recursive: true });
-  writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${page(previewJs)}`);
+  writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${page(js)}`);
 }
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
 console.log(`docs/index.html ${kb(doc)} (js ${kb(js)}, css ${kb(css)}, data ${kb(data)})`);

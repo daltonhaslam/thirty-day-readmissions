@@ -19,13 +19,14 @@ for the nation, a census region or division, a state, a metro area, or a single 
 - **Fifteen years:** share penalized, average cut, and estimated totals since FY2013, with a sourced timeline.
 - **Every table** can be sorted, filtered, and exported as CSV.
 
-Readers can send corrections and ideas through a short form on every page; see `feedback/`.
+Readers can send corrections and ideas through a link on every page to the shared Paid & Penalized feedback
+Google Form; see `feedback/`.
 
 Every chart has a text label and a sortable table alternative; selecting individual chart marks needs a mouse or touch.
 
 The site is one self-contained HTML file (`docs/index.html`): data, code, and map geometry are inlined.
-Its only network requests are Google Fonts, with system-font fallbacks, and the feedback form's post to
-Google Apps Script when a reader sends a note.
+Its only network requests are Google Fonts, with system-font fallbacks. The feedback link opens Google Forms in a
+new tab; the page itself sends nothing.
 
 Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.
 

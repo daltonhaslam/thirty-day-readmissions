@@ -65,7 +65,7 @@ for (const width of [1280, 360]) {
   }
   {
     const { page: p } = await open('#hospital-010006');
-    check(await p.getByRole('button', { name: /report a problem/i }).count() === 1, 'report button missing on a hospital page');
+    check(await p.getByRole('link', { name: /report a problem/i }).count() === 1, 'report link missing on a hospital page');
     await p.close();
   }
   // The county note is the pipeline's full place name, shown as is.

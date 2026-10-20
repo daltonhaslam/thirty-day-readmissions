@@ -1,97 +1,69 @@
-// Feedback form, end to end: builds a copy wired to a fake Apps Script URL, serves it with the
-// vercel.json headers (so CSP is enforced), intercepts the POST, and checks what was sent.
+// Feedback link, end to end: serves docs/ with the vercel.json headers (so CSP is enforced), clicks each
+// feedback link, and checks the Google Form opens in a new tab with only the site and current page prefilled.
+// Google is never reached: requests to it are answered locally.
 // Usage: node e2e/feedback.mjs
-import { readFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
-import { serveWithHeaders, makeCheck } from './_lib.mjs';
+import { serveWithHeaders, builtPage, makeCheck } from './_lib.mjs';
+import { SITE_NAME, FEEDBACK_FORM_URL, FEEDBACK_ENTRIES } from '../src/js/site.js';
 
-const FAKE = 'https://script.google.com/macros/s/TEST-DEPLOYMENT/exec';
-const out = mkdtempSync(join(tmpdir(), 'tdr-feedback-'));
-execFileSync('node', ['build.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, FEEDBACK_URL: FAKE, BUILD_OUT_DIR: out }, stdio: 'ignore' });
-const { base, close } = serveWithHeaders(readFileSync(join(out, 'index.html')));
+const { base, close } = serveWithHeaders(builtPage());
 const { check, report } = makeCheck('feedback e2e');
 const browser = await chromium.launch({ channel: 'chrome' });
-const page = await browser.newPage();
+const context = await browser.newContext();
 const errors = [];
-page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-const posts = [];
-let reply = 'ok'; // what the fake Apps Script answers, with the CORS header Google's script host sends
 const strays = [];
-// Never let a test reach the real script: anything on Google's script hosts that isn't FAKE is blocked and fails the run.
-await page.route(/https:\/\/script\.(google|googleusercontent)\.com\//, (route) => {
-  if (!route.request().url().startsWith(FAKE)) { strays.push(route.request().url()); return route.abort(); }
-  posts.push(route.request().postData());
-  return route.fulfill({ status: 200, body: reply, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' } });
-});
+await context.route(/^https:\/\/docs\.google\.com\//, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'form' }));
+context.on('request', (r) => { if (/script\.google(usercontent)?\.com/.test(r.url())) strays.push(r.url()); });
 
-await page.goto(`${base}#hospital-010006`);
+const page = await context.newPage();
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', (e) => errors.push(String(e)));
+await page.goto(base);
 await page.waitForFunction(() => document.querySelector('#main > div'));
-check(await page.locator('#feedback form').isVisible(), 'feedback form not shown when an endpoint is configured');
-check(await page.locator('#feedback a[href*="linkedin.com"]').count() > 0, 'LinkedIn contact link missing');
+check(await page.locator('#feedback form').count() === 0, 'an in-page feedback form is still rendered');
 
-// The hospital page button opens the form with "Data looks wrong" selected and the message focused.
-await page.getByRole('button', { name: /report a problem with this hospital/i }).click();
-check((await page.locator('#fb-kind').inputValue()) === 'data', 'report button did not preselect "Data looks wrong"');
-check(await page.evaluate(() => document.activeElement?.id === 'fb-message'), 'report button did not focus the message');
+// Click a link and return the URL the new tab opened.
+async function follow(locator, label) {
+  check(await locator.getAttribute('target') === '_blank', `${label}: does not open a new tab`);
+  check(/\bnoopener\b/.test(await locator.getAttribute('rel') ?? ''), `${label}: missing rel=noopener`);
+  check(/opens in a new tab/.test(await locator.textContent()), `${label}: no "opens in a new tab" text`);
+  const [popup] = await Promise.all([context.waitForEvent('page'), locator.click()]);
+  await popup.waitForLoadState('domcontentloaded');
+  const url = popup.url();
+  await popup.close();
+  return url;
+}
 
-// A message that looks like patient information gets a warning first, then sends on the second click.
-await page.fill('#fb-message', 'Patient MRN 4482913 was readmitted but not counted.');
-await page.waitForTimeout(1700);
-await page.click('#feedback button[type="submit"]');
-check(/patient/i.test(await page.textContent('#fb-status')), 'no patient-information warning');
-check(posts.length === 0, 'sent before the patient-information warning was acknowledged');
-await page.fill('#fb-message', 'The heart failure ratio here looks too high for this hospital.');
-await page.fill('#fb-email', 'reader@example.org');
-await page.click('#feedback button[type="submit"]');
-await page.waitForFunction(() => /thank/i.test(document.querySelector('#fb-status')?.textContent || ''));
-check(posts.length === 1, `expected one POST, got ${posts.length}`);
-const sent = new URLSearchParams(posts[0] || '');
-check(sent.get('kind') === 'data' && sent.get('page') === '#hospital-010006' && sent.get('email') === 'reader@example.org', `payload: ${posts[0]}`);
-const heading = (await page.textContent('h1')).trim();
-check((sent.get('title') || '').startsWith(heading), `payload title "${sent.get('title')}" lacks the hospital name "${heading}"`);
-check(sent.get('trap') === '' && Number(sent.get('elapsed')) > 0, `spam signals missing from payload: ${posts[0]}`);
-check((await page.inputValue('#fb-message')) === '', 'form not cleared after sending');
+function expectPrefill(url, pageUrl, label) {
+  const u = new URL(url);
+  check(`${u.origin}${u.pathname}` === FEEDBACK_FORM_URL, `${label}: opened ${u.origin}${u.pathname}`);
+  check(JSON.stringify([...u.searchParams.keys()]) === JSON.stringify([FEEDBACK_ENTRIES.site, FEEDBACK_ENTRIES.page]), `${label}: sends more than site and page (${u.search})`);
+  check(u.searchParams.get(FEEDBACK_ENTRIES.site) === SITE_NAME, `${label}: site prefill is ${u.searchParams.get(FEEDBACK_ENTRIES.site)}`);
+  check(u.searchParams.get(FEEDBACK_ENTRIES.page) === pageUrl, `${label}: page prefill is ${u.searchParams.get(FEEDBACK_ENTRIES.page)}, expected ${pageUrl}`);
+}
 
-// A busy server is reported honestly and the note is kept.
-reply = 'busy';
-await page.fill('#fb-message', 'A second note while the server is busy.');
-await page.waitForTimeout(1700);
-await page.click('#feedback button[type="submit"]');
-await page.waitForFunction(() => /try again/i.test(document.querySelector('#fb-status')?.textContent || ''));
-check((await page.inputValue('#fb-message')) !== '', 'note cleared even though the server was busy');
+// Routes change in place, so the page address must be read at click time, not when the link was drawn.
+for (const hash of ['#hospital-010006', '#methods']) {
+  await page.evaluate((h) => { window.location.hash = h; }, hash);
+  await page.waitForFunction((h) => window.location.hash === h && document.querySelector('#main > div'), hash);
+  expectPrefill(await follow(page.locator('#feedback a').first(), `footer on ${hash}`), base + hash, `footer on ${hash}`);
+}
 
-// A bot that fills the hidden field: the server decides (it answers "ignored"), the reader sees "Sent".
-reply = 'ignored';
-await page.evaluate(() => { document.querySelector('#fb-trap').value = 'http://spam.example'; });
-await page.click('#feedback button[type="submit"]');
-await page.waitForFunction(() => /thank/i.test(document.querySelector('#fb-status')?.textContent || ''));
-check(new URLSearchParams(posts.at(-1)).get('trap') === 'http://spam.example', 'trap value not passed to the server');
+await page.evaluate(() => { window.location.hash = '#hospital-010006'; });
+await page.waitForSelector('a.hosp__report');
+expectPrefill(await follow(page.locator('a.hosp__report'), 'hospital report link'), `${base}#hospital-010006`, 'hospital report link');
 
-// The note text is the accessible name's content only through its description, not the label.
-const name = await page.evaluate(() => document.querySelector('#fb-message').labels[0].textContent);
-check(!/patient/i.test(name), `textarea label includes the note: "${name}"`);
+await page.evaluate(() => { window.location.hash = '#methods'; });
+await page.waitForFunction(() => /How this was made/.test(document.querySelector('#main')?.textContent ?? ''));
+const methodsLink = page.locator('#main a', { hasText: 'feedback form' }).first();
+expectPrefill(await follow(methodsLink, 'methods link'), `${base}#methods`, 'methods link');
+const methodsText = await page.textContent('#main');
+check(/collects nothing about you and sets no cookies/.test(methodsText), 'Methods privacy text missing "collects nothing"');
+check(/Google sees what you send and your IP address/.test(methodsText), 'Methods privacy text does not say Google sees submissions');
+check(!/within \d|\bdays?\b.*\b(reply|fix)|delete/i.test(methodsText.match(/Feedback and privacy[\s\S]*?Accessibility/)?.[0] ?? ''), 'Methods feedback text makes a timing or deletion promise');
+
+check(!strays.length, `requests to Apps Script: ${strays.join(', ')}`);
 check(!errors.length, `console errors: ${errors.join(' | ')}`);
-
-check(!strays.length, `requests escaped to a real script URL: ${strays.join(', ')}`);
-
-// Kill switch: an empty endpoint hides the form and the report button and changes the Methods text.
-const offDir = mkdtempSync(join(tmpdir(), 'tdr-feedback-off-'));
-execFileSync('node', ['build.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, FEEDBACK_URL: '', BUILD_OUT_DIR: offDir }, stdio: 'ignore' });
-const off = serveWithHeaders(readFileSync(join(offDir, 'index.html')));
-const offPage = await browser.newPage();
-await offPage.goto(`${off.base}#hospital-010006`);
-await offPage.waitForFunction(() => document.querySelector('#main > div'));
-check(await offPage.locator('#feedback form').count() === 0, 'form shown although feedback is off');
-check(await offPage.getByRole('button', { name: /report a problem/i }).count() === 0, 'report button shown although feedback is off');
-check(await offPage.locator('#feedback a[href*="linkedin.com"]').count() > 0, 'LinkedIn link missing when feedback is off');
-await offPage.goto(`${off.base}#methods`);
-await offPage.waitForFunction(() => document.querySelector('#main > div'));
-check(/collects nothing about you/.test(await offPage.textContent('main')), 'Methods text still describes a live form');
-off.close();
-
 await browser.close();
 close();
 report();

@@ -3,7 +3,7 @@ import { omnibox } from '../ui/omnibox.js';
 import { themeButton } from '../ui/theme.js';
 import { link, SECTION_LIST } from '../router.js';
 import { SITE_NAME, LINKEDIN_URL } from '../site.js';
-import { feedbackSection } from '../ui/feedbackForm.js';
+import { feedbackSection } from '../ui/feedback.js';
 import { DOLLARS_HREF } from './util.js';
 
 export function renderShell(D, index) {

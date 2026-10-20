@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { SITE_URL, FEEDBACK_URL } from '../src/js/site.js';
+import { SITE_URL, FEEDBACK_FORM_URL } from '../src/js/site.js';
 import { loadData } from '../src/js/data.js';
 import { cardHtml, cardImageUrl } from '../og-card.mjs';
 
@@ -29,6 +29,7 @@ test('the preview card is current: re-run `npm run og` after the data, name, sty
   assert.equal(stamp.htmlSha256, createHash('sha256').update(cardHtml(D)).digest('hex'));
 });
 
-test('the published page uses the production feedback endpoint (no leftover test override)', () => {
-  assert.ok(FEEDBACK_URL && html.includes(FEEDBACK_URL));
+test('the published page links to the feedback form and posts nowhere', () => {
+  assert.ok(html.includes(FEEDBACK_FORM_URL));
+  assert.ok(!html.includes('script.google.com'));
 });
