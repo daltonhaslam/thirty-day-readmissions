@@ -34,9 +34,9 @@ const meta = (mdh = {}) => ({ dollarCheck: DOLLAR_CHECK, mdh: { endDate: '2026-1
 const find = (rows, re) => rows.find(([a]) => re.test(a));
 
 test('accuracy line dates the cost-report check, and stays harmless on a partial record', () => {
-  assert.equal(accuracyLine(DOLLAR_CHECK), "In an October 2026 check against hospitals' FY2024 Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth (74% for hospitals under 100 beds).");
+  assert.equal(accuracyLine(DOLLAR_CHECK, 2027), "In an October 2026 check against hospitals' FY2024 Medicare cost reports, 85% of estimates land within 15% after allowing for payment-rate growth from FY2024 to FY2027 (74% for hospitals under 100 beds).");
   assert.match(accuracyLine({ ...DOLLAR_CHECK, asOf: '2027-03-02' }), /^In a March 2027 check against hospitals' FY2024 Medicare cost reports,/);
-  assert.equal(accuracyLine({ within15: 85 }), "In a check against hospitals' Medicare cost reports, 85% of estimates land within 15% after allowing for two years of payment-rate growth.");
+  assert.equal(accuracyLine({ within15: 85 }, 2027), "In a check against hospitals' Medicare cost reports, 85% of estimates land within 15% after allowing for payment-rate growth.");
   assert.equal(accuracyLine(undefined), '');
 });
 
@@ -54,6 +54,13 @@ test('assumption rows: MDH add-on through the end date, rate drift, inactive cou
   assert.doesNotMatch(find(rows, /no longer active/)[1], /their cut/);
   assert.deepEqual(find(rows, /impact file/), ['1 hospital missing from the impact file gets no estimate', 'Totals note the count instead of adding $0']);
   assert.equal(find(rows, /^Medicare volume/)[0], 'Medicare volume taken from FY2025');
+  assert.match(find(rows, /^New-technology/)[1], /up to about 2% low overall.*FY2027 was about \$1\.7 billion\)$/);
+  assert.equal(find(rows, /^Pennsylvania/)[1], 'Medicare pays them a global budget until the model ends December 31, 2026, so Oct–Dec 2026 is lower confidence; they are paid per stay after that');
+});
+
+test('the Pennsylvania Rural Health Model row drops out once the model has ended before the payment year', () => {
+  const rows = assumptionRows({ meta: meta(), edition: { fy: 2028, label: 'FY2028' }, hospitals });
+  assert.equal(find(rows, /^Pennsylvania/), undefined);
 });
 
 test('the inactive and no-estimate rows appear only when there are such hospitals', () => {

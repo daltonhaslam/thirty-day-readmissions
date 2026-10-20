@@ -24,6 +24,15 @@ const GLOSSARY = [
   ['Metro area (CBSA)', 'A Core-Based Statistical Area defined by the Office of Management and Budget: a city and the counties tied to it by commuting.'],
 ];
 
+// CMS's upper-bound estimate of new-technology add-on payments (every eligible claim at the maximum add-on): "Aggregate
+// Estimated Total FY 2027 Impact $1,739,715,745.72", FY2027 IPPS final rule (FR doc 2026-15833), 91 FR 50423. Against the
+// ~$91B modeled base (and CMS's FY2027 HVBP pool, ~$1.9B = 2% of base operating DRG payments), that is about 2%.
+const NTAP = { fy: 2027, total: '$1.7 billion', share: 2 };
+
+// Medicare pays Pennsylvania Rural Health Model hospitals a global budget through this date: CMS Transmittal 12622
+// (CR 13595, May 2, 2024) extended the model's termination date to 12/31/2026. The row drops out of later editions.
+const PARHM_END = '2026-12-31';
+
 // How well recomputing CMS's factors works, worded from the pipeline's replication check.
 export function replicationText(rep) {
   return `Recomputing every hospital from the values CMS publishes, read at full precision from the Excel version of its file, reproduces its factor exactly for ${rep.exact === rep.total ? 'all' : `${fmtInt(rep.exact)} of`} ${fmtInt(rep.total)} hospitals. The worksheets on this site show ratios and weights to four decimals.`;
@@ -37,12 +46,12 @@ function monthsBefore(fy, endIso) {
 }
 
 // How the estimates compare with hospitals' cost reports, dated by the check (the build requires it; the guard keeps
-// a partial record from printing gaps).
-export function accuracyLine(dc) {
+// a partial record from printing gaps). fy is the edition's payment year, whose rates the estimates use.
+export function accuracyLine(dc, fy) {
   if (dc?.within15 == null) return '';
   const month = dc.asOf ? new Date(`${dc.asOf}T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : '';
   const check = month ? `${/^[AEIOU]/.test(month) ? 'an' : 'a'} ${month} check` : 'a check';
-  return `In ${check} against hospitals' ${dc.costFy ? `FY${dc.costFy} ` : ''}Medicare cost reports, ${fmtPct(dc.within15, 0)} of estimates land within 15% after allowing for two years of payment-rate growth`
+  return `In ${check} against hospitals' ${dc.costFy ? `FY${dc.costFy} ` : ''}Medicare cost reports, ${fmtPct(dc.within15, 0)} of estimates land within 15% after allowing for payment-rate growth${dc.costFy && fy ? ` from FY${dc.costFy} to FY${fy}` : ''}`
     + `${dc.within15Small != null ? ` (${fmtPct(dc.within15Small, 0)} for hospitals under 100 beds)` : ''}.`;
 }
 
@@ -62,8 +71,9 @@ export function assumptionRows(D) {
     ['Sole community hospitals priced at the federal rate', 'What the law requires'],
     [`Medicare-dependent add-on included for ${monthsBefore(E.fy, m.mdh.endDate)} only, assuming MDH status ends ${fmtDate(m.mdh.endDate, 'long')}, as current law says (${plural(nMdh, 'hospital')})`,
       `If Congress extends MDH status, estimates for these hospitals run low, up to about ${m.mdh.maxShortfall}% for some`],
-    ['New-technology add-on payments left out', 'The real cut includes them, so estimates run slightly low (they are about 0.1% of payments nationally)'],
-    ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent', 'They were paid on global budgets; low-medium confidence'],
+    ['New-technology add-on payments left out', `The real cut includes them, so estimates run up to about ${NTAP.share}% low overall, more for hospitals that use new technologies (CMS's upper-bound estimate of these payments for FY${NTAP.fy} was about ${NTAP.total})`],
+    PARHM_END >= `${E.fy - 1}-10-01` ? ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent',
+      `Medicare pays them a global budget until the model ends ${fmtDate(PARHM_END, 'long')}, so ${monthsBefore(E.fy, PARHM_END)} is lower confidence; they are paid per stay after that`] : null,
     ['New hospitals use partial-year volume', 'Likely understated'],
     nInactive ? [`${plural(nInactive, 'hospital')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
       `CMS will not pay ${nInactive === 1 ? 'it' : 'them'} under this ID, so any cut ${nInactive === 1 ? 'it has' : 'they have'} is unlikely to be collected`] : null,
@@ -75,7 +85,7 @@ export function assumptionRows(D) {
 // The section every "estimate" tag links to: what the dollar figures assume, and how well they hold up.
 function dollarAssumptions(D) {
   const id = DOLLARS_ID;
-  const accuracy = accuracyLine(D.meta.dollarCheck);
+  const accuracy = accuracyLine(D.meta.dollarCheck, D.edition.fy);
   return h('section', { id, class: 'methods__sec', 'aria-labelledby': `${id}-h` },
     h('h2', { id: `${id}-h` }, 'Assumptions behind the dollar estimates'),
     h('p', {}, `Dollar figures are estimates made for this site, not amounts CMS publishes. They apply each hospital's ${D.edition.label} cut to its estimated base Medicare payments, using the assumptions below.`),

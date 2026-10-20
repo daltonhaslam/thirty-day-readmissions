@@ -8,5 +8,5 @@
   "within15": 85.0,
   "within15Small": 73.7,
   "within15Large": 89.6,
-  "note": "Share of hospitals whose modeled base payments fall within the stated percentage of their own cost report after removing the median 6.6% difference expected from two years of payment-rate growth. Small = under 100 certified beds."
+  "note": "Share of hospitals whose modeled base payments fall within the stated percentage of their own cost report after removing the median 6.6% difference expected from payment-rate growth between FY2024 cost reports and FY2027 rates. Small = under 100 certified beds."
 }
