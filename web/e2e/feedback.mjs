@@ -4,7 +4,7 @@
 // Usage: node e2e/feedback.mjs
 import { chromium } from 'playwright';
 import { serveWithHeaders, builtPage, makeCheck } from './_lib.mjs';
-import { SITE_NAME, FEEDBACK_FORM_URL, FEEDBACK_ENTRIES } from '../src/js/site.js';
+import { SITE_NAME, SITE_URL, FEEDBACK_FORM_URL, FEEDBACK_ENTRIES } from '../src/js/site.js';
 
 const { base, close } = serveWithHeaders(builtPage());
 const { check, report } = makeCheck('feedback e2e');
@@ -46,21 +46,31 @@ function expectPrefill(url, pageUrl, label) {
 for (const hash of ['#hospital-010006', '#methods']) {
   await page.evaluate((h) => { window.location.hash = h; }, hash);
   await page.waitForFunction((h) => window.location.hash === h && document.querySelector('#main > div'), hash);
-  expectPrefill(await follow(page.locator('#feedback a').first(), `footer on ${hash}`), base + hash, `footer on ${hash}`);
+  expectPrefill(await follow(page.locator('#feedback a').first(), `footer on ${hash}`), SITE_URL + hash, `footer on ${hash}`);
 }
+
+// The footer link follows route changes on its own, so hover, copy link and long-press see the current route.
+await page.evaluate(() => { window.location.hash = '#state-ut'; });
+await page.waitForFunction(() => window.location.hash === '#state-ut' && document.querySelector('#main > div'));
+expectPrefill(await page.locator('#feedback a').first().getAttribute('href'), `${SITE_URL}#state-ut`, 'footer after a route change');
 
 await page.evaluate(() => { window.location.hash = '#hospital-010006'; });
 await page.waitForSelector('a.hosp__report');
-expectPrefill(await follow(page.locator('a.hosp__report'), 'hospital report link'), `${base}#hospital-010006`, 'hospital report link');
+expectPrefill(await follow(page.locator('a.hosp__report'), 'hospital report link'), `${SITE_URL}#hospital-010006`, 'hospital report link');
 
 await page.evaluate(() => { window.location.hash = '#methods'; });
 await page.waitForFunction(() => /How this was made/.test(document.querySelector('#main')?.textContent ?? ''));
 const methodsLink = page.locator('#main a', { hasText: 'feedback form' }).first();
-expectPrefill(await follow(methodsLink, 'methods link'), `${base}#methods`, 'methods link');
+expectPrefill(await follow(methodsLink, 'methods link'), `${SITE_URL}#methods`, 'methods link');
 const methodsText = await page.textContent('#main');
 check(/collects nothing about you and sets no cookies/.test(methodsText), 'Methods privacy text missing "collects nothing"');
 check(/Google sees what you send and your IP address/.test(methodsText), 'Methods privacy text does not say Google sees submissions');
 check(!/within \d|\bdays?\b.*\b(reply|fix)|delete/i.test(methodsText.match(/Feedback and privacy[\s\S]*?Accessibility/)?.[0] ?? ''), 'Methods feedback text makes a timing or deletion promise');
+
+// Only the public address is sent: not the serving host, and not a query string such as a share-tracking tag.
+await page.goto(`${base}?fbclid=TRACKING#methods`);
+await page.waitForFunction(() => document.querySelector('#main > div'));
+expectPrefill(await follow(page.locator('#feedback a').first(), 'footer with a query string'), `${SITE_URL}#methods`, 'footer with a query string');
 
 check(!strays.length, `requests to Apps Script: ${strays.join(', ')}`);
 check(!errors.length, `console errors: ${errors.join(' | ')}`);

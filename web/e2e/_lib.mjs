@@ -10,7 +10,7 @@ export const builtPage = () => readFileSync(new URL(`${vercelConfig.outputDirect
 export function serveWithHeaders(html) {
   const headers = Object.fromEntries(vercelConfig.headers.flatMap((r) => r.headers.map((x) => [x.key, x.value])));
   const server = createServer((req, res) => {
-    const ok = req.url === '/';
+    const ok = req.url.split('?')[0] === '/';
     res.writeHead(ok ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8', ...headers });
     res.end(ok ? html : '');
   }).listen(0);

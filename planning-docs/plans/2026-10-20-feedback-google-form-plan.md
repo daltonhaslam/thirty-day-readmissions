@@ -17,7 +17,8 @@ retention or deletion promise; the form warns against patient information; feedb
 - [x] `site.js`: `FEEDBACK_FORM_URL` (responder `viewform` URL) and `FEEDBACK_ENTRIES` (`site`, `page` entry IDs); drop `FEEDBACK_URL`
 - [x] `ui/feedback.js`: `feedbackHref(pageUrl)` (pure; `encodeURIComponent` on both values, nothing else sent) and
   `feedbackLink(label, cls)`: an `<a target="_blank" rel="noopener noreferrer">` with visually hidden "(opens in a new tab)"
-  text, whose `href` is rebuilt from the current address (query string dropped) on pointerdown, focus and click
+  text, whose `href` is rebuilt from `SITE_URL` + the current hash on pointerdown, focus and click (the long-lived footer
+  link also on every route change), so a local copy, preview host or tracking query string never reaches Google
 - [x] Footer: the in-page form becomes a short section with the "Send feedback" link and the no-patient-information line
 - [x] Hospital page: the "Report a problem" button becomes a link to the form (Page prefilled with the hospital URL)
 - [x] Methods: the About contact route and the "Feedback and privacy" paragraph rewritten (site collects nothing and
