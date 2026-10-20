@@ -62,7 +62,7 @@ export function assumptionRows(D) {
     ['Sole community hospitals priced at the federal rate', 'What the law requires'],
     [`Medicare-dependent add-on included for ${monthsBefore(E.fy, m.mdh.endDate)} only, assuming MDH status ends ${fmtDate(m.mdh.endDate, 'long')}, as current law says (${plural(nMdh, 'hospital')})`,
       `If Congress extends MDH status, estimates for these hospitals run low, up to about ${m.mdh.maxShortfall}% for some`],
-    ['New-technology add-on payments left out', 'The cut covers them; about 0.1% of payments nationally'],
+    ['New-technology add-on payments left out', 'The real cut includes them, so estimates run slightly low (they are about 0.1% of payments nationally)'],
     ['Pennsylvania Rural Health Model hospitals shown as a DRG-equivalent', 'They were paid on global budgets; low-medium confidence'],
     ['New hospitals use partial-year volume', 'Likely understated'],
     nInactive ? [`${plural(nInactive, 'hospital')} CMS lists as no longer active ${nInactive === 1 ? 'is' : 'are'} still shown`,
