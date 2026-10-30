@@ -83,6 +83,9 @@ for (const width of [1280, 360]) {
   }
 }
 
+// Whether the page lands on Utah (the search checks' Enter).
+const opensUtah = (page) => page.waitForFunction(() => document.querySelector('h1')?.textContent.trim() === 'Utah', null, { timeout: 3000 }).then(() => true, () => false);
+
 // 3. Search: punctuation-tolerant queries return results; Enter navigates.
 {
   const { page } = await open('');
@@ -94,8 +97,30 @@ for (const width of [1280, 360]) {
   }
   await input.fill('utah');
   await input.press('Enter');
-  const opened = await page.waitForFunction(() => document.querySelector('h1')?.textContent.trim() === 'Utah', null, { timeout: 3000 }).then(() => true, () => false);
-  check(opened, 'Enter on "utah" did not open Utah');
+  check(await opensUtah(page), 'Enter on "utah" did not open Utah');
+  await page.close();
+}
+
+// 3b. Search: leaving the box and coming straight back keeps the list of what was typed, and Enter follows it.
+// Leaving closes the list a moment later; the leave, return and typing happen in one task, inside that moment.
+{
+  const back = 'coming straight back to the search box';
+  const { page } = await open('');
+  const input = page.locator('.topbar input[role="combobox"]');
+  await input.fill('salt');
+  const left = await input.evaluate((box) => {
+    box.blur();
+    const away = document.activeElement !== box;
+    box.focus();
+    box.value = 'utah';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return away;
+  });
+  check(left, `${back}: the box did not lose the focus`);
+  await page.waitForTimeout(300);
+  check(await page.locator('.topbar [role="listbox"]').isVisible(), `${back}: the list closed`);
+  await input.press('Enter');
+  check(await opensUtah(page), `${back}: Enter on "utah" did not open Utah`);
   await page.close();
 }
 
