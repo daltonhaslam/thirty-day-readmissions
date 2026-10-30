@@ -59,6 +59,10 @@ export function omnibox(index, { big = false, placeholder = 'Hospital, city, sta
     else if (e.key === 'Enter') { go(results[active]); e.preventDefault(); }
     else if (e.key === 'Escape') close();
   });
-  input.addEventListener('blur', () => setTimeout(close, 120));
+  // Leaving the box closes the list a moment later (so a press on an option lands first); coming back before then keeps
+  // it, with whatever the reader types next.
+  let closing = null;
+  input.addEventListener('focus', () => clearTimeout(closing));
+  input.addEventListener('blur', () => { closing = setTimeout(close, 120); });
   return root;
 }
