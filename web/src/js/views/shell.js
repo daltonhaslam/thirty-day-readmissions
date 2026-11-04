@@ -27,6 +27,7 @@ export function renderShell(D, index) {
       h('p', {}, `Data: CMS ${D.edition.label} Hospital Readmissions Reduction Program Supplemental Data File (posted ${D.meta.fileDate}), ${D.edition.label} IPPS final rule files, CMS Care Compare, and US Census geography. Dollar figures tagged "estimate" are modeled on this site; see `,
         h('a', { href: DOLLARS_HREF }, 'the assumptions'), '.')),
     h('div', {},
+      h('p', {}, 'Part of ', h('a', { href: 'https://paidandpenalized.org/' }, 'Paid & Penalized'), ', a family of sites on Medicare\'s hospital payment programs.'),
       h('p', {}, 'An independent project. Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.'),
       h('p', { class: 'small' }, 'Code MIT-licensed. Federal source data is public domain.'))));
 }
