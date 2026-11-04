@@ -49,6 +49,8 @@ for (const width of [1280, 360]) {
   check((await page.textContent('h1')).replace(/\s+/g, ' ').trim() === 'Thirty Day Readmissions', 'hero title is not "Thirty Day Readmissions"');
   check((await page.textContent('.wordmark__name')).trim() === 'Thirty Day Readmissions', 'wordmark not renamed');
   check(/Built by Dalton Haslam, MD, MBA, using Claude Code/.test(await page.textContent('.byline')), 'footer byline lacks "using Claude Code"');
+  check(await page.locator('.family-strip a[href="https://paidandpenalized.org/"]').count() === 1, 'family strip link missing');
+  check(await page.locator('.footer a[href="https://paidandpenalized.org/"]').count() === 1, 'footer family link missing');
   await page.close();
 }
 

@@ -1,7 +1,9 @@
 /* ---------- family strip (Paid & Penalized) ---------- */
 .family-strip { background: var(--ink); font: 400 var(--fs-sm)/1.3 var(--font-body); }
-.family-strip a { display: block; padding-block: 6px; color: var(--paper); text-decoration: none; }
+.family-strip a { display: inline-block; padding-block: 6px; color: var(--paper); text-decoration: none; }
 .family-strip a:hover b, .family-strip a:focus-visible b { text-decoration: underline; }
+.family-strip a:focus-visible { outline-color: var(--paper); outline-offset: -2px; }
+@media print { .family-strip { display: none; } }
 
 /* ---------- top bar ---------- */
 .topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--paper); border-bottom: var(--rule) solid var(--ink); }
