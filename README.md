@@ -25,8 +25,9 @@ Google Form; see `feedback/`.
 Every chart has a text label and a sortable table alternative; selecting individual chart marks needs a mouse or touch.
 
 The site is one self-contained HTML file (`docs/index.html`): data, code, and map geometry are inlined.
-Its only network requests are Google Fonts, with system-font fallbacks. The feedback link opens Google Forms in a
-new tab; the page itself sends nothing.
+Its only network requests are Google Fonts, with system-font fallbacks, and Vercel Web Analytics, which counts page
+views anonymously (no cookies; only the page path is sent, never the query string or the `#` hospital page). The feedback
+link opens Google Forms in a new tab.
 
 Not affiliated with or endorsed by the Centers for Medicare & Medicaid Services.
 

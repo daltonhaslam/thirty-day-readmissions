@@ -43,7 +43,7 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
   + '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
   + `<meta property="og:image:alt" content="${SITE_NAME}: FY${fy} Medicare readmission penalties for every hospital">`
   + '<meta name="twitter:card" content="summary_large_image">'
-  + `${head(pagesTitle)}</head><body>${body}</body></html>`;
+  + `${head(pagesTitle)}<script defer src="/_vercel/insights/script.js"></script></head><body>${body}</body></html>`;
 
 const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('../docs/'));
 mkdirSync(outDir, { recursive: true });

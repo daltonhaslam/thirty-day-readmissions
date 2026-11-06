@@ -1,3 +1,6 @@
+// Vercel Web Analytics: queue a beforeSend that keeps only the path (no query, no #hospital page) before its deferred script loads.
+window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+window.va('beforeSend', (e) => ({ ...e, url: e.url.split(/[?#]/)[0] }));
 import { loadData } from './data.js';
 import { SITE_NAME } from './site.js';
 import { buildIndex } from './ui/search.js';

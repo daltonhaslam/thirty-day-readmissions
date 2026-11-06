@@ -1,6 +1,7 @@
 // End-to-end smoke test of the built page (docs/index.html) in installed Chrome.
 // Usage: node e2e/smoke.mjs   (exit 1 on any failure)
 import { chromium } from 'playwright';
+import { stubInsights } from './_lib.mjs';
 
 const PAGE = `file://${new URL('../../docs/index.html', import.meta.url).pathname}`;
 const ROUTES = ['', '#region-south', '#division-south-atlantic', '#state-ut', '#metro-41620', '#hospital-010006',
@@ -12,6 +13,7 @@ const browser = await chromium.launch({ channel: 'chrome' });
 
 async function open(hash, { width = 1280, scheme = 'light' } = {}) {
   const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: scheme });
+  await stubInsights(page);
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(String(e)));

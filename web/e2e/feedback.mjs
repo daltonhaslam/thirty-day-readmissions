@@ -63,7 +63,7 @@ await page.waitForFunction(() => /How this was made/.test(document.querySelector
 const methodsLink = page.locator('#main a', { hasText: 'feedback form' }).first();
 expectPrefill(await follow(methodsLink, 'methods link'), `${SITE_URL}#methods`, 'methods link');
 const methodsText = await page.textContent('#main');
-check(/collects nothing about you and sets no cookies/.test(methodsText), 'Methods privacy text missing "collects nothing"');
+check(/sets no cookies\. Page views are counted anonymously with Vercel Web Analytics/.test(methodsText), 'Methods privacy text missing analytics disclosure');
 check(/Google sees what you send and your IP address/.test(methodsText), 'Methods privacy text does not say Google sees submissions');
 check(!/within \d|\bdays?\b.*\b(reply|fix)|delete/i.test(methodsText.match(/Feedback and privacy[\s\S]*?Accessibility/)?.[0] ?? ''), 'Methods feedback text makes a timing or deletion promise');
 
