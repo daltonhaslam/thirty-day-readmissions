@@ -22,6 +22,8 @@ const PAGES = {
   region: (k) => (/^(northeast|midwest|south|west)$/.test(k) ? { path: `region/${k}/`, what: 'a census region' } : null),
 };
 
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
 // hash: location.hash ('' or '#…'). Returns { href, note }: the button's absolute address and the line to show under it
 // ('' when the link named no page or one the old site did not have).
 export function target(hash) {
@@ -36,10 +38,10 @@ export function target(hash) {
   const to = (path, what, obj) => ({ href: ORIGIN + HOME + path, note: `Your link was to ${what}: the button opens ${obj} there.` });
   if (s === 'methods') return to('methods/', 'the Methods page', 'it');
   if (s === 'methods-dollars') return to('methods/#methods-dollars', 'the dollar assumptions', 'them');
-  if (Object.hasOwn(SECTIONS, s)) return to(`#${s}`, SECTIONS[s], 'it');
+  if (has(SECTIONS, s)) return to(`#${s}`, SECTIONS[s], 'it');
   const m = /^([a-z]+)-(.+)$/i.exec(s);
   const kind = m && m[1].toLowerCase();
-  const page = kind && Object.hasOwn(PAGES, kind) ? PAGES[kind](m[2]) : null;
+  const page = kind && has(PAGES, kind) ? PAGES[kind](m[2]) : null;
   return page ? to(page.path, page.what, 'its page') : home;
 }
 

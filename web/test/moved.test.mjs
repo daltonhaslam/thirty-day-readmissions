@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORIGIN, target } from '../../docs/moved.js';
+import { parseHash } from '../src/js/router.js';
+import { cardImageUrl } from '../og-card.mjs';
 
 const docs = (p) => readFileSync(new URL(`../../docs/${p}`, import.meta.url), 'utf8');
 const HOME = `${ORIGIN}/hrrp/`;
@@ -111,7 +113,9 @@ test('the page: its button works without the script, it loads only its own files
   const srcs = [...html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(srcs.filter((s) => !s.startsWith('data:')), ['moved.js', '/_vercel/insights/script.js']);
   assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic|@import|url\(http/);
-  assert.match(html, /<meta property="og:image" content="https:\/\/thirty-day-readmissions\.vercel\.app\/og\.png\?v=[0-9a-f]{10}">/);
+  // The card's version is the served file's hash, so a re-rendered og.png (npm run og) shows up here.
+  const og = readFileSync(new URL('../../docs/og.png', import.meta.url));
+  assert.equal(/<meta property="og:image" content="([^"]+)">/.exec(html)?.[1], cardImageUrl(og));
   assert.doesNotMatch(html, /hrrp-data/, 'the old site\'s build did not overwrite the page');
 });
 
@@ -120,4 +124,30 @@ test('the script sets the note as text and points analytics at the path alone', 
   assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|location\s*=|location\.(assign|replace|href\s*=)/);
   assert.match(js, /note\.textContent = /);
   assert.match(js, /url: e\.url\.split\(\/\[\?#\]\/\)\[0\]/);
+});
+
+// Every input the old router read as a page, target() sends to that page's new address; everything it did not, to /hrrp/.
+// Run against the old router itself (web/src/js/router.js parseHash), so the two cannot drift apart.
+test('target() agrees with the old router on every input', () => {
+  const kinds = ['hospital', 'Hospital', 'state', 'STATE', 'metro', 'division', 'region', 'methods', 'nope', 'top'];
+  const keys = ['990001', '99000', '9900011', '99990', 'ut', 'UT', 'u', 'south-atlantic', 'South-Atlantic', 'south--atlantic', 'west',
+    'West', 'north', 'dollars', '', 'x', '990001/', '1t'];
+  const inputs = ['', '#', '#/', '#top', '#/top', '#methods', '#Methods', '#methods-dollars', '#how', '#map', '#explore', '#research',
+    '#history', '#picture', '#Map', '#%6Dap', '#%', '#%E0%A4%A', '#__proto__', '#constructor-x', '#toString-1',
+    ...kinds.flatMap((k) => keys.flatMap((v) => [`#${k}-${v}`, `#/${k}-${v}`, `#${encodeURIComponent(`${k}-${v}`)}`]))];
+  // The old router's key table was a plain object, so '#constructor-x' read as a 'constructor' view the site never had (it
+  // showed nothing): for the moved page that is not a page, and it goes to /hrrp/.
+  const VIEWS = new Set(['home', 'methods', 'hospital', 'state', 'metro', 'division', 'region']);
+  const read = (h) => { const r = parseHash(h); return VIEWS.has(r.view) ? r : { view: 'notfound' }; };
+  const want = (r) => {
+    if (r.view === 'home') return r.section ? `${ORIGIN}/hrrp/#${r.section}` : `${ORIGIN}/hrrp/`;
+    if (r.view === 'methods') return `${ORIGIN}/hrrp/methods/${r.section ? `#${r.section}` : ''}`;
+    if (r.view === 'notfound') return `${ORIGIN}/hrrp/`;
+    return `${ORIGIN}/hrrp/${r.view}/${r.key.toLowerCase()}/`;
+  };
+  for (const h of inputs) {
+    const r = read(h);
+    assert.equal(target(h).href, want(r), `${h}: old router read ${JSON.stringify(r)}`);
+    assert.equal(target(h).note === '', r.view === 'notfound' || (r.view === 'home' && !r.section), `${h}: note`);
+  }
 });

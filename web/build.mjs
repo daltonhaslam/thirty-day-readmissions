@@ -50,7 +50,6 @@ const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('dist/'));
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'index.html'), doc);
 if (!process.env.BUILD_OUT_DIR) {
-  mkdirSync(here('dist/'), { recursive: true });
   writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${page(js)}`);
 }
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
