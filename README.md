@@ -2,7 +2,11 @@
 
 **An almanac of Medicare's Hospital Readmissions Reduction Program (HRRP), FY2027 edition.**
 
-**Live site: https://thirty-day-readmissions.vercel.app**
+> **This site has moved.** It is now Readmissions, part of Paid & Penalized: **https://paidandpenalized.org/hrrp/**.
+> The old address, https://thirty-day-readmissions.vercel.app, shows a "moved" page whose button opens the new page for an
+> old link (a hospital, state, metro, division, region, section or Methods). This repository keeps the code and data pipeline
+> that built the site through its FY2027 edition; the pipeline now runs in the Paid & Penalized repository,
+> https://github.com/paidandpenalized/paid-and-penalized.
 
 Each October, Medicare cuts payments to hospitals whose patients come back within 30 days more often than
 expected. For fiscal year 2027 (October 1, 2026 – September 30, 2027), CMS cut payments at 2,334 of the
@@ -24,7 +28,7 @@ Google Form; see `feedback/`.
 
 Every chart has a text label and a sortable table alternative; selecting individual chart marks needs a mouse or touch.
 
-The site is one self-contained HTML file (`docs/index.html`): data, code, and map geometry are inlined.
+The site was one self-contained HTML file (built to `web/dist/index.html`): data, code, and map geometry are inlined.
 Its only network requests are Google Fonts, with system-font fallbacks, and Vercel Web Analytics, which counts page
 views anonymously (no cookies; only the page path is sent, never the query string or the `#` hospital page). The feedback
 link opens Google Forms in a new tab.
@@ -65,19 +69,22 @@ python3 -I pipeline/run_tests.py      # pipeline tests (includes "committed JSON
 
 cd web
 npm install
-npm test                              # unit tests (penalty math, search, router, CSV)
-npm run build                         # → ../docs/index.html (and dist/artifact.html)
+npm test                              # unit tests (penalty math, search, router, CSV, the moved page); builds first
+npm run build                         # → dist/index.html (and dist/artifact.html); never writes docs/
 npm run e2e                           # end-to-end checks in installed Google Chrome
 npm run e2e:headers                   # the page still works under vercel.json's security headers
+npm run e2e:moved                     # the moved page in docs/: Chrome, Firefox, WebKit (--url for the live address)
 npm run og                            # re-render the 1200x630 link-preview card (docs/og.png), then rebuild
 ```
 
 ## Hosting
 
-The site deploys on Vercel from this repository. `vercel.json` serves `docs/` as-is (there is no build
-step on Vercel) and sets security headers. Every push to `main` redeploys; other branches get preview URLs.
+Vercel serves `docs/` from this repository as-is (there is no build step on Vercel) with the security headers in
+`vercel.json`. Since the move, `docs/` holds only the moved page (`index.html`, `moved.js`) and `og.png`, kept so posted
+link previews keep their card. Every push to `main` redeploys; other branches get preview URLs.
 
-When CMS posts the next fiscal year: add the new files to `pipeline/sources.json`, update the constants
+Later fiscal years are refreshed in the Paid & Penalized repository, not here. For the record, this repository's steps
+were: add the new files to `pipeline/sources.json`, update the constants
 block at the top of `pipeline/build_data.py` (including `MDH_END` if Congress extends the Medicare-dependent
 hospital program), append the prior year's factors to the history CSV, re-run `pipeline/geocode.py`, and update
 this README's counts (a pipeline test checks them against the built data).
@@ -87,7 +94,7 @@ this README's counts (a pipeline test checks them against the built data).
 ```
 pipeline/   fetch.py, build_data.py, geocode.py, hrrp/ (parsers, formula, geography, names), history/, content/, tests/
 web/        build.mjs, src/ (index shell, styles, js: model, router, charts, views), test/, e2e/
-docs/       index.html, the built site (served by Vercel; see vercel.json)
+docs/       the "moved" page (index.html, moved.js) and og.png, served by Vercel (see vercel.json)
 planning-docs/  design spec and implementation plan
 ```
 
