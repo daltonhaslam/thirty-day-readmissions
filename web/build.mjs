@@ -1,5 +1,6 @@
 // Bundle JS (d3 subset included), inline CSS + data, and write two outputs:
-//   ../docs/index.html   full document served by Vercel
+//   dist/index.html      the full document (Vercel no longer serves it: the site moved to paidandpenalized.org/hrrp/,
+//                        and docs/ now holds the "moved" page, which a rebuild must not overwrite)
 //   dist/artifact.html   body-only fragment for a claude.ai artifact preview
 // Env: BUILD_OUT_DIR writes index.html elsewhere;
 // HRRP_DATA builds from another data file (previewing a pipeline change; use with BUILD_OUT_DIR).
@@ -45,7 +46,7 @@ const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta na
   + '<meta name="twitter:card" content="summary_large_image">'
   + `${head(pagesTitle)}<script defer src="/_vercel/insights/script.js"></script></head><body>${body}</body></html>`;
 
-const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('../docs/'));
+const outDir = process.env.BUILD_OUT_DIR ?? fileURLToPath(here('dist/'));
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, 'index.html'), doc);
 if (!process.env.BUILD_OUT_DIR) {
@@ -53,4 +54,4 @@ if (!process.env.BUILD_OUT_DIR) {
   writeFileSync(here('dist/artifact.html'), `${head(SITE_NAME)}${page(js)}`);
 }
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
-console.log(`docs/index.html ${kb(doc)} (js ${kb(js)}, css ${kb(css)}, data ${kb(data)})`);
+console.log(`${join(outDir, 'index.html')} ${kb(doc)} (js ${kb(js)}, css ${kb(css)}, data ${kb(data)})`);

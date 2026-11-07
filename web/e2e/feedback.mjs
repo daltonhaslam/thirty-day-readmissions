@@ -1,4 +1,4 @@
-// Feedback link, end to end: serves docs/ with the vercel.json headers (so CSP is enforced), clicks each
+// Feedback link, end to end: serves the old site's built page (web/dist/) with the vercel.json headers (so CSP is enforced), clicks each
 // feedback link, and checks the Google Form opens in a new tab with only the site and current page prefilled.
 // Google is never reached: requests to it are answered locally.
 // Usage: node e2e/feedback.mjs

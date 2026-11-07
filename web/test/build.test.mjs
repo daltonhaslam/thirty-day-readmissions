@@ -7,7 +7,8 @@ import { loadData } from '../src/js/data.js';
 import { cardHtml, cardImageUrl } from '../og-card.mjs';
 
 const docs = (p) => new URL(`../../docs/${p}`, import.meta.url);
-const html = readFileSync(docs('index.html'), 'utf8');
+// The old site's page, as `npm test` builds it first (pretest) into web/dist/; docs/ holds the "moved" page and og.png.
+const html = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
 const png = readFileSync(docs('og.png'));
 
 test('the page declares a versioned social preview image with absolute URLs', () => {

@@ -1,4 +1,4 @@
-// Serve docs/ with the exact headers from vercel.json and check the page still works under them.
+// Serve the old site's built page (web/dist/) with the exact headers from vercel.json and check it still works under them.
 // Usage: node e2e/headers.mjs
 import { chromium } from 'playwright';
 import { serveWithHeaders, builtPage, makeCheck } from './_lib.mjs';

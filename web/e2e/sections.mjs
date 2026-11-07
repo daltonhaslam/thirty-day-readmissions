@@ -6,7 +6,7 @@ const p = await b.newPage({ viewport: { width: Number(width), height: 1000 }, co
 const errors = [];
 p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 p.on('pageerror', (e) => errors.push(String(e)));
-await p.goto(`file://${new URL('../../docs/index.html', import.meta.url).pathname}${hash}`);
+await p.goto(`file://${new URL('../dist/index.html', import.meta.url).pathname}${hash}`);
 await p.waitForTimeout(800);
 await p.addStyleTag({ content: '.topbar{position:static !important}' });
 for (const sel of sels) {

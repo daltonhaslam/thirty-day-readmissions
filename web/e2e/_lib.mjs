@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 
 const root = new URL('../../', import.meta.url);
 export const vercelConfig = JSON.parse(readFileSync(new URL('vercel.json', root), 'utf8'));
-export const builtPage = () => readFileSync(new URL(`${vercelConfig.outputDirectory}/index.html`, root));
+// The old site's built page (web/build.mjs writes it to web/dist/; docs/, which Vercel serves, now holds the "moved" page).
+export const builtPage = () => readFileSync(new URL('web/dist/index.html', root));
+export const movedPage = () => readFileSync(new URL(`${vercelConfig.outputDirectory}/index.html`, root));
 
 // Vercel serves its analytics script at this path in production; tests stand in an empty script so the tag resolves.
 export const INSIGHTS_PATH = '/_vercel/insights/script.js';

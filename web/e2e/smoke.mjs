@@ -1,9 +1,9 @@
-// End-to-end smoke test of the built page (docs/index.html) in installed Chrome.
+// End-to-end smoke test of the old site's built page (web/dist/index.html; run npm run build first) in installed Chrome.
 // Usage: node e2e/smoke.mjs   (exit 1 on any failure)
 import { chromium } from 'playwright';
 import { stubInsights } from './_lib.mjs';
 
-const PAGE = `file://${new URL('../../docs/index.html', import.meta.url).pathname}`;
+const PAGE = `file://${new URL('../dist/index.html', import.meta.url).pathname}`;
 const ROUTES = ['', '#region-south', '#division-south-atlantic', '#state-ut', '#metro-41620', '#hospital-010006',
   '#hospital-010051', '#hospital-010021', '#methods', '#methods-dollars', '#hospital-999999', '#map', '#nope-route'];
 const failures = [];
