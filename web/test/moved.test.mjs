@@ -109,8 +109,10 @@ test('the page: its button works without the script, it loads only its own files
   assert.match(html, /<a class="go" id="go" href="https:\/\/paidandpenalized\.org\/hrrp\/">/);
   assert.match(html, /<title>Thirty Day Readmissions has moved<\/title>/);
   assert.doesNotMatch(html, /name="robots"/, 'no noindex: the page should be findable as moved');
+  // Search engines are pointed at the new program page (Dalton, 2026-11-07).
+  assert.match(html, /<link rel="canonical" href="https:\/\/paidandpenalized\.org\/hrrp\/">/);
   // Only same-origin files: the script, Vercel's analytics script, and nothing from a font service or elsewhere.
-  const srcs = [...html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
+  const srcs = [...html.matchAll(/<(?:script|link|img)\b(?![^>]*rel="canonical")[^>]*\b(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(srcs.filter((s) => !s.startsWith('data:')), ['moved.js', '/_vercel/insights/script.js']);
   assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic|@import|url\(http/);
   // The card's version is the served file's hash, so a re-rendered og.png (npm run og) shows up here.
